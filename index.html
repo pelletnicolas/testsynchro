@@ -164,6 +164,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     <button class="subnav-btn" id="bp-sub-fiscalite" onclick="showBpPage('bp-fiscalite',this)">Fiscalité IS</button>
     <button class="subnav-btn" id="bp-sub-kpi" onclick="showBpPage('bp-kpi',this)">KPI</button>
     <button class="subnav-btn" id="bp-sub-revente" onclick="showBpPage('bp-revente',this)">Simulation revente</button>
+    <button class="subnav-btn" id="bp-sub-tresorerie-mensuelle" onclick="showBpPage('bp-tresorerie-mensuelle',this)">💰 Trésorerie mensuelle</button>
     <button class="subnav-btn" id="bp-sub-params" onclick="showBpPage('bp-params',this)">Paramètres</button>
   </div>
   <div class="subnav-bar" id="subnav-marche">
@@ -683,6 +684,23 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
       </div>
     </div>
 
+    <!-- BP TRÉSORERIE MENSUELLE -->
+    <div class="page" id="page-bp-tresorerie-mensuelle">
+      <div class="page-header">
+        <div class="page-title">Business Plan · Trésorerie mensuelle</div>
+        <div style="font-size:12px;color:var(--text3)">Calculé depuis le portefeuille BP · Mai 2026→Déc 2035 · 120 mois</div>
+      </div>
+      <div class="card" style="margin-bottom:14px;padding:12px 16px">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text2)">
+          <span>🟢 CF positif</span>
+          <span>🔴 CF négatif</span>
+          <span>📅 Mois d'acquisition</span>
+          <span style="margin-left:auto;color:var(--text3)">Cliquez sur une année pour la déplier / replier</span>
+        </div>
+      </div>
+      <div id="bp-tresorerie-mensuelle-content"></div>
+    </div>
+
     <!-- BP PARAMÈTRES -->
     <div class="page" id="page-bp-params">
       <div class="page-header">
@@ -931,11 +949,14 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     </div>
     <div class="two-col">
       <div class="fg"><label>Frais d'acquisition (€)</label><input id="bpb-frais" type="number" step="1" min="0" placeholder="ex: 8720" oninput="updateBpCreditPreview()"></div>
-      <div class="fg" style="display:flex;flex-direction:column;justify-content:flex-end">
-        <div id="bpb-credit-preview" style="background:var(--surface2);border-radius:var(--radius);padding:10px 12px;font-size:13px">
-          Crédit : <strong>—</strong>
-        </div>
-      </div>
+      <div class="fg"><label>Montant du crédit (€) <span style="font-weight:400;color:var(--text3)">— laisser 0 = auto (prix+frais)</span></label><input id="bpb-credit" type="number" step="1" min="0" placeholder="0 = auto" oninput="updateBpCreditPreview()"></div>
+    </div>
+    <div class="two-col">
+      <div class="fg"><label>Taux d'intérêt annuel (%)</label><input id="bpb-taux" type="number" step="0.01" min="0" max="20" placeholder="3.5" oninput="updateBpCreditPreview()"></div>
+      <div class="fg"><label>Durée du crédit (mois)</label><input id="bpb-duree" type="number" step="1" min="12" max="360" placeholder="240" oninput="updateBpCreditPreview()"></div>
+    </div>
+    <div id="bpb-credit-preview" style="background:var(--surface2);border-radius:var(--radius);padding:10px 12px;font-size:13px;margin-bottom:13px">
+      Crédit : <strong>—</strong>
     </div>
     <div class="two-col">
       <div class="fg"><label>Loyer mensuel HC (€) — Modes A et C</label><input id="bpb-loyer" type="number" placeholder="0"></div>
@@ -1942,6 +1963,7 @@ async function updateBien(){
   const b=DATA.biens[id];if(!b)return;
   const g=id=>document.getElementById(id);
   const gn=id=>{const v=g(id).value;return v===''?null:Number(v);}
+  const ancienneAdresse = b.adresse;
   b.adresse=g('eb-adresse').value.trim()||b.adresse;
   b.ville=g('eb-ville').value.trim();
   b.type=g('eb-type').value;
@@ -1967,6 +1989,39 @@ async function updateBien(){
   b.dateEntree=g('eb-dateentree').value;
   b.dateFinBail=g('eb-datefinbail').value;
   b.depot=gn('eb-depot')??0;
+  // Mettre à jour les libellés des mouvements et CCA si l'adresse a changé
+  const nouvelleAdresse = b.adresse;
+  const libellesToUpdate_mvt = {};
+  const libellesToUpdate_cca = {};
+  if(ancienneAdresse !== nouvelleAdresse){
+    // Mouvements liés au bien : remplacer l'ancienne adresse si présente, sinon reconstruire le libellé
+    Object.values(DATA.mouvements).forEach(m => {
+      if(m.bienId === id && m.libelle){
+        if(m.libelle.includes(ancienneAdresse)){
+          m.libelle = m.libelle.replaceAll(ancienneAdresse, nouvelleAdresse);
+        } else {
+          // Libellé sans adresse (ex: "Apport CCA Romain") => on ajoute la nouvelle adresse
+          m.libelle = m.libelle + ' — ' + nouvelleAdresse;
+        }
+        libellesToUpdate_mvt[m.id] = m;
+      }
+    });
+    // CCA liés au bien : même logique
+    Object.values(DATA.cca).forEach(c => {
+      if(c.bienId === id && c.libelle){
+        if(c.libelle.includes(ancienneAdresse)){
+          c.libelle = c.libelle.replaceAll(ancienneAdresse, nouvelleAdresse);
+        } else {
+          c.libelle = c.libelle.replace(/ — .*$/, '') + ' — ' + nouvelleAdresse;
+        }
+        libellesToUpdate_cca[c.id] = c;
+      } else if(!c.bienId && c.libelle && c.libelle.includes(ancienneAdresse)){
+        c.libelle = c.libelle.replaceAll(ancienneAdresse, nouvelleAdresse);
+        c.bienId = id;
+        libellesToUpdate_cca[c.id] = c;
+      }
+    });
+  }
   // Mettre à jour les apports CCA : modifier les entrées existantes, créer si absentes, supprimer si 0
   const g2 = key => Number((document.getElementById(key)||{}).value) || 0;
   const nouvMontants = { Nicolas: g2('eb-cca-nicolas'), Romain: g2('eb-cca-romain'), Enzo: g2('eb-cca-enzo') };
@@ -2029,6 +2084,10 @@ async function updateBien(){
       mvtToSave[mid] = mvt;
     }
   }
+
+  // Fusionner les libellés mis à jour dans les objets à sauvegarder (évite les écrasements)
+  Object.assign(ccaToSave, libellesToUpdate_cca);
+  Object.assign(mvtToSave, libellesToUpdate_mvt);
 
   closeModal('modal-edit-bien');
   await fbSave('biens',{[id]:b});
@@ -2226,14 +2285,16 @@ const BP_BIENS = [
 // Calcul mensualité crédit (prix + frais notaire en €), taux 3.5%, 20 ans
 function bpMensualite(b){
   const frais = b.frais !== undefined ? b.frais : 8720;
-  const c = b.prix + frais, r=0.035/12, n=240;
+  const c = b.credit && b.credit > 0 ? b.credit : (b.prix + frais);
+  const r = (b.taux !== undefined ? b.taux : 3.5) / 100 / 12;
+  const n = b.duree !== undefined ? b.duree : 240;
   return c*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);
 }
 
 // Estimation CA annuel par mode — affiche le CA de l'année d'achat du bien si anneeRef=null
 function bpCaAnnuel(b, anneeRef){
   const achatAnnee = parseInt(b.date.split('/')[2]);
-  if(anneeRef === null) anneeRef = achatAnnee; // CA de la 1ère année pleine
+  if(anneeRef === null) anneeRef = achatAnnee;
   if(anneeRef < achatAnnee) return 0;
   const prorata = anneeRef === achatAnnee ? (12 - parseInt(b.date.split('/')[1]) + 1) / 12 : 1;
   const irl = Math.pow(1.015, anneeRef - achatAnnee);
@@ -2254,9 +2315,11 @@ function bpCaAnnuel(b, anneeRef){
 function bpCRD(b, anneeRef){
   const achatAnnee = parseInt(b.date.split('/')[2]);
   if(anneeRef < achatAnnee) return 0;
-  const moisEcoules = Math.min((anneeRef - achatAnnee + 1) * 12, 240);
   const frais = b.frais !== undefined ? b.frais : 8720;
-  const c = b.prix + frais, r = 0.035/12, n = 240;
+  const c = b.credit && b.credit > 0 ? b.credit : (b.prix + frais);
+  const r = (b.taux !== undefined ? b.taux : 3.5) / 100 / 12;
+  const n = b.duree !== undefined ? b.duree : 240;
+  const moisEcoules = Math.min((anneeRef - achatAnnee + 1) * 12, n);
   const mens = c*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1);
   let cap = c;
   for(let i=0;i<moisEcoules;i++) { const int=cap*r; cap-=(mens-int); }
@@ -2269,6 +2332,7 @@ function renderBpPage(page){
   else if(page==='frise') renderBpFrise();
   else if(page==='kpi') renderBpKpi();
   else if(page==='revente') renderBpRevente();
+  else if(page==='tresorerie-mensuelle') renderBpTresorerieMensuelle();
 }
 
 function renderBpPortefeuille(){
@@ -2280,7 +2344,7 @@ function renderBpPortefeuille(){
     const credit = Math.round(b.prix + frais);
     const mens = bpMensualite(b);
     const achatAn = parseInt(b.date.split('/')[2]);
-    const ca = bpCaAnnuel(b, achatAn); // CA de l'année d'achat du bien
+    const ca = bpCaAnnuel(b, achatAn + 1); // CA sur 12 mois complets (1ère année pleine)
     const rdt = ca > 0 ? (ca / b.prix * 100) : 0;
     return `<tr>
       <td style="color:var(--text3)">${b.n}</td>
@@ -2315,6 +2379,9 @@ function openEditBpBien(i){
   document.getElementById('bpb-date').value = b.date;
   document.getElementById('bpb-prix').value = b.prix;
   document.getElementById('bpb-frais').value = b.frais !== undefined ? b.frais : 8720;
+  document.getElementById('bpb-credit').value = b.credit || 0;
+  document.getElementById('bpb-taux').value = b.taux !== undefined ? b.taux : 3.5;
+  document.getElementById('bpb-duree').value = b.duree !== undefined ? b.duree : 240;
   document.getElementById('bpb-loyer').value = b.loyer || 0;
   document.getElementById('bpb-airbnb').value = b.airbnb_nuit || 0;
   updateBpCreditPreview();
@@ -2324,10 +2391,14 @@ function openEditBpBien(i){
 function updateBpCreditPreview(){
   const prix = Number(document.getElementById('bpb-prix').value) || 0;
   const frais = Number(document.getElementById('bpb-frais').value) || 0;
-  const credit = prix + frais;
-  const mens = credit > 0 ? (() => { const r=0.035/12,n=240; return credit*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1); })() : 0;
+  const creditManuel = Number(document.getElementById('bpb-credit').value) || 0;
+  const taux = Number(document.getElementById('bpb-taux').value) || 3.5;
+  const duree = Number(document.getElementById('bpb-duree').value) || 240;
+  const credit = creditManuel > 0 ? creditManuel : (prix + frais);
+  const r = taux / 100 / 12, n = duree;
+  const mens = credit > 0 && r > 0 ? credit*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1) : (credit / n);
   document.getElementById('bpb-credit-preview').innerHTML =
-    `Crédit : <strong>${euro(credit)}</strong><br><span style="font-size:11px;color:var(--red)">Mensualité : ${euro(Math.round(mens),2)}/mois</span>`;
+    `Crédit&nbsp;: <strong>${euro(credit)}</strong> · Taux&nbsp;: <strong>${taux}%</strong> · Durée&nbsp;: <strong>${duree} mois</strong><br><span style="font-size:12px;color:var(--red);font-weight:600">➜ Mensualité calculée&nbsp;: ${euro(Math.round(mens))}/mois</span>`;
 }
 
 function saveBpBien(){
@@ -2344,6 +2415,9 @@ function saveBpBien(){
   BP_BIENS[i].date = dateVal;
   BP_BIENS[i].prix = Number(document.getElementById('bpb-prix').value) || BP_BIENS[i].prix;
   BP_BIENS[i].frais = Number(document.getElementById('bpb-frais').value) || 0;
+  BP_BIENS[i].credit = Number(document.getElementById('bpb-credit').value) || 0;
+  BP_BIENS[i].taux = Number(document.getElementById('bpb-taux').value) || 3.5;
+  BP_BIENS[i].duree = Number(document.getElementById('bpb-duree').value) || 240;
   BP_BIENS[i].loyer = Number(document.getElementById('bpb-loyer').value) || 0;
   BP_BIENS[i].airbnb_nuit = Number(document.getElementById('bpb-airbnb').value) || 0;
   try{ localStorage.setItem('sci_bp_biens', JSON.stringify(BP_BIENS)); } catch(e){}
@@ -2354,6 +2428,237 @@ function saveBpBien(){
   else if(currentBpPage==='frise') renderBpFrise();
   else if(currentBpPage==='kpi') renderBpKpi();
   else if(currentBpPage==='revente') renderBpRevente();
+  else if(currentBpPage==='tresorerie-mensuelle') renderBpTresorerieMensuelle();
+}
+
+
+// ============================================================
+// BP TRÉSORERIE MENSUELLE — calcul mensuel interactif
+// ============================================================
+
+// Paramètres charges par bien actif (identiques à Trésorerie Annuelle)
+function bpChargesMensuelles(b) {
+  const COPRO_AN = 350, FONC_AN = 246, ASSUR_AN = 50, ENTR_COEFF = 0.005;
+  return {
+    copro: COPRO_AN / 12,
+    fonciere: FONC_AN / 12,
+    assurpno: ASSUR_AN / 12,
+    entretien: (b.prix * ENTR_COEFF) / 12
+  };
+}
+
+// Calcul IS mensuel approximatif (1/12 de l'IS annuel)
+function bpISMensuel(b, annee) {
+  const achat = parseInt(b.date.split('/')[2]);
+  if (annee < achat) return 0;
+  const ca = bpCaAnnuel(b, annee);
+  const mens = bpMensualite(b);
+  const intAn = mens * 12 * 0.38; // ~38% intérêts (décroissant, approximation)
+  const charges = bpChargesMensuelles(b);
+  const chargesAn = (charges.copro + charges.fonciere + charges.assurpno + charges.entretien) * 12;
+  const amort = b.prix * 0.8 * 0.025;
+  const cfe = 500 / 12;
+  const resultat = Math.max(0, ca - intAn - chargesAn - amort - cfe);
+  const is = resultat <= 42500 ? resultat * 0.15 : 42500 * 0.15 + (resultat - 42500) * 0.25;
+  return is / 12;
+}
+
+// CA mensuel d'un bien pour un mois/année donné (respecte mode A/B/C et saisonnalité)
+function bpCaMensuel(b, annee, mois) {
+  const achatAn = parseInt(b.date.split('/')[2]);
+  const achatMois = parseInt(b.date.split('/')[1]);
+  if (annee < achatAn || (annee === achatAn && mois < achatMois)) return 0;
+
+  const anneesEcoules = annee - achatAn;
+  const irl = Math.pow(1.015, anneesEcoules);
+  const airbnb = b.airbnb_nuit || 0;
+  const loyer = b.loyer || 0;
+
+  if (b.mode === 'C') {
+    return loyer * irl;
+  }
+  if (b.mode === 'A') {
+    // Sep-Mai = bail, Jun-Juil-Aout = Airbnb haute saison
+    if ([6, 7, 8].includes(mois)) return airbnb * 18 * 1.2 * irl;
+    if ([9,10,11,12,1,2,3,4,5].includes(mois)) return loyer * irl;
+    return 0;
+  }
+  if (b.mode === 'B') {
+    if ([6, 7, 8].includes(mois)) return airbnb * 18 * 1.2 * irl;
+    if ([4, 5, 9, 10].includes(mois)) return airbnb * 12 * 1.0 * irl;
+    return airbnb * 10 * 0.9 * irl; // basse saison Nov-Mars
+  }
+  return 0;
+}
+
+// Rendu de la trésorerie mensuelle BP
+function renderBpTresorerieMensuelle() {
+  const container = document.getElementById('bp-tresorerie-mensuelle-content');
+  if (!container) return;
+
+  // Générer tous les mois de Mai 2026 à Déc 2035
+  const mois_fr = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const ANNEES = [2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035];
+
+  // Construire la liste de tous les mois
+  const tous_mois = [];
+  for (const an of ANNEES) {
+    const debut = an === 2026 ? 5 : 1;
+    for (let m = debut; m <= 12; m++) {
+      tous_mois.push({ an, m });
+    }
+  }
+
+  // Pré-calculer cumul global
+  let cumulGlobal = 0;
+
+  // Grouper par année, calculer les totaux annuels
+  const dataParAnnee = {};
+  for (const { an, m } of tous_mois) {
+    if (!dataParAnnee[an]) dataParAnnee[an] = [];
+
+    const biensActifs = BP_BIENS.filter(b => {
+      const ba = parseInt(b.date.split('/')[2]);
+      const bm = parseInt(b.date.split('/')[1]);
+      return ba < an || (ba === an && bm <= m);
+    });
+
+    // Acquisitions ce mois
+    const acquisitions = BP_BIENS.filter(b => {
+      const ba = parseInt(b.date.split('/')[2]);
+      const bm = parseInt(b.date.split('/')[1]);
+      return ba === an && bm === m;
+    });
+
+    const ca = biensActifs.reduce((s, b) => s + bpCaMensuel(b, an, m), 0);
+    const mensualites = biensActifs.reduce((s, b) => s + bpMensualite(b), 0);
+
+    // CCA : apports mensuels 300€/associé × 3 + apport initial lors d'acquisition
+    let cca = 900; // 300 × 3 associés
+    const apportAcquisition = acquisitions.reduce((s, b) => {
+      const frais = b.frais !== undefined ? b.frais : 8720;
+      return s + (b.credit && b.credit > 0 ? b.credit : b.prix + frais) - b.prix - (b.frais || 8720);
+    }, 0);
+    // Apport CCA à l'acquisition (prix + frais - crédit)
+    const apportCcaAcq = acquisitions.reduce((s, b) => {
+      const frais = b.frais !== undefined ? b.frais : 8720;
+      const credit = b.credit && b.credit > 0 ? b.credit : b.prix + frais;
+      return s + Math.max(0, b.prix + frais - credit);
+    }, 0);
+
+    // Crédit débloqué à l'acquisition
+    const creditDebloque = acquisitions.reduce((s, b) => {
+      const frais = b.frais !== undefined ? b.frais : 8720;
+      return s + (b.credit && b.credit > 0 ? b.credit : b.prix + frais);
+    }, 0);
+
+    // Coût acquisition = prix + frais
+    const coutAcq = acquisitions.reduce((s, b) => s + b.prix + (b.frais !== undefined ? b.frais : 8720), 0);
+
+    // Charges courantes
+    const chargesTotal = biensActifs.reduce((s, b) => {
+      const c = bpChargesMensuelles(b);
+      return s + c.copro + c.fonciere + c.assurpno + c.entretien;
+    }, 0);
+
+    // IS mensuel (décembre = régularisation annuelle)
+    const isMensuel = m === 12 ? biensActifs.reduce((s, b) => s + bpISMensuel(b, an), 0) : 0;
+    const cfeAnnuel = m === 12 ? 500 : 0;
+
+    const totalEncaiss = ca + cca + apportCcaAcq + creditDebloque;
+    const totalDecaiss = mensualites + chargesTotal + coutAcq + isMensuel + cfeAnnuel;
+    const cfNet = totalEncaiss - totalDecaiss;
+    cumulGlobal += cfNet;
+
+    const isAcquisition = acquisitions.length > 0;
+
+    dataParAnnee[an].push({
+      an, m, ca, mensualites, cca, creditDebloque, apportCcaAcq,
+      chargesTotal, coutAcq, isMensuel, cfeAnnuel,
+      totalEncaiss, totalDecaiss, cfNet, cumul: cumulGlobal,
+      isAcquisition, acquisitions, biensActifs: biensActifs.length
+    });
+  }
+
+  // Rendu HTML
+  let html = '';
+  for (const an of ANNEES) {
+    const rows = dataParAnnee[an] || [];
+    const caAn = rows.reduce((s, r) => s + r.ca, 0);
+    const cfAn = rows.reduce((s, r) => s + r.cfNet, 0);
+    const cumulFin = rows.length ? rows[rows.length-1].cumul : 0;
+    const nbBiensFin = rows.length ? rows[rows.length-1].biensActifs : 0;
+    const cfColor = cfAn >= 0 ? 'var(--green)' : 'var(--red)';
+
+    html += `
+    <div class="card" style="margin-bottom:10px;padding:0;overflow:hidden">
+      <div onclick="toggleTresoAnnee(${an})" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;background:var(--surface2);user-select:none">
+        <div style="display:flex;align-items:center;gap:16px">
+          <span style="font-size:14px;font-weight:700;color:var(--text)">${an}</span>
+          <span style="font-size:12px;color:var(--text2)">${nbBiensFin} bien${nbBiensFin>1?'s':''} actif${nbBiensFin>1?'s':''}</span>
+          <span style="font-size:12px;color:var(--blue)">CA : ${euro(Math.round(caAn))}</span>
+          <span style="font-size:12px;font-weight:600;color:${cfColor}">CF annuel : ${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</span>
+          <span style="font-size:12px;color:var(--text3)">Cumul : ${euro(Math.round(cumulFin))}</span>
+        </div>
+        <span id="treso-chevron-${an}" style="font-size:16px;color:var(--text3);transition:transform .2s">▸</span>
+      </div>
+      <div id="treso-body-${an}" style="display:none;overflow-x:auto">
+        <table class="jtable" style="font-size:12px">
+          <thead>
+            <tr style="background:var(--surface2)">
+              <th>Mois</th><th>Biens</th>
+              <th style="color:var(--green)">CA locatif</th><th style="color:var(--green)">CCA+Crédit</th><th style="color:var(--green)">Total encaiss.</th>
+              <th style="color:var(--red)">Mensualités</th><th style="color:var(--red)">Charges</th><th style="color:var(--red)">Acquisitions</th><th style="color:var(--red)">IS+CFE</th><th style="color:var(--red)">Total décaiss.</th>
+              <th style="font-weight:700">CF net</th><th>Cumul</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => {
+              const cfCol = r.cfNet >= 0 ? 'var(--green)' : 'var(--red)';
+              const rowBg = r.isAcquisition ? 'background:var(--blue-light)' : '';
+              const acqLabel = r.isAcquisition ? ` 📅 ${r.acquisitions.map(b=>b.adresse.split(',')[0].split('/')[0].trim().substring(0,15)).join(', ')}` : '';
+              return `<tr style="${rowBg}">
+                <td style="white-space:nowrap;font-weight:${r.isAcquisition?'600':'400'}">${mois_fr[r.m-1]} ${r.an}${acqLabel}</td>
+                <td style="color:var(--text3)">${r.biensActifs}</td>
+                <td class="amount-pos">${r.ca>0?euro(Math.round(r.ca)):'—'}</td>
+                <td style="color:var(--blue)">${(r.cca+r.creditDebloque+r.apportCcaAcq)>0?euro(Math.round(r.cca+r.creditDebloque+r.apportCcaAcq)):'—'}</td>
+                <td style="font-weight:500;color:var(--green)">${euro(Math.round(r.totalEncaiss))}</td>
+                <td style="color:var(--red)">${r.mensualites>0?euro(Math.round(r.mensualites)):'—'}</td>
+                <td style="color:var(--amber)">${r.chargesTotal>0?euro(Math.round(r.chargesTotal)):'—'}</td>
+                <td style="color:var(--red)">${r.coutAcq>0?euro(Math.round(r.coutAcq)):'—'}</td>
+                <td style="color:var(--text3)">${(r.isMensuel+r.cfeAnnuel)>0?euro(Math.round(r.isMensuel+r.cfeAnnuel)):'—'}</td>
+                <td style="font-weight:500;color:var(--red)">${euro(Math.round(r.totalDecaiss))}</td>
+                <td style="font-weight:700;color:${cfCol}">${r.cfNet>=0?'+':''}${euro(Math.round(r.cfNet))}</td>
+                <td style="font-size:11px;color:${r.cumul>=0?'var(--green)':'var(--red)'}">${euro(Math.round(r.cumul))}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:var(--surface2);font-weight:600">
+              <td colspan="2">TOTAL ${an}</td>
+              <td style="color:var(--green)">${euro(Math.round(caAn))}</td>
+              <td colspan="2"></td>
+              <td colspan="4"></td>
+              <td></td>
+              <td style="color:${cfColor}">${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</td>
+              <td style="color:${cumulFin>=0?'var(--green)':'var(--red)'}">${euro(Math.round(cumulFin))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function toggleTresoAnnee(an) {
+  const body = document.getElementById('treso-body-' + an);
+  const chevron = document.getElementById('treso-chevron-' + an);
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  chevron.style.transform = isOpen ? '' : 'rotate(90deg)';
 }
 
 function resetBpBiens(){
