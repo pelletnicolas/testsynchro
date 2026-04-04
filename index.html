@@ -460,7 +460,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
       <div class="page-header">
         <div>
           <div class="page-title">Business Plan · Tableau de bord</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px">Objectif : 1 000 €/mois/associé · 20 biens 2026–2035 · Cycle A→C→B · 108% crédit bancaire</div>
+
         </div>
       </div>
       <!-- KPIs portefeuille -->
@@ -468,7 +468,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
         <div class="kpi"><div class="kpi-label">🏠 Biens prévus</div><div class="kpi-val">20</div></div>
         <div class="kpi"><div class="kpi-label">📅 Horizon</div><div class="kpi-val" style="font-size:14px">2026→2035</div></div>
         <div class="kpi"><div class="kpi-label">💶 Invest. total estimé</div><div class="kpi-val" style="font-size:15px">2 180 000 €</div></div>
-        <div class="kpi"><div class="kpi-label">🏦 Crédit 108%</div><div class="kpi-val" style="font-size:15px">2 354 400 €</div></div>
+        <div class="kpi"><div class="kpi-label">🏦 Crédit total</div><div class="kpi-val" style="font-size:15px">2 354 400 €</div></div>
         <div class="kpi"><div class="kpi-label">👥 Apports CCA/assoc.</div><div class="kpi-val" style="font-size:15px">4 000 €</div></div>
         <div class="kpi"><div class="kpi-label">📈 Taux · Durée</div><div class="kpi-val" style="font-size:14px">3,5% · 20 ans</div></div>
       </div>
@@ -522,7 +522,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
       <div class="page-header">
         <div class="page-title">Business Plan · Portefeuille 20 biens</div>
         <div style="display:flex;align-items:center;gap:8px">
-          <div style="font-size:12px;color:var(--text3)">Crédit 108% · Apport CCA · Frais ~13%</div>
+          <div style="font-size:12px;color:var(--text3)">Crédit · Apport CCA · Frais ~13%</div>
         </div>
       </div>
       <div style="overflow-x:auto">
@@ -530,7 +530,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
           <thead>
             <tr>
               <th>#</th><th>Adresse / Quartier</th><th>Type</th><th>Mode</th>
-              <th>Date achat</th><th>Prix achat</th><th>Crédit 108%</th>
+              <th>Date achat</th><th>Prix achat</th><th>Crédit</th>
               <th>Mensualité</th><th>CA annuel est.</th><th>Rendement brut</th><th></th>
             </tr>
           </thead>
@@ -2341,7 +2341,7 @@ function renderBpPortefeuille(){
   const modeColor = {A:'var(--blue)', B:'var(--green)', C:'var(--accent)'};
   tbody.innerHTML = BP_BIENS.map((b,i) => {
     const frais = b.frais !== undefined ? b.frais : 8720;
-    const credit = Math.round(b.prix + frais);
+    const credit = Math.round(b.credit && b.credit > 0 ? b.credit : b.prix + frais);
     const mens = bpMensualite(b);
     const achatAn = parseInt(b.date.split('/')[2]);
     const ca = bpCaAnnuel(b, achatAn + 1); // CA sur 12 mois complets (1ère année pleine)
@@ -2362,7 +2362,7 @@ function renderBpPortefeuille(){
   }).join('') + `<tr style="background:var(--surface2);font-weight:600">
     <td colspan="5">TOTAUX</td>
     <td>${euro(BP_BIENS.reduce((s,b)=>s+b.prix,0))}</td>
-    <td>${euro(Math.round(BP_BIENS.reduce((s,b)=>s+b.prix+(b.frais||8720),0)))}</td>
+    <td>${euro(Math.round(BP_BIENS.reduce((s,b)=>{ const fr=b.frais!==undefined?b.frais:8720; return s+(b.credit&&b.credit>0?b.credit:b.prix+fr); },0)))}</td>
     <td style="color:var(--red)">${euro(Math.round(BP_BIENS.reduce((s,b)=>s+bpMensualite(b),0)),0)}</td>
     <td colspan="3"></td>
   </tr>`;
