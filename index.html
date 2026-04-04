@@ -531,7 +531,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
             <tr>
               <th>#</th><th>Adresse / Quartier</th><th>Type</th><th>Mode</th>
               <th>Date achat</th><th>Prix achat</th><th>Crédit</th>
-              <th>Mensualité</th><th>CA annuel est.</th><th>Rendement brut</th><th></th>
+              <th>Mensualité</th><th>Apport CCA</th><th>CA annuel est.</th><th>Rendement brut</th><th></th>
             </tr>
           </thead>
           <tbody id="bp-portefeuille-body"></tbody>
@@ -962,6 +962,13 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
       <div class="fg"><label>Loyer mensuel HC (€) — Modes A et C</label><input id="bpb-loyer" type="number" placeholder="0"></div>
       <div class="fg"><label>Prix Airbnb / nuit (€) — Modes A et B</label><input id="bpb-airbnb" type="number" placeholder="0"></div>
     </div>
+    <div class="sl" style="margin-top:4px">Apports CCA associés (€ par associé)</div>
+    <div class="three-col">
+      <div class="fg" style="margin-bottom:0"><label>Nicolas (€)</label><input id="bpb-cca-nicolas" type="number" min="0" placeholder="0" oninput="updateBpCcaTotal()"></div>
+      <div class="fg" style="margin-bottom:0"><label>Romain (€)</label><input id="bpb-cca-romain" type="number" min="0" placeholder="0" oninput="updateBpCcaTotal()"></div>
+      <div class="fg" style="margin-bottom:0"><label>Enzo (€)</label><input id="bpb-cca-enzo" type="number" min="0" placeholder="0" oninput="updateBpCcaTotal()"></div>
+    </div>
+    <div id="bpb-cca-total" style="font-size:12px;color:var(--text3);margin:6px 0 10px"></div>
     <div style="background:var(--surface2);border-radius:var(--radius);padding:12px;font-size:12px;color:var(--text2);margin-bottom:4px">
       <strong>Rappel des modes :</strong><br>
       Mode A = Bail étudiant 9 mois + Airbnb été · Mode B = Full Airbnb toute l'année · Mode C = Loyer mensuel × 12
@@ -2355,6 +2362,7 @@ function renderBpPortefeuille(){
       <td>${euro(b.prix)}</td>
       <td title="Frais notaire ${(frais*100).toFixed(0)}%">${euro(credit)}</td>
       <td style="color:var(--red)">${euro(Math.round(mens),2)}</td>
+      <td style="color:var(--blue)">${(() => { const frais=b.frais!==undefined?b.frais:8720; const credit=b.credit&&b.credit>0?b.credit:b.prix+frais; const apportAuto=Math.max(0,b.prix+frais-credit); const apportTotal=(b.cca_nicolas||0)+(b.cca_romain||0)+(b.cca_enzo||0); return apportTotal>0?euro(apportTotal):(apportAuto>0?euro(apportAuto):'—'); })()}</td>
       <td style="color:var(--green)">${ca>0?euro(ca):'—'}</td>
       <td style="font-weight:500">${ca>0?(rdt.toFixed(1)+'%'):'—'}</td>
       <td><button class="btn btn-sm" onclick="openEditBpBien(${i})">✏️</button></td>
@@ -2364,7 +2372,8 @@ function renderBpPortefeuille(){
     <td>${euro(BP_BIENS.reduce((s,b)=>s+b.prix,0))}</td>
     <td>${euro(Math.round(BP_BIENS.reduce((s,b)=>{ const fr=b.frais!==undefined?b.frais:8720; return s+(b.credit&&b.credit>0?b.credit:b.prix+fr); },0)))}</td>
     <td style="color:var(--red)">${euro(Math.round(BP_BIENS.reduce((s,b)=>s+bpMensualite(b),0)),0)}</td>
-    <td colspan="3"></td>
+    <td style="color:var(--blue)">${euro(BP_BIENS.reduce((s,b)=>{ const fr=b.frais!==undefined?b.frais:8720; const cr=b.credit&&b.credit>0?b.credit:b.prix+fr; const auto=Math.max(0,b.prix+fr-cr); const man=(b.cca_nicolas||0)+(b.cca_romain||0)+(b.cca_enzo||0); return s+(man>0?man:auto); },0))}</td>
+    <td colspan="2"></td>
   </tr>`;
 }
 
@@ -2384,6 +2393,10 @@ function openEditBpBien(i){
   document.getElementById('bpb-duree').value = b.duree !== undefined ? b.duree : 240;
   document.getElementById('bpb-loyer').value = b.loyer || 0;
   document.getElementById('bpb-airbnb').value = b.airbnb_nuit || 0;
+  document.getElementById('bpb-cca-nicolas').value = b.cca_nicolas !== undefined ? b.cca_nicolas : '';
+  document.getElementById('bpb-cca-romain').value = b.cca_romain !== undefined ? b.cca_romain : '';
+  document.getElementById('bpb-cca-enzo').value = b.cca_enzo !== undefined ? b.cca_enzo : '';
+  updateBpCcaTotal();
   updateBpCreditPreview();
   openModal('modal-edit-bp-bien');
 }
@@ -2399,6 +2412,15 @@ function updateBpCreditPreview(){
   const mens = credit > 0 && r > 0 ? credit*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1) : (credit / n);
   document.getElementById('bpb-credit-preview').innerHTML =
     `Crédit&nbsp;: <strong>${euro(credit)}</strong> · Taux&nbsp;: <strong>${taux}%</strong> · Durée&nbsp;: <strong>${duree} mois</strong><br><span style="font-size:12px;color:var(--red);font-weight:600">➜ Mensualité calculée&nbsp;: ${euro(Math.round(mens))}/mois</span>`;
+}
+
+function updateBpCcaTotal(){
+  const n = Number(document.getElementById('bpb-cca-nicolas').value) || 0;
+  const r = Number(document.getElementById('bpb-cca-romain').value) || 0;
+  const e = Number(document.getElementById('bpb-cca-enzo').value) || 0;
+  const total = n + r + e;
+  const el = document.getElementById('bpb-cca-total');
+  if(el) el.textContent = total > 0 ? `Total apports CCA : ${euro(total)} (${euro(Math.round(total/3))}/associé)` : '';
 }
 
 function saveBpBien(){
@@ -2420,6 +2442,12 @@ function saveBpBien(){
   BP_BIENS[i].duree = Number(document.getElementById('bpb-duree').value) || 240;
   BP_BIENS[i].loyer = Number(document.getElementById('bpb-loyer').value) || 0;
   BP_BIENS[i].airbnb_nuit = Number(document.getElementById('bpb-airbnb').value) || 0;
+  const ccaNicolas = document.getElementById('bpb-cca-nicolas').value;
+  const ccaRomain = document.getElementById('bpb-cca-romain').value;
+  const ccaEnzo = document.getElementById('bpb-cca-enzo').value;
+  if(ccaNicolas !== '') BP_BIENS[i].cca_nicolas = Number(ccaNicolas) || 0;
+  if(ccaRomain !== '') BP_BIENS[i].cca_romain = Number(ccaRomain) || 0;
+  if(ccaEnzo !== '') BP_BIENS[i].cca_enzo = Number(ccaEnzo) || 0;
   try{ localStorage.setItem('sci_bp_biens', JSON.stringify(BP_BIENS)); } catch(e){}
   closeModal('modal-edit-bp-bien');
   showToast('✓ Bien mis à jour dans le Business Plan');
