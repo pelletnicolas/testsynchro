@@ -706,15 +706,10 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
       <div class="page-header">
         <div class="page-title">Business Plan · Paramètres globaux</div>
       </div>
-      <div class="sl">Associés & apports mensuels CCA</div>
+      <div class="sl">Associés & apports CCA</div>
       <div class="card">
-        <div class="three-col">
-          <div class="kpi"><div class="kpi-label">Romain — apport mensuel</div><div class="kpi-val">300 €/mois</div></div>
-          <div class="kpi"><div class="kpi-label">Enzo — apport mensuel</div><div class="kpi-val">300 €/mois</div></div>
-          <div class="kpi"><div class="kpi-label">Nicolas — apport mensuel</div><div class="kpi-val">300 €/mois</div></div>
-        </div>
-        <div class="status-row" style="margin-top:8px"><span>Apport initial / associé (mai 2026)</span><span style="font-weight:600">4 000 €</span></div>
-        <div class="status-row"><span>Total apport mensuel SCI</span><span style="font-weight:600">900 €/mois (3 associés)</span></div>
+        <div class="status-row"><span>Apport initial / associé (mai 2026)</span><span style="font-weight:600">4 000 €</span></div>
+        <div class="status-row"><span>Apport mensuel récurrent SCI</span><span style="font-weight:600;color:var(--text3)">— (supprimé)</span></div>
       </div>
       <div class="sl">Crédit & valorisation</div>
       <div class="card">
@@ -2561,14 +2556,12 @@ function renderBpTresorerieMensuelle() {
     const ca = biensActifs.reduce((s, b) => s + bpCaMensuel(b, an, m), 0);
     const mensualites = biensActifs.reduce((s, b) => s + bpMensualite(b), 0);
 
-    // CCA : apports mensuels 300€/associé × 3 + apport initial lors d'acquisition
-    let cca = 900; // 300 × 3 associés
-    const apportAcquisition = acquisitions.reduce((s, b) => {
-      const frais = b.frais !== undefined ? b.frais : 8720;
-      return s + (b.credit && b.credit > 0 ? b.credit : b.prix + frais) - b.prix - (b.frais || 8720);
-    }, 0);
-    // Apport CCA à l'acquisition (prix + frais - crédit)
+    // CCA : plus d'apports mensuels récurrents + apport initial lors d'acquisition
+    let cca = 0; // apports mensuels supprimés
+    // Apport CCA à l'acquisition : priorité aux champs saisis dans le portefeuille, sinon calcul auto
     const apportCcaAcq = acquisitions.reduce((s, b) => {
+      const apportManuel = (b.cca_nicolas || 0) + (b.cca_romain || 0) + (b.cca_enzo || 0);
+      if (apportManuel > 0) return s + apportManuel;
       const frais = b.frais !== undefined ? b.frais : 8720;
       const credit = b.credit && b.credit > 0 ? b.credit : b.prix + frais;
       return s + Math.max(0, b.prix + frais - credit);
@@ -2635,7 +2628,7 @@ function renderBpTresorerieMensuelle() {
           <thead>
             <tr style="background:var(--surface2)">
               <th>Mois</th><th>Biens</th>
-              <th style="color:var(--green)">CA locatif</th><th style="color:var(--green)">CCA+Crédit</th><th style="color:var(--green)">Total encaiss.</th>
+              <th style="color:var(--green)">CA locatif</th><th style="color:var(--blue)">Apport CCA</th><th style="color:var(--blue)">Crédit débloqué</th><th style="color:var(--green)">Total encaiss.</th>
               <th style="color:var(--red)">Mensualités</th><th style="color:var(--red)">Charges</th><th style="color:var(--red)">Acquisitions</th><th style="color:var(--red)">IS+CFE</th><th style="color:var(--red)">Total décaiss.</th>
               <th style="font-weight:700">CF net</th><th>Cumul</th>
             </tr>
@@ -2649,7 +2642,8 @@ function renderBpTresorerieMensuelle() {
                 <td style="white-space:nowrap;font-weight:${r.isAcquisition?'600':'400'}">${mois_fr[r.m-1]} ${r.an}${acqLabel}</td>
                 <td style="color:var(--text3)">${r.biensActifs}</td>
                 <td class="amount-pos">${r.ca>0?euro(Math.round(r.ca)):'—'}</td>
-                <td style="color:var(--blue)">${(r.cca+r.creditDebloque+r.apportCcaAcq)>0?euro(Math.round(r.cca+r.creditDebloque+r.apportCcaAcq)):'—'}</td>
+                <td style="color:var(--blue)">${(r.cca+r.apportCcaAcq)>0?euro(Math.round(r.cca+r.apportCcaAcq)):'—'}</td>
+                <td style="color:var(--blue)">${r.creditDebloque>0?euro(Math.round(r.creditDebloque)):'—'}</td>
                 <td style="font-weight:500;color:var(--green)">${euro(Math.round(r.totalEncaiss))}</td>
                 <td style="color:var(--red)">${r.mensualites>0?euro(Math.round(r.mensualites)):'—'}</td>
                 <td style="color:var(--amber)">${r.chargesTotal>0?euro(Math.round(r.chargesTotal)):'—'}</td>
@@ -2665,7 +2659,7 @@ function renderBpTresorerieMensuelle() {
             <tr style="background:var(--surface2);font-weight:600">
               <td colspan="2">TOTAL ${an}</td>
               <td style="color:var(--green)">${euro(Math.round(caAn))}</td>
-              <td colspan="2"></td>
+              <td colspan="3"></td>
               <td colspan="4"></td>
               <td></td>
               <td style="color:${cfColor}">${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</td>
