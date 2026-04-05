@@ -171,6 +171,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     <button class="subnav-btn active" id="marche-sub-analyse" onclick="showMarchePage('marche-analyse',this)">Analyse quartier</button>
     <button class="subnav-btn" id="marche-sub-classement" onclick="showMarchePage('marche-classement',this)">🏆 Classement rentabilité</button>
     <button class="subnav-btn" id="marche-sub-bdd" onclick="showMarchePage('marche-bdd',this)">✏️ Base de données</button>
+    <button class="subnav-btn" id="marche-sub-params" onclick="showMarchePage('marche-params',this)">⚙️ Paramètres</button>
   </div>
   <div class="subnav-bar visible" id="subnav-gestion">
     <button class="subnav-btn active" id="sub-dashboard" onclick="showSubPage('dashboard',this)">Dashboard</button>
@@ -448,6 +449,94 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
       </div>
       <div style="font-size:11px;color:var(--text3);margin-top:10px;padding:0 2px">
         Les modifications sont appliquées immédiatement à l'analyse de marché et au classement. Les valeurs sont sauvegardées localement dans le navigateur.
+      </div>
+    </div>
+
+    <!-- MARCHÉ — PARAMÈTRES INDICES -->
+    <div class="page" id="page-marche-params">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Paramètres · Indices de marché</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Ces indices pilotent le calcul des prix d'achat, des loyers et des revenus Airbnb sur tous les quartiers</div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-sm" onclick="resetMarcheParams()" style="color:var(--red)">↺ Réinitialiser</button>
+        </div>
+      </div>
+
+      <!-- Indicateur d'impact -->
+      <div style="background:var(--amber-light);border:0.5px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">⚡</span>
+        <span style="font-size:13px;color:var(--amber)">Toute modification est appliquée <strong>immédiatement</strong> à l'analyse de marché, au classement et à la base de données. Les valeurs sont sauvegardées localement.</span>
+      </div>
+
+      <!-- SECTION 1 : Coefficients par type de bien -->
+      <div class="sl">Multiplicateurs par type de bien (Ancien = référence 1,00)</div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Ces coefficients définissent comment les prix d'achat et les loyers évoluent entre les types Ancien, Récent et Neuf.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px" id="mp-coef-types"></div>
+      </div>
+
+      <!-- SECTION 2 : Coefficients de surface -->
+      <div class="sl">Coefficients de surface (référence = 40 m²)</div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Ces coefficients définissent comment les prix et loyers s'ajustent selon la surface du bien, relativement à 40 m².</div>
+        <div style="overflow-x:auto">
+          <table class="jtable" id="mp-surface-table">
+            <thead><tr><th>Surface</th><th>Coefficient</th><th>Impact loyer estimé</th><th>Impact prix estimé</th></tr></thead>
+            <tbody id="mp-surface-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECTION 3 : Ratio meublé / nu -->
+      <div class="sl">Ratio loyer meublé / loyer nu</div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Le loyer meublé est calculé en multipliant le loyer nu par ce coefficient. Actuellement utilisé dans tout le module Marché.</div>
+        <div class="status-row">
+          <span>Loyer meublé = loyer nu ×</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" id="mp-ratio-meuble" step="0.01" min="1.00" max="2.00"
+              style="width:90px;padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;font-weight:600;background:var(--surface);color:var(--text);text-align:right"
+              oninput="onMpChange()">
+            <span style="font-size:13px;color:var(--text2)">× loyer nu</span>
+            <span id="mp-ratio-meuble-preview" style="font-size:12px;color:var(--green)"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 4 : Coefficients Airbnb par surface -->
+      <div class="sl">Coefficients Airbnb par surface (référence = 40 m²)</div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Le prix Airbnb/nuit est ajusté selon la surface : prix_nuit = prix_base × (surface/40) × ce coefficient.</div>
+        <div style="overflow-x:auto">
+          <table class="jtable">
+            <thead><tr><th>Plage de surface</th><th>Coefficient Airbnb</th><th>Exemple (base 100 €/nuit)</th></tr></thead>
+            <tbody id="mp-airbnb-coef-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECTION 5 : Saisonnalité Airbnb -->
+      <div class="sl">Saisonnalité Airbnb — Nuits & taux d'occupation</div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Ces paramètres définissent le nombre de nuits louées et le multiplicateur de prix par saison. Ils impactent le revenu Airbnb annuel calculé.</div>
+        <table class="jtable">
+          <thead><tr><th>Saison</th><th>Mois</th><th>Nuits / mois</th><th>Multiplicateur de prix</th><th>Contribution (nuits pond.)</th></tr></thead>
+          <tbody id="mp-saison-body"></tbody>
+          <tfoot>
+            <tr style="background:var(--surface2);font-weight:600">
+              <td colspan="4">Total nuits pondérées / an</td>
+              <td id="mp-nuits-total" style="color:var(--blue)"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- SECTION 6 : Récapitulatif formules -->
+      <div class="sl">Récapitulatif des formules</div>
+      <div class="card" style="margin-bottom:14px">
+        <div id="mp-formules" style="font-size:13px;line-height:2;color:var(--text2)"></div>
       </div>
     </div>
 
@@ -1338,6 +1427,7 @@ function showMarchePage(id, btn) {
   if (btn) btn.classList.add('active');
   if (id === 'marche-classement') renderClassement();
   if (id === 'marche-bdd') renderBddTable();
+  if (id === 'marche-params') renderMarcheParamsPage();
 }
 
 function showSubPage(id, btn) {
@@ -2599,7 +2689,7 @@ function updateBpCcaTotal(){
   const e = Number(document.getElementById('bpb-cca-enzo').value) || 0;
   const total = n + r + e;
   const el = document.getElementById('bpb-cca-total');
-  if(el) el.textContent = total > 0 ? `Total apports CCA : ${euro(total)} (${euro(Math.round(total/3))}/associé)` : '';
+  if(el) el.textContent = '';
 }
 
 function openAddBpBienModal(){
@@ -3263,28 +3353,25 @@ function renderMarche(){
     <div class="status-row"><span>Revenu annuel meublé</span><span style="font-weight:600">${meuble ? euro2(meuble*12) : '—'}</span></div>
   `;
   
-  // Airbnb — prix/nuit ajusté par surface + saisonnalité réelle
-  // Formule : prix/nuit = prix_base_quartier * (surface/40) * coef_surface
-  // Revenu/an = prix/nuit * (3*18*1.2 + 3*12*1.0 + 6*10*0.9) = prix/nuit * 154.8
+  // Airbnb — prix/nuit ajusté par surface + saisonnalité depuis MARCHE_PARAMS
   function coefAirbnb(surf) {
     const sv = Number(surf);
-    if(sv < 20) return 1.55;
-    if(sv < 30) return 1.35;
-    if(sv < 45) return 1.00;
-    if(sv < 60) return 0.93;
-    if(sv < 80) return 0.85;
-    return 0.75;
+    const P = (window.MARCHE_PARAMS_ACTIVE || MARCHE_PARAMS).coefAirbnb;
+    for(const c of P) { if(sv < c.max) return c.coef; }
+    return P[P.length-1].coef;
   }
-  const NUITS_POND = 3*18*1.2 + 3*12*1.0 + 6*10*0.9; // = 154.8 nuits pondérées
+  const _saisonParams = (window.MARCHE_PARAMS_ACTIVE || MARCHE_PARAMS).saisons;
+  const NUITS_POND = _saisonParams.reduce((s, sz) => s + sz.nbMois * sz.nuits * sz.multi, 0);
   const airbnbBase = rec.airbnb_nuit;
   const airbnbNuit = airbnbBase ? Math.round(airbnbBase * (Number(s)/40) * coefAirbnb(s)) : null;
   const airbnbAn = airbnbNuit ? Math.round(airbnbNuit * NUITS_POND) : null;
+  const saisonDesc = _saisonParams.map(sz => `${sz.label.split(' ')[0]} ${sz.nbMois*sz.nuits}n×${sz.multi}`).join(' · ');
   document.getElementById('m-airbnb').innerHTML = `
     <div class="status-row"><span>Prix / nuit base quartier</span><span>${airbnbBase ? euro2(airbnbBase) : '—'}</span></div>
     <div class="status-row"><span>Prix / nuit ajusté ${s}m²</span><span style="font-weight:600">${airbnbNuit ? euro2(airbnbNuit) : '—'}</span></div>
     <div class="status-row"><span>Revenu / an (saisonnalisé)</span><span style="font-weight:600">${airbnbAn ? euro2(airbnbAn) : '—'}</span></div>
     <div class="status-row"><span>Revenu / mois estimé</span><span style="font-weight:500">${airbnbAn ? euro2(airbnbAn/12) : '—'}</span></div>
-    <div class="status-row" style="border:none"><span style="font-size:11px;color:var(--text3)">Haute 54n×1.2 · Moy 36n×1.0 · Basse 60n×0.9 · Coef ×${coefAirbnb(s)}</span></div>
+    <div class="status-row" style="border:none"><span style="font-size:11px;color:var(--text3)">${saisonDesc} · Coef ×${coefAirbnb(s)} · ${NUITS_POND.toFixed(1)} n. pond./an</span></div>
   `;
   
   // Rendements
@@ -3365,13 +3452,15 @@ function renderClassement(){
   const zone = document.getElementById('cl-zone').value;
   const sk   = 's'+surf;
 
-  // Coef Airbnb pour la surface
+  // Coef Airbnb pour la surface (depuis MARCHE_PARAMS)
   function coefAirbnb(sv){
     sv=Number(sv);
-    if(sv<20)return 1.55; if(sv<30)return 1.35; if(sv<45)return 1.00;
-    if(sv<60)return 0.93; if(sv<80)return 0.85; return 0.75;
+    const P = (window.MARCHE_PARAMS_ACTIVE || MARCHE_PARAMS).coefAirbnb;
+    for(const c of P) { if(sv < c.max) return c.coef; }
+    return P[P.length-1].coef;
   }
-  const NUITS = 3*18*1.2 + 3*12*1.0 + 6*10*0.9;
+  const _szParams = (window.MARCHE_PARAMS_ACTIVE || MARCHE_PARAMS).saisons;
+  const NUITS = _szParams.reduce((s, sz) => s + sz.nbMois * sz.nuits * sz.multi, 0);
   const coef = coefAirbnb(surf);
 
   // Construire la liste
@@ -3617,7 +3706,7 @@ function renderBddTable() {
           <span style="font-size:11px;color:var(--text3)">€/mois</span>
           ${loyerModified ? `<span style="font-size:10px;color:var(--text3)">(orig: ${loyerNuOrig})</span>` : ''}
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">meublé: ~${Math.round(ovLoyerNu*1.18)} €</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">meublé: ~${Math.round(ovLoyerNu*(MARCHE_PARAMS.ratioMeuble||1.18))} €</div>
       </td>
     </tr>`;
   }).join('');
@@ -3669,17 +3758,383 @@ function updateMarketValue(quartier, field, input) {
     // Mettre à jour le preview "meublé" si c'est le loyer_nu
     if(field === 'loyer_nu') {
       const preview = cell.querySelector('div[style*="margin-top:2px"]');
-      if(preview) preview.textContent = `meublé: ~${Math.round(val*1.18)} €`;
+      if(preview) preview.textContent = `meublé: ~${Math.round(val*(MARCHE_PARAMS.ratioMeuble||1.18))} €`;
     }
   }
 }
 
 // Appliquer les surcharges au démarrage
 document.addEventListener('DOMContentLoaded', () => {
+  patchCoefAirbnbFn();
   if(Object.keys(MARKET_OVERRIDES).length > 0) applyMarketOverrides();
   initBddZones();
   initClassementZones();
 });
+
+// ============================================================
+// PARAMÈTRES MARCHÉ — indices globaux modifiables
+// ============================================================
+
+// Valeurs par défaut (celles hardcodées dans le code)
+const MARCHE_PARAMS_DEFAULT = {
+  // Coefficients par type de bien (Ancien = 1.0)
+  coefTypePrix: { 'Ancien': 1.00, 'Récent': 1.22, 'Neuf': 1.40 },
+  coefTypeLoyer: { 'Ancien': 1.00, 'Récent': 1.18, 'Neuf': 1.28 },
+  // Coefficients de surface (pivot = 40m²)
+  coefSurface: { 15:0.525, 18:0.595, 20:0.640, 25:0.720, 30:0.810, 35:0.910, 40:1.00, 50:1.200, 60:1.381, 80:1.781 },
+  // Ratio meublé / nu
+  ratioMeuble: 1.18,
+  // Coefficients Airbnb par plage de surface
+  coefAirbnb: [
+    { label: '< 20 m²',   min: 0,  max: 20,  coef: 1.55 },
+    { label: '20–29 m²',  min: 20, max: 30,  coef: 1.35 },
+    { label: '30–44 m²',  min: 30, max: 45,  coef: 1.00 },
+    { label: '45–59 m²',  min: 45, max: 60,  coef: 0.93 },
+    { label: '60–79 m²',  min: 60, max: 80,  coef: 0.85 },
+    { label: '≥ 80 m²',   min: 80, max: 999, coef: 0.75 },
+  ],
+  // Saisonnalité Airbnb
+  saisons: [
+    { label: 'Haute saison',   mois: 'Juin · Juil · Août',       nbMois: 3, nuits: 18, multi: 1.2 },
+    { label: 'Moyenne saison', mois: 'Avr · Mai · Sep · Oct',    nbMois: 4, nuits: 12, multi: 1.0 },
+    { label: 'Basse saison',   mois: 'Nov · Déc · Jan · Fév · Mar', nbMois: 5, nuits: 10, multi: 0.9 },
+  ],
+};
+
+// Paramètres actifs (clonés depuis les défauts, puis hydratés via localStorage)
+let MARCHE_PARAMS = JSON.parse(JSON.stringify(MARCHE_PARAMS_DEFAULT));
+(function(){
+  try {
+    const saved = localStorage.getItem('sci_marche_params');
+    if(saved) {
+      const p = JSON.parse(saved);
+      if(p.coefTypePrix)  Object.assign(MARCHE_PARAMS.coefTypePrix,  p.coefTypePrix);
+      if(p.coefTypeLoyer) Object.assign(MARCHE_PARAMS.coefTypeLoyer, p.coefTypeLoyer);
+      if(p.coefSurface)   Object.assign(MARCHE_PARAMS.coefSurface,   p.coefSurface);
+      if(p.ratioMeuble)   MARCHE_PARAMS.ratioMeuble = p.ratioMeuble;
+      if(p.coefAirbnb)    p.coefAirbnb.forEach((c,i)=>{ if(MARCHE_PARAMS.coefAirbnb[i]) MARCHE_PARAMS.coefAirbnb[i].coef = c.coef; });
+      if(p.saisons)       p.saisons.forEach((s,i)=>{ if(MARCHE_PARAMS.saisons[i]){ MARCHE_PARAMS.saisons[i].nuits = s.nuits; MARCHE_PARAMS.saisons[i].multi = s.multi; } });
+    }
+  } catch(e){}
+})();
+
+function saveMarcheParams() {
+  try { localStorage.setItem('sci_marche_params', JSON.stringify(MARCHE_PARAMS)); } catch(e){}
+}
+
+function resetMarcheParams() {
+  if(!confirm('Réinitialiser tous les indices de marché aux valeurs par défaut ?')) return;
+  MARCHE_PARAMS = JSON.parse(JSON.stringify(MARCHE_PARAMS_DEFAULT));
+  try { localStorage.removeItem('sci_marche_params'); } catch(e){}
+  applyMarcheParamsToOverrides();
+  renderMarcheParamsPage();
+  showToast('✓ Indices de marché réinitialisés');
+}
+
+// Applique les MARCHE_PARAMS dans la logique de calcul (patch des fonctions de calcul)
+function applyMarcheParamsToOverrides() {
+  // Recalcule les nuits pondérées
+  computeNuitsPond();
+  // Reapplique toutes les surcharges avec les nouveaux coefficients
+  applyMarketOverrides();
+  // Rerender les vues si actives
+  renderMarche();
+  renderClassement();
+  renderBddTable();
+}
+
+// Calcule les nuits pondérées globales depuis MARCHE_PARAMS.saisons
+function computeNuitsPond() {
+  return MARCHE_PARAMS.saisons.reduce((s, sz) => s + sz.nbMois * sz.nuits * sz.multi, 0);
+}
+
+function onMpChange() {
+  // Lire et stocker toutes les valeurs depuis le DOM
+  // Types - prix
+  ['Ancien','Récent','Neuf'].forEach(t => {
+    const el = document.getElementById('mp-coefprix-' + t.replace('é','e').replace('û','u'));
+    if(el) MARCHE_PARAMS.coefTypePrix[t] = Number(el.value) || MARCHE_PARAMS.coefTypePrix[t];
+  });
+  // Types - loyer
+  ['Ancien','Récent','Neuf'].forEach(t => {
+    const el = document.getElementById('mp-coefloyer-' + t.replace('é','e').replace('û','u'));
+    if(el) MARCHE_PARAMS.coefTypeLoyer[t] = Number(el.value) || MARCHE_PARAMS.coefTypeLoyer[t];
+  });
+  // Surface
+  [15,18,20,25,30,35,40,50,60,80].forEach(s => {
+    const el = document.getElementById('mp-surf-' + s);
+    if(el) MARCHE_PARAMS.coefSurface[s] = Number(el.value) || MARCHE_PARAMS.coefSurface[s];
+  });
+  // Ratio meublé
+  const rm = document.getElementById('mp-ratio-meuble');
+  if(rm) MARCHE_PARAMS.ratioMeuble = Number(rm.value) || 1.18;
+  // Airbnb coefs
+  MARCHE_PARAMS.coefAirbnb.forEach((c,i) => {
+    const el = document.getElementById('mp-airbnb-coef-' + i);
+    if(el) c.coef = Number(el.value) || c.coef;
+  });
+  // Saisons
+  MARCHE_PARAMS.saisons.forEach((s,i) => {
+    const en = document.getElementById('mp-saison-nuits-' + i);
+    const em = document.getElementById('mp-saison-multi-' + i);
+    if(en) s.nuits = Number(en.value) || s.nuits;
+    if(em) s.multi = Number(em.value) || s.multi;
+  });
+
+  saveMarcheParams();
+  // Patch live des fonctions internes
+  patchCoefAirbnbFn();
+  applyMarcheParamsToOverrides();
+  updateMpPreviews();
+}
+
+// Patch la fonction coefAirbnb utilisée dans renderMarche / renderClassement
+function patchCoefAirbnbFn() {
+  // On ne peut pas remplacer les fonctions locales directement,
+  // mais on expose les paramètres via window pour que les fonctions les lisent
+  window.MARCHE_PARAMS_ACTIVE = MARCHE_PARAMS;
+}
+
+// Override de applyMarketOverrides pour utiliser les params dynamiques
+const _applyMarketOverridesOrig = applyMarketOverrides;
+applyMarketOverrides = function() {
+  const SURFACES = [15, 18, 20, 25, 30, 35, 40, 50, 60, 80];
+  const COEF_S = MARCHE_PARAMS.coefSurface;
+  const COEF_TYPE_LOYER = MARCHE_PARAMS.coefTypeLoyer;
+  const RATIO_ME_NU = MARCHE_PARAMS.ratioMeuble;
+
+  MARKET.quartiers.forEach(q => {
+    const ov = MARKET_OVERRIDES[q] || {};
+
+    ['Ancien','Récent','Neuf'].forEach(typ => {
+      const key = q + '|' + typ;
+      const rec = MARKET.data[key];
+      if(!rec) return;
+
+      if(rec._pm2_orig === undefined) rec._pm2_orig = rec.pm2_base;
+      if(rec._airbnb_orig === undefined) rec._airbnb_orig = rec.airbnb_nuit;
+      SURFACES.forEach(s => {
+        const sk = 's' + s;
+        if(!rec[sk]) return;
+        if(rec[sk]._nu_orig === undefined)     rec[sk]._nu_orig     = rec[sk].nu;
+        if(rec[sk]._me_orig === undefined)     rec[sk]._me_orig     = rec[sk].meuble;
+        if(rec[sk]._achat_orig === undefined)  rec[sk]._achat_orig  = rec[sk].achat;
+        if(rec[sk]._airbnb_orig === undefined) rec[sk]._airbnb_orig = rec[sk].airbnb_an;
+      });
+
+      const pm2 = ov.pm2_base !== undefined ? ov.pm2_base : rec._pm2_orig;
+      const airbnbNuit = ov.airbnb_nuit !== undefined ? ov.airbnb_nuit : rec._airbnb_orig;
+      rec.pm2_base = pm2;
+      rec.airbnb_nuit = airbnbNuit;
+
+      const ratioPm2    = rec._pm2_orig    > 0 ? pm2       / rec._pm2_orig    : 1;
+      const ratioAirbnb = rec._airbnb_orig > 0 ? airbnbNuit / rec._airbnb_orig : 1;
+
+      const coefTyp = COEF_TYPE_LOYER[typ] || 1;
+      const hasLoyerOv = ov.loyer_nu !== undefined;
+
+      const recAncien = MARKET.data[q + '|Ancien'];
+      const nuAncien40Orig = recAncien ? (recAncien.s40._nu_orig !== undefined ? recAncien.s40._nu_orig : recAncien.s40.nu) : null;
+
+      SURFACES.forEach(s => {
+        const sk = 's' + s;
+        if(!rec[sk]) return;
+        const coefS = COEF_S[s] || 1;
+
+        if(rec[sk]._achat_orig !== null)
+          rec[sk].achat = Math.round(rec[sk]._achat_orig * ratioPm2);
+
+        if(rec[sk]._airbnb_orig !== null)
+          rec[sk].airbnb_an = Math.round(rec[sk]._airbnb_orig * ratioAirbnb);
+
+        if(hasLoyerOv && nuAncien40Orig) {
+          const nuAncien40New = ov.loyer_nu;
+          if(rec[sk]._nu_orig !== null)
+            rec[sk].nu = Math.round(nuAncien40New * coefTyp * coefS);
+          if(rec[sk]._me_orig !== null)
+            rec[sk].meuble = Math.round(nuAncien40New * coefTyp * coefS * RATIO_ME_NU);
+        } else {
+          if(rec[sk]._nu_orig !== null)
+            rec[sk].nu = Math.round(rec[sk]._nu_orig * ratioPm2);
+          if(rec[sk]._me_orig !== null)
+            rec[sk].meuble = Math.round(rec[sk]._me_orig * ratioPm2 * RATIO_ME_NU / 1.18);
+        }
+      });
+    });
+  });
+};
+
+function updateMpPreviews() {
+  // Preview ratio meublé
+  const rm = MARCHE_PARAMS.ratioMeuble;
+  const prev = document.getElementById('mp-ratio-meuble-preview');
+  if(prev) prev.textContent = `ex : loyer nu 700 € → meublé ${Math.round(700 * rm)} €`;
+
+  // Nuits pondérées
+  const nuits = computeNuitsPond();
+  const el = document.getElementById('mp-nuits-total');
+  if(el) el.textContent = nuits.toFixed(1) + ' nuits / an';
+
+  // Contribution par saison
+  MARCHE_PARAMS.saisons.forEach((s,i) => {
+    const el = document.getElementById('mp-saison-contrib-' + i);
+    if(el) el.textContent = (s.nbMois * s.nuits * s.multi).toFixed(1) + ' n. pond.';
+  });
+
+  // Formules recap
+  const frm = document.getElementById('mp-formules');
+  if(frm) {
+    const nPond = computeNuitsPond().toFixed(1);
+    frm.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px">
+        <div>🏠 <strong>Prix d'achat</strong> = pm2_base × surface × coef_surface × coef_type_prix</div>
+        <div>🛏 <strong>Loyer nu</strong> = loyer_base_40m² × coef_type_loyer × coef_surface</div>
+        <div>🛋 <strong>Loyer meublé</strong> = loyer_nu × ${rm.toFixed(2)} <span style="color:var(--text3)">(ratio meublé)</span></div>
+        <div>🏨 <strong>Airbnb/nuit ajusté</strong> = airbnb_base × (surf/40) × coef_airbnb_surf</div>
+        <div>📅 <strong>Revenu Airbnb/an</strong> = airbnb_nuit_ajusté × ${nPond} <span style="color:var(--text3)">(nuits pond.)</span></div>
+        <div>📈 <strong>Rendement brut</strong> = revenu_annuel / prix_achat</div>
+      </div>`;
+  }
+}
+
+function renderMarcheParamsPage() {
+  const P = MARCHE_PARAMS;
+  const D = MARCHE_PARAMS_DEFAULT;
+
+  // --- Coefficients types ---
+  const coefTypesEl = document.getElementById('mp-coef-types');
+  if(coefTypesEl) {
+    const types = ['Ancien','Récent','Neuf'];
+    const icons = { 'Ancien':'🏚', 'Récent':'🏠', 'Neuf':'🏗' };
+    const colors = { 'Ancien':'var(--blue)', 'Récent':'var(--green)', 'Neuf':'var(--accent)' };
+    coefTypesEl.innerHTML = types.map(t => {
+      const idKey = t.replace('é','e').replace('û','u');
+      const changed = P.coefTypePrix[t] !== D.coefTypePrix[t] || P.coefTypeLoyer[t] !== D.coefTypeLoyer[t];
+      return `<div style="background:var(--surface2);border-radius:var(--radius);padding:14px;${changed?'border:1px solid var(--amber)':''}">
+        <div style="font-size:13px;font-weight:600;color:${colors[t]};margin-bottom:12px">${icons[t]} ${t}</div>
+        <div class="fg" style="margin-bottom:10px">
+          <label>Coef. prix d'achat</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="mp-coefprix-${idKey}" step="0.01" min="0.5" max="3.0"
+              value="${P.coefTypePrix[t].toFixed(2)}"
+              ${t === 'Ancien' ? 'readonly style="opacity:0.5"' : ''}
+              oninput="onMpChange()"
+              style="width:80px;padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);text-align:right">
+            <span style="font-size:11px;color:var(--text3)">× Ancien</span>
+          </div>
+          ${t !== 'Ancien' && P.coefTypePrix[t] !== D.coefTypePrix[t] ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">défaut: ${D.coefTypePrix[t].toFixed(2)}</div>` : ''}
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <label>Coef. loyer</label>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="mp-coefloyer-${idKey}" step="0.01" min="0.5" max="3.0"
+              value="${P.coefTypeLoyer[t].toFixed(2)}"
+              ${t === 'Ancien' ? 'readonly style="opacity:0.5"' : ''}
+              oninput="onMpChange()"
+              style="width:80px;padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);text-align:right">
+            <span style="font-size:11px;color:var(--text3)">× Ancien</span>
+          </div>
+          ${t !== 'Ancien' && P.coefTypeLoyer[t] !== D.coefTypeLoyer[t] ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">défaut: ${D.coefTypeLoyer[t].toFixed(2)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // --- Coefficients de surface ---
+  const surfBody = document.getElementById('mp-surface-body');
+  if(surfBody) {
+    const surfaces = [15,18,20,25,30,35,40,50,60,80];
+    const ref700 = 700; // loyer nu Ancien 40m² de référence pour exemple
+    const refPrix = 100000; // prix 40m² de référence
+    surfBody.innerHTML = surfaces.map(s => {
+      const coef = P.coefSurface[s];
+      const defCoef = D.coefSurface[s];
+      const changed = coef !== defCoef;
+      const loyerEx = Math.round(ref700 * coef);
+      const prixEx  = Math.round(refPrix * coef);
+      return `<tr style="${changed?'background:var(--amber-light)':''}">
+        <td style="font-weight:600">${s} m²${s===40?' <span style="font-size:10px;color:var(--blue)">(référence)</span>':''}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="mp-surf-${s}" step="0.001" min="0.1" max="5.0"
+              value="${coef.toFixed(3)}"
+              ${s===40?'readonly style="opacity:0.5"':''}
+              oninput="onMpChange()"
+              style="width:90px;padding:5px 8px;border:0.5px solid ${changed?'var(--amber)':'var(--border2)'};border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);text-align:right;${changed?'font-weight:600':''}">
+            ${changed ? `<span style="font-size:10px;color:var(--text3)">(déf: ${defCoef.toFixed(3)})</span>` : ''}
+          </div>
+        </td>
+        <td style="font-size:12px;color:var(--text2)">≈ ${loyerEx} €/mois</td>
+        <td style="font-size:12px;color:var(--text2)">≈ ${(prixEx/1000).toFixed(0)}k €</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // --- Ratio meublé ---
+  const rmEl = document.getElementById('mp-ratio-meuble');
+  if(rmEl) rmEl.value = P.ratioMeuble.toFixed(2);
+
+  // --- Coefficients Airbnb par surface ---
+  const airbnbBody = document.getElementById('mp-airbnb-coef-body');
+  if(airbnbBody) {
+    airbnbBody.innerHTML = P.coefAirbnb.map((c,i) => {
+      const def = D.coefAirbnb[i];
+      const changed = c.coef !== def.coef;
+      const example = Math.round(100 * c.coef);
+      return `<tr style="${changed?'background:var(--amber-light)':''}">
+        <td style="font-weight:500">${c.label}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="mp-airbnb-coef-${i}" step="0.01" min="0.1" max="5.0"
+              value="${c.coef.toFixed(2)}"
+              oninput="onMpChange()"
+              style="width:80px;padding:5px 8px;border:0.5px solid ${changed?'var(--amber)':'var(--border2)'};border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);text-align:right;${changed?'font-weight:600':''}">
+            ${changed ? `<span style="font-size:10px;color:var(--text3)">(déf: ${def.coef.toFixed(2)})</span>` : ''}
+          </div>
+        </td>
+        <td style="font-size:12px;color:var(--blue)">≈ ${example} €/nuit</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // --- Saisonnalité ---
+  const saisonBody = document.getElementById('mp-saison-body');
+  if(saisonBody) {
+    const saisonColors = ['var(--red)','var(--amber)','var(--blue)'];
+    saisonBody.innerHTML = P.saisons.map((s,i) => {
+      const def = D.saisons[i];
+      const changed = s.nuits !== def.nuits || s.multi !== def.multi;
+      const contrib = (s.nbMois * s.nuits * s.multi).toFixed(1);
+      return `<tr style="${changed?'background:var(--amber-light)':''}">
+        <td style="font-weight:600;color:${saisonColors[i]}">${s.label}</td>
+        <td style="font-size:12px;color:var(--text2)">${s.mois}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="mp-saison-nuits-${i}" step="1" min="1" max="31"
+              value="${s.nuits}"
+              oninput="onMpChange()"
+              style="width:70px;padding:5px 8px;border:0.5px solid ${changed?'var(--amber)':'var(--border2)'};border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);text-align:right;${changed?'font-weight:600':''}">
+            <span style="font-size:11px;color:var(--text3)">n/mois</span>
+            ${s.nuits !== def.nuits ? `<span style="font-size:10px;color:var(--text3)">(déf: ${def.nuits})</span>` : ''}
+          </div>
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" id="mp-saison-multi-${i}" step="0.05" min="0.1" max="5.0"
+              value="${s.multi.toFixed(2)}"
+              oninput="onMpChange()"
+              style="width:70px;padding:5px 8px;border:0.5px solid ${changed?'var(--amber)':'var(--border2)'};border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);text-align:right;${changed?'font-weight:600':''}">
+            <span style="font-size:11px;color:var(--text3)">× prix</span>
+            ${s.multi !== def.multi ? `<span style="font-size:10px;color:var(--text3)">(déf: ${def.multi.toFixed(2)})</span>` : ''}
+          </div>
+        </td>
+        <td id="mp-saison-contrib-${i}" style="font-weight:600;color:${saisonColors[i]}">${contrib} n. pond.</td>
+      </tr>`;
+    }).join('');
+  }
+
+  updateMpPreviews();
+}
 </script>
 
 </body>
