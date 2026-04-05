@@ -2471,19 +2471,50 @@ function bpMensualite(b){
 // Estimation CA annuel par mode — affiche le CA de l'année d'achat du bien si anneeRef=null
 function bpCaAnnuel(b, anneeRef){
   const achatAnnee = parseInt(b.date.split('/')[2]);
+  const achatMois  = parseInt(b.date.split('/')[1]);
   if(anneeRef === null) anneeRef = achatAnnee;
   if(anneeRef < achatAnnee) return 0;
-  const prorata = anneeRef === achatAnnee ? (12 - parseInt(b.date.split('/')[1]) + 1) / 12 : 1;
   const irl = Math.pow(1 + BP_PARAMS.irl/100, anneeRef - achatAnnee);
-  if(b.mode === 'C') return Math.round(b.loyer * 12 * irl * prorata);
-  if(b.mode === 'A') {
-    const bail = b.loyer * 9 * irl;
-    const airbnb = b.airbnb_nuit * (18*3*1.2) * prorata;
-    return Math.round((bail + airbnb) * prorata);
+  const estAnneeAchat = anneeRef === achatAnnee;
+
+  // Mode C — location longue durée : prorata simple sur les mois restants
+  if(b.mode === 'C') {
+    const prorata = estAnneeAchat ? (12 - achatMois + 1) / 12 : 1;
+    return Math.round(b.loyer * 12 * irl * prorata);
   }
+
+  // Mode A — bail meublé (tous mois hors été) + Airbnb Juin-Juil-Août
+  // Le mois d'achat est inclus. On compte jusqu'à déc de l'anneeRef.
+  // Les mois jan-mai de l'année suivante sont comptés dans anneeRef+1.
+  if(b.mode === 'A') {
+    const MOIS_ETE  = [6, 7, 8];
+    const MOIS_BAIL = [1, 2, 3, 4, 5, 9, 10, 11, 12];
+    let moisEte  = 0;
+    let moisBail = 0;
+    if(!estAnneeAchat) {
+      moisEte  = 3;
+      moisBail = 9;
+    } else {
+      // Mois accessibles depuis le mois d'achat (inclus) jusqu'à décembre
+      moisEte  = MOIS_ETE.filter(m => m >= achatMois).length;
+      moisBail = MOIS_BAIL.filter(m => m >= achatMois).length;
+    }
+    const revBail   = b.loyer * moisBail * irl;
+    const revAirbnb = b.airbnb_nuit * 18 * moisEte * irl; // airbnb_nuit = prix/nuit haute saison (pas de coef x1.2)
+    return Math.round(revBail + revAirbnb);
+  }
+
+  // Mode B — full Airbnb saisonnalisé
   if(b.mode === 'B') {
-    const total = b.airbnb_nuit * (18*3*1.2 + 12*4*1.0 + 10*5*0.9);
-    return Math.round(total * prorata);
+    if(!estAnneeAchat) {
+      const total = b.airbnb_nuit * (18*3*1.2 + 12*4*1.0 + 10*5*0.9);
+      return Math.round(total * irl);
+    } else {
+      const mH = [6,7,8].filter(m => m >= achatMois).length;
+      const mM = [4,5,9,10].filter(m => m >= achatMois).length;
+      const mB = [11,12,1,2,3].filter(m => m >= achatMois).length;
+      return Math.round(b.airbnb_nuit * (18*mH*1.2 + 12*mM*1.0 + 10*mB*0.9) * irl);
+    }
   }
   return 0;
 }
@@ -2875,12 +2906,12 @@ function bpCaMensuel(b, annee, mois) {
   }
   if (b.mode === 'A') {
     // Sep-Mai = bail, Jun-Juil-Aout = Airbnb haute saison
-    if ([6, 7, 8].includes(mois)) return airbnb * 18 * 1.2 * irl;
+    if ([6, 7, 8].includes(mois)) return airbnb * 18 * irl; // airbnb_nuit = prix haute saison
     if ([9,10,11,12,1,2,3,4,5].includes(mois)) return loyer * irl;
     return 0;
   }
   if (b.mode === 'B') {
-    if ([6, 7, 8].includes(mois)) return airbnb * 18 * 1.2 * irl;
+    if ([6, 7, 8].includes(mois)) return airbnb * 18 * irl; // airbnb_nuit = prix haute saison
     if ([4, 5, 9, 10].includes(mois)) return airbnb * 12 * 1.0 * irl;
     return airbnb * 10 * 0.9 * irl; // basse saison Nov-Mars
   }
