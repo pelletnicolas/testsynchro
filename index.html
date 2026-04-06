@@ -630,7 +630,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
             <thead>
               <tr>
                 <th>Année</th><th>Biens actifs</th><th>CA locatif</th>
-                <th>Mensualités</th><th>Cash-flow net</th>
+                <th>Mensualités</th><th style="color:var(--amber)">Charges</th><th>Cash-flow net</th>
                 <th>CF/mois/associé</th><th>Cumul tréso.</th><th>Objectif 1k€ ✓</th>
               </tr>
             </thead>
@@ -671,43 +671,9 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     <div class="page" id="page-bp-fiscalite">
       <div class="page-header">
         <div class="page-title">Business Plan · Fiscalité SCI IS</div>
+        <div style="font-size:12px;color:var(--text3)">IS calculé sur l'exercice N · payé en janvier N+1</div>
       </div>
-      <div class="card" style="margin-bottom:14px">
-        <div class="card-title" style="margin-bottom:10px">Régime fiscal SCI à l'IS</div>
-        <div class="status-row"><span>Régime</span><span>Impôt sur les Sociétés (IS)</span></div>
-        <div class="status-row"><span>Taux réduit PME</span><span style="color:var(--green);font-weight:600">15% jusqu'à 42 500 € de bénéfice</span></div>
-        <div class="status-row"><span>Taux normal</span><span>25% au-delà de 42 500 €</span></div>
-        <div class="status-row"><span>Amortissement construction</span><span>Obligatoire · Linéaire 40 ans (2,5%/an)</span></div>
-        <div class="status-row"><span>Part terrain (non amortissable)</span><span>~20% du prix d'achat</span></div>
-        <div class="status-row"><span>Part construction amortissable</span><span>~80% du prix d'achat</span></div>
-      </div>
-      <div class="sl">Charges déductibles</div>
-      <div class="card">
-        <div class="two-col">
-          <div>
-            <div class="status-row"><span>Intérêts d'emprunt</span><span>~40% de la mensualité (décroissant)</span></div>
-            <div class="status-row"><span>Charges copropriété</span><span>Variable par bien</span></div>
-            <div class="status-row"><span>Taxes foncières</span><span>Variable par bien</span></div>
-            <div class="status-row"><span>Assurances PNO</span><span>Incluses dans charges</span></div>
-          </div>
-          <div>
-            <div class="status-row"><span>Provisions entretien</span><span>~0,5% prix/an</span></div>
-            <div class="status-row"><span>Gestion locative</span><span>Variable</span></div>
-            <div class="status-row"><span>Assurance emprunteur</span><span>~0,3% CRD/an</span></div>
-            <div class="status-row"><span>CFE (forfait SCI)</span><span>~500 €/an</span></div>
-            <div class="status-row"><span>Amortissements construction</span><span>Dotation annuelle = base ÷ 40</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="sl">Impact fiscal sur plus-value à la revente</div>
-      <div class="card">
-        <div style="font-size:13px;color:var(--text2);line-height:1.8">
-          <p>La SCI à l'IS amortit obligatoirement le bien. À la revente :</p>
-          <p style="margin-top:8px"><strong>PV taxable = Prix de vente − VNC</strong> (Valeur Nette Comptable, après amortissements cumulés)</p>
-          <p style="margin-top:4px">et non Prix de vente − Prix d'achat. Les amortissements réduisent la VNC, donc augmentent la PV fiscale.</p>
-          <p style="margin-top:8px;color:var(--amber)">⚠ Exemple bien à 109 000 € acheté en 2026, revendu en 2035 : amort. cumulés ≈ 109 000 × 80% × 2,5% × 9 ≈ 19 620 € → VNC ≈ 89 380 €</p>
-        </div>
-      </div>
+      <div id="bp-fiscalite-content"></div>
     </div>
 
     <!-- BP KPI -->
@@ -1003,6 +969,11 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
       <div class="fg"><label>Loyer mensuel HC (€) — Modes A et C</label><input id="bpb-loyer" type="number" placeholder="0"></div>
       <div class="fg"><label>Prix Airbnb / nuit (€) — Modes A et B</label><input id="bpb-airbnb" type="number" placeholder="0"></div>
     </div>
+    <div class="fg">
+      <label>Charges mensuelles (€/mois) <span style="font-weight:400;color:var(--text3)">— copro, foncière, assurance, entretien…</span></label>
+      <input id="bpb-charges" type="number" min="0" step="1" placeholder="ex: 100" style="max-width:200px">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Laissez vide pour utiliser les valeurs par défaut des paramètres BP</div>
+    </div>
     <div class="sl" style="margin-top:4px">Apports CCA associés (€ par associé)</div>
     <div class="three-col">
       <div class="fg" style="margin-bottom:0"><label>Nicolas (€)</label><input id="bpb-cca-nicolas" type="number" min="0" placeholder="0" oninput="updateBpCcaTotal()"></div>
@@ -1058,6 +1029,11 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     <div class="two-col">
       <div class="fg"><label>Loyer mensuel HC (€) — Modes A et C</label><input id="bpb-add-loyer" type="number" value="0"></div>
       <div class="fg"><label>Prix Airbnb / nuit (€) — Modes A et B</label><input id="bpb-add-airbnb" type="number" value="0"></div>
+    </div>
+    <div class="fg">
+      <label>Charges mensuelles (€/mois) <span style="font-weight:400;color:var(--text3)">— copro, foncière, assurance, entretien…</span></label>
+      <input id="bpb-add-charges" type="number" min="0" step="1" placeholder="ex: 100" style="max-width:200px">
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Laissez vide pour utiliser les valeurs par défaut des paramètres BP</div>
     </div>
     <div class="sl" style="margin-top:4px">Apports CCA associés (€ par associé)</div>
     <div class="three-col">
@@ -2395,6 +2371,8 @@ const BP_PARAMS_DEFAULT = {
   isSeuil:       42500,  // € seuil IS taux réduit
   isTaux2:       25,     // % IS taux normal
   cfeAn:         500,    // € CFE annuelle SCI
+  taxeFonciereAn:246,    // € taxe foncière/an/bien (alias fonciereAn, utilisé dans taxes)
+  autresTaxesAn: 0,      // € autres taxes annuelles (ordures ménagères, etc.)
   fraisVente:    5,      // % frais de vente à la revente
   cfAlerte:      -500,   // € seuil alerte CF mensuel
   cumulAlerte:   -5000,  // € seuil alerte cumul tréso
@@ -2542,6 +2520,7 @@ function renderBpPage(page){
   else if(page==='revente') renderBpRevente();
   else if(page==='tresorerie-mensuelle') renderBpTresorerieMensuelle();
   else if(page==='params') renderBpParamsPage();
+  else if(page==='fiscalite') renderBpFiscalite();
 }
 
 function bienApport(b){
@@ -2583,6 +2562,7 @@ function renderBpPortefeuille(){
     const totalCredit = biensAnnee.reduce((s,{b}) => { const fr=b.frais!==undefined?b.frais:8720; return s+(b.credit&&b.credit>0?b.credit:b.prix+fr); }, 0);
     const totalMens   = biensAnnee.reduce((s,{b}) => s + bpMensualite(b), 0);
     const totalCCA    = biensAnnee.reduce((s,{b}) => s + bienApport(b), 0);
+    const totalCA     = biensAnnee.reduce((s,{b}) => s + bpCaAnnuel(b, annee + 1), 0);
     const nb = biensAnnee.length;
 
     html += `
@@ -2595,6 +2575,7 @@ function renderBpPortefeuille(){
           <span style="font-size:12px;color:var(--red)">Crédit : <strong>${euro(Math.round(totalCredit))}</strong></span>
           <span style="font-size:12px;color:var(--red)">Mens. : <strong>${euro(Math.round(totalMens))}/mois</strong></span>
           <span style="font-size:12px;color:var(--blue)">Apport CCA : <strong>${totalCCA > 0 ? euro(totalCCA) : '—'}</strong></span>
+          <span style="font-size:12px;color:var(--green)">CA estimé : <strong>${totalCA > 0 ? euro(totalCA) : '—'}</strong></span>
         </div>
         <span id="portef-chevron-${annee}" style="font-size:16px;color:var(--text3);transition:transform .2s">▸</span>
       </div>
@@ -2604,7 +2585,7 @@ function renderBpPortefeuille(){
             <tr style="background:var(--surface2)">
               <th>#</th><th>Adresse / Quartier</th><th>Type</th><th>Mode</th>
               <th>Date achat</th><th>Prix achat</th><th>Crédit</th>
-              <th>Mensualité</th><th>Apport CCA</th><th>CA annuel est.</th><th>Rendement brut</th><th></th>
+              <th>Mensualité</th><th>Charges/mois</th><th>Apport CCA</th><th>CA annuel est.</th><th>Rendement brut</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -2624,6 +2605,7 @@ function renderBpPortefeuille(){
                 <td>${euro(b.prix)}</td>
                 <td title="Frais: ${euro(frais)}">${euro(credit)}</td>
                 <td style="color:var(--red)">${euro(Math.round(mens))}</td>
+                <td style="color:var(--amber)">${euro(Math.round(bpChargesTotal(b)))} <span style="font-size:10px;color:var(--text3)">${b.charges_mensuelles !== undefined ? '✏️' : 'défaut'}</span></td>
                 <td style="color:var(--blue)">${apport > 0 ? euro(apport) : '—'}</td>
                 <td style="color:var(--green)">${ca > 0 ? euro(ca) : '—'}</td>
                 <td style="font-weight:500">${ca > 0 ? (rdt.toFixed(1) + '%') : '—'}</td>
@@ -2641,7 +2623,9 @@ function renderBpPortefeuille(){
               <td>${euro(Math.round(totalCredit))}</td>
               <td style="color:var(--red)">${euro(Math.round(totalMens))}</td>
               <td style="color:var(--blue)">${totalCCA > 0 ? euro(totalCCA) : '—'}</td>
-              <td colspan="3"></td>
+              <td></td>
+              <td style="color:var(--green);font-weight:600">${totalCA > 0 ? euro(totalCA) : '—'}</td>
+              <td colspan="2"></td>
             </tr>
           </tfoot>
         </table>
@@ -2659,6 +2643,7 @@ function renderBpPortefeuille(){
         <span style="color:var(--red)">Crédit : <strong>${euro(Math.round(grandTotalCredit))}</strong></span>
         <span style="color:var(--red)">Mens. totales : <strong>${euro(Math.round(grandTotalMens))}/mois</strong></span>
         <span style="color:var(--blue)">Apports CCA : <strong>${euro(grandTotalCCA)}</strong></span>
+        <span style="color:var(--green)">CA estimé (régime croisière) : <strong>${euro(Math.round(BP_BIENS.reduce((s,b)=>s+bpCaAnnuel(b,2036),0)))}</strong></span>
       </div>
     </div>
   </div>`;
@@ -2693,6 +2678,7 @@ function openEditBpBien(i){
   document.getElementById('bpb-duree').value = b.duree !== undefined ? b.duree : 240;
   document.getElementById('bpb-loyer').value = b.loyer || 0;
   document.getElementById('bpb-airbnb').value = b.airbnb_nuit || 0;
+  document.getElementById('bpb-charges').value = b.charges_mensuelles !== undefined ? b.charges_mensuelles : '';
   document.getElementById('bpb-cca-nicolas').value = b.cca_nicolas !== undefined ? b.cca_nicolas : '';
   document.getElementById('bpb-cca-romain').value = b.cca_romain !== undefined ? b.cca_romain : '';
   document.getElementById('bpb-cca-enzo').value = b.cca_enzo !== undefined ? b.cca_enzo : '';
@@ -2781,6 +2767,8 @@ function addBpBien(){
     loyer: Number(document.getElementById('bpb-add-loyer').value) || 0,
     airbnb_nuit: Number(document.getElementById('bpb-add-airbnb').value) || 0,
   };
+  const chargesAddVal = document.getElementById('bpb-add-charges').value;
+  if(chargesAddVal !== '') newBien.charges_mensuelles = Number(chargesAddVal);
   const ccaN = document.getElementById('bpb-add-cca-nicolas').value;
   const ccaR = document.getElementById('bpb-add-cca-romain').value;
   const ccaE = document.getElementById('bpb-add-cca-enzo').value;
@@ -2820,6 +2808,7 @@ function refreshAllBpViews(){
   else if(currentBpPage==='kpi') renderBpKpi();
   else if(currentBpPage==='revente') renderBpRevente();
   else if(currentBpPage==='tresorerie-mensuelle') renderBpTresorerieMensuelle();
+  else if(currentBpPage==='fiscalite') renderBpFiscalite();
 }
 
 function saveBpBien(){
@@ -2841,6 +2830,9 @@ function saveBpBien(){
   BP_BIENS[i].duree = Number(document.getElementById('bpb-duree').value) || 240;
   BP_BIENS[i].loyer = Number(document.getElementById('bpb-loyer').value) || 0;
   BP_BIENS[i].airbnb_nuit = Number(document.getElementById('bpb-airbnb').value) || 0;
+  const chargesVal = document.getElementById('bpb-charges').value;
+  if(chargesVal !== '') BP_BIENS[i].charges_mensuelles = Number(chargesVal);
+  else delete BP_BIENS[i].charges_mensuelles;
   const ccaNicolas = document.getElementById('bpb-cca-nicolas').value;
   const ccaRomain = document.getElementById('bpb-cca-romain').value;
   const ccaEnzo = document.getElementById('bpb-cca-enzo').value;
@@ -2858,8 +2850,14 @@ function saveBpBien(){
 // BP TRÉSORERIE MENSUELLE — calcul mensuel interactif
 // ============================================================
 
-// Paramètres charges par bien actif (identiques à Trésorerie Annuelle)
+// Paramètres charges par bien actif
+// Si b.charges_mensuelles est défini, on l'utilise directement (saisi dans la fiche)
+// Sinon on utilise les paramètres BP par défaut
 function bpChargesMensuelles(b) {
+  if(b.charges_mensuelles !== undefined && b.charges_mensuelles !== null) {
+    // Charges saisies manuellement : on retourne un objet unique pour compatibilité
+    return { total: b.charges_mensuelles, copro: 0, fonciere: 0, assurpno: 0, entretien: 0, _manuel: true };
+  }
   const COPRO_AN = BP_PARAMS.coproAn;
   const FONC_AN = BP_PARAMS.fonciereAn;
   const ASSUR_AN = BP_PARAMS.assurAn;
@@ -2872,6 +2870,13 @@ function bpChargesMensuelles(b) {
   };
 }
 
+// Retourne le total mensuel des charges d'un bien
+function bpChargesTotal(b) {
+  const c = bpChargesMensuelles(b);
+  if(c._manuel) return c.total;
+  return c.copro + c.fonciere + c.assurpno + c.entretien;
+}
+
 // Calcul IS mensuel approximatif (1/12 de l'IS annuel)
 function bpISMensuel(b, annee) {
   const achat = parseInt(b.date.split('/')[2]);
@@ -2879,8 +2884,7 @@ function bpISMensuel(b, annee) {
   const ca = bpCaAnnuel(b, annee);
   const mens = bpMensualite(b);
   const intAn = mens * 12 * 0.38; // ~38% intérêts (décroissant, approximation)
-  const charges = bpChargesMensuelles(b);
-  const chargesAn = (charges.copro + charges.fonciere + charges.assurpno + charges.entretien) * 12;
+  const chargesAn = bpChargesTotal(b) * 12;
   const amort = b.prix * 0.8 * 0.025;
   const cfe = BP_PARAMS.cfeAn / 12;
   const resultat = Math.max(0, ca - intAn - chargesAn - amort - cfe);
@@ -2981,17 +2985,29 @@ function renderBpTresorerieMensuelle() {
     const coutAcq = acquisitions.reduce((s, b) => s + b.prix + (b.frais !== undefined ? b.frais : 8720), 0);
 
     // Charges courantes
-    const chargesTotal = biensActifs.reduce((s, b) => {
-      const c = bpChargesMensuelles(b);
-      return s + c.copro + c.fonciere + c.assurpno + c.entretien;
-    }, 0);
+    const chargesTotal = biensActifs.reduce((s, b) => s + bpChargesTotal(b), 0);
 
-    // IS mensuel (décembre = régularisation annuelle)
-    const isMensuel = m === 12 ? biensActifs.reduce((s, b) => s + bpISMensuel(b, an), 0) : 0;
-    const cfeAnnuel = m === 12 ? BP_PARAMS.cfeAn : 0;
+    // IS de l'année précédente payé en janvier (décalage réel)
+    // On calcule l'IS dû sur l'année N-1, payable en janvier N
+    let isPaye = 0;
+    if (m === 1 && an > 2026) {
+      // Biens actifs au 31 déc de l'année précédente
+      const biensAnPrec = BP_BIENS.filter(b => parseInt(b.date.split('/')[2]) <= an - 1);
+      isPaye = biensAnPrec.reduce((s, b) => s + bpISMensuel(b, an - 1) * 12, 0);
+    }
+    // Pour 2026 : pas d'IS en janvier (première année, IS dû en jan 2027)
+
+    // CFE + autres taxes : payées en janvier de l'année en cours
+    // (La CFE est due en décembre légalement, mais on la met en janvier pour simplification décaissée)
+    const nbBiensActifsAnneeCourante = BP_BIENS.filter(b => parseInt(b.date.split('/')[2]) <= an).length;
+    const taxesAnnuelles = m === 1 && an > 2026 ? (
+      BP_PARAMS.cfeAn +
+      nbBiensActifsAnneeCourante * (BP_PARAMS.autresTaxesAn || 0)
+    ) : 0;
+    // Note : taxe foncière déjà dans charges mensuelles (fonciereAn / 12)
 
     const totalEncaiss = ca + cca + apportCcaAcq + creditDebloque;
-    const totalDecaiss = mensualites + chargesTotal + coutAcq + isMensuel + cfeAnnuel;
+    const totalDecaiss = mensualites + chargesTotal + coutAcq + isPaye + taxesAnnuelles;
     const cfNet = totalEncaiss - totalDecaiss;
     cumulGlobal += cfNet;
 
@@ -2999,7 +3015,9 @@ function renderBpTresorerieMensuelle() {
 
     dataParAnnee[an].push({
       an, m, ca, mensualites, cca, creditDebloque, apportCcaAcq,
-      chargesTotal, coutAcq, isMensuel, cfeAnnuel,
+      chargesTotal, coutAcq,
+      isPaye, taxesAnnuelles,
+      isMensuel: isPaye, cfeAnnuel: taxesAnnuelles, // compat résumé annuel
       totalEncaiss, totalDecaiss, cfNet, cumul: cumulGlobal,
       isAcquisition, acquisitions, biensActifs: biensActifs.length
     });
@@ -3015,7 +3033,8 @@ function renderBpTresorerieMensuelle() {
     const mensAn = rows.reduce((s, r) => s + r.mensualites, 0);
     const chargesAn = rows.reduce((s, r) => s + r.chargesTotal, 0);
     const coutAcqAn = rows.reduce((s, r) => s + r.coutAcq, 0);
-    const isAn = rows.reduce((s, r) => s + r.isMensuel + r.cfeAnnuel, 0);
+    const isAn      = rows.reduce((s, r) => s + r.isPaye, 0);
+    const taxesAn   = rows.reduce((s, r) => s + r.taxesAnnuelles, 0);
     const creditAn = rows.reduce((s, r) => s + r.creditDebloque, 0);
     const cumulFin = rows.length ? rows[rows.length-1].cumul : 0;
     const nbBiensFin = rows.length ? rows[rows.length-1].biensActifs : 0;
@@ -3029,6 +3048,8 @@ function renderBpTresorerieMensuelle() {
           <span style="font-size:12px;color:var(--text2)">${nbBiensFin} bien${nbBiensFin>1?'s':''} actif${nbBiensFin>1?'s':''}</span>
           <span style="font-size:12px;color:var(--blue)">CA : <strong>${euro(Math.round(caAn))}</strong></span>
           ${ccaAn > 0 ? `<span style="font-size:12px;color:var(--blue)">Apport CCA : <strong>${euro(Math.round(ccaAn))}</strong></span>` : ''}
+          ${isAn > 0 ? `<span style="font-size:12px;color:var(--amber)">IS payé : <strong>−${euro(Math.round(isAn))}</strong></span>` : ''}
+          ${taxesAn > 0 ? `<span style="font-size:12px;color:var(--amber)">Taxes : <strong>−${euro(Math.round(taxesAn))}</strong></span>` : ''}
           <span style="font-size:12px;font-weight:600;color:${cfColor}">CF annuel : ${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</span>
           <span style="font-size:12px;color:var(--text3)">Cumul : ${euro(Math.round(cumulFin))}</span>
         </div>
@@ -3040,7 +3061,7 @@ function renderBpTresorerieMensuelle() {
             <tr style="background:var(--surface2)">
               <th>Mois</th><th>Biens</th>
               <th style="color:var(--green)">CA locatif</th><th style="color:var(--blue)">Apport CCA</th><th style="color:var(--blue)">Crédit débloqué</th><th style="color:var(--green)">Total encaiss.</th>
-              <th style="color:var(--red)">Mensualités</th><th style="color:var(--red)">Charges</th><th style="color:var(--red)">Acquisitions</th><th style="color:var(--red)">IS+CFE</th><th style="color:var(--red)">Total décaiss.</th>
+              <th style="color:var(--red)">Mensualités</th><th style="color:var(--red)">Charges</th><th style="color:var(--red)">Acquisitions</th><th style="color:var(--amber)">IS année préc.</th><th style="color:var(--amber)">Taxes/CFE</th><th style="color:var(--red)">Total décaiss.</th>
               <th style="font-weight:700">CF net</th><th>Cumul</th>
             </tr>
           </thead>
@@ -3059,7 +3080,8 @@ function renderBpTresorerieMensuelle() {
                 <td style="color:var(--red)">${r.mensualites>0?euro(Math.round(r.mensualites)):'—'}</td>
                 <td style="color:var(--amber)">${r.chargesTotal>0?euro(Math.round(r.chargesTotal)):'—'}</td>
                 <td style="color:var(--red)">${r.coutAcq>0?euro(Math.round(r.coutAcq)):'—'}</td>
-                <td style="color:var(--text3)">${(r.isMensuel+r.cfeAnnuel)>0?euro(Math.round(r.isMensuel+r.cfeAnnuel)):'—'}</td>
+                <td style="color:var(--amber)">${r.isPaye>0?euro(Math.round(r.isPaye)):'—'}</td>
+                <td style="color:var(--amber)">${r.taxesAnnuelles>0?euro(Math.round(r.taxesAnnuelles)):'—'}</td>
                 <td style="font-weight:500;color:var(--red)">${euro(Math.round(r.totalDecaiss))}</td>
                 <td style="font-weight:700;color:${cfCol}">${r.cfNet>=0?'+':''}${euro(Math.round(r.cfNet))}</td>
                 <td style="font-size:11px;color:${r.cumul>=0?'var(--green)':'var(--red)'}">${euro(Math.round(r.cumul))}</td>
@@ -3076,8 +3098,9 @@ function renderBpTresorerieMensuelle() {
               <td style="color:var(--red)">${euro(Math.round(mensAn))}</td>
               <td style="color:var(--amber)">${euro(Math.round(chargesAn))}</td>
               <td style="color:var(--red)">${coutAcqAn > 0 ? euro(Math.round(coutAcqAn)) : '—'}</td>
-              <td style="color:var(--text3)">${isAn > 0 ? euro(Math.round(isAn)) : '—'}</td>
-              <td style="color:var(--red)">${euro(Math.round(mensAn + chargesAn + coutAcqAn + isAn))}</td>
+              <td style="color:var(--amber)">${isAn>0?euro(Math.round(isAn)):'—'}</td>
+              <td style="color:var(--amber)">${taxesAn>0?euro(Math.round(taxesAn)):'—'}</td>
+              <td style="color:var(--red)">${euro(Math.round(mensAn + chargesAn + coutAcqAn + isAn + taxesAn))}</td>
               <td style="color:${cfColor};font-weight:700">${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</td>
               <td style="color:${cumulFin>=0?'var(--green)':'var(--red)'}">${euro(Math.round(cumulFin))}</td>
             </tr>
@@ -3113,8 +3136,20 @@ function renderBpProjection(){
   tbody.innerHTML = annees.map(yr => {
     const biensActifs = BP_BIENS.filter(b=>parseInt(b.date.split('/')[2])<=yr);
     const ca = BP_BIENS.reduce((s,b)=>s+bpCaAnnuel(b,yr),0);
-    const mens = biensActifs.reduce((s,b)=>s+bpMensualite(b)*12,0);
-    const cf = ca - mens - biensActifs.length*500; // -500/bien charges fixes estimées
+    // Mensualités proratisées : mois restants depuis l'achat pour l'année d'achat, 12 mois les années suivantes
+    const mens = biensActifs.reduce((s,b)=>{
+      const achatAn   = parseInt(b.date.split('/')[2]);
+      const achatMois = parseInt(b.date.split('/')[1]);
+      const mois = achatAn === yr ? (12 - achatMois + 1) : 12;
+      return s + bpMensualite(b) * mois;
+    }, 0);
+    const chargesAnnuelles = biensActifs.reduce((s,b) => {
+      const achatAn   = parseInt(b.date.split('/')[2]);
+      const achatMois = parseInt(b.date.split('/')[1]);
+      const mois = achatAn === yr ? (12 - achatMois + 1) : 12;
+      return s + bpChargesTotal(b) * mois;
+    }, 0);
+    const cf = ca - mens - chargesAnnuelles;
     const cfMois3 = cf / 12 / 3;
     cumul += cf;
     const ok = cfMois3 >= 1000;
@@ -3123,6 +3158,7 @@ function renderBpProjection(){
       <td>${biensActifs.length}</td>
       <td class="amount-pos">${euro(ca)}</td>
       <td class="amount-neg">−${euro(Math.round(mens))}</td>
+      <td style="color:var(--amber)">−${euro(Math.round(chargesAnnuelles))}</td>
       <td class="${cf>=0?'amount-pos':'amount-neg'}">${cf>=0?'+':''}${euro(Math.round(cf))}</td>
       <td style="font-weight:600;color:${cfMois3>=1000?'var(--green)':cfMois3>=500?'var(--amber)':'var(--red)'}">${euro(Math.round(cfMois3))}</td>
       <td style="font-weight:500">${euro(Math.round(cumul))}</td>
@@ -3195,17 +3231,26 @@ function renderBpParamsPage(){
       ${paramInput('irl',        'Revalorisation loyers (IRL) / an', '%/an', 0.1, 0)}
     </div>
 
-    <div class="sl">Charges annuelles par bien</div>
+    <div class="sl">Charges mensuelles par bien (défaut si non saisi dans la fiche)</div>
     <div class="card">
       ${paramInput('coproAn',       'Charges de copropriété',     '€/an', 10, 0)}
       ${paramInput('fonciereAn',    'Taxe foncière',              '€/an', 10, 0)}
       ${paramInput('assurAn',       'Assurance PNO',              '€/an', 5,  0)}
       ${paramInput('entretienCoeff','Provision entretien',        '% du prix/an', 0.1, 0)}
-      ${paramInput('cfeAn',         'CFE annuelle SCI',           '€/an', 50, 0)}
     </div>
 
-    <div class="sl">Fiscalité IS</div>
+    <div class="sl">Taxes & impôts annuels — payés en janvier de l'année suivante</div>
     <div class="card">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px;padding:8px 10px;background:var(--amber-light);border-radius:var(--radius)">
+        💡 L'IS est calculé sur l'exercice N et décaissé en <strong>janvier N+1</strong>. La CFE et les autres taxes sont dues en <strong>janvier de l'année en cours</strong>.
+      </div>
+      ${paramInput('cfeAn',          'CFE annuelle SCI (totale)',          '€/an', 50, 0)}
+      ${paramInput('autresTaxesAn',  'Autres taxes / bien (ordures ménagères, etc.)', '€/an/bien', 10, 0)}
+    </div>
+
+    <div class="sl">Fiscalité IS — taux et seuils</div>
+    <div class="card">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">L'IS est calculé sur le résultat fiscal annuel de la SCI (CA − intérêts − charges − amortissement).</div>
       ${paramInput('isTaux1', 'Taux IS réduit PME',   '%', 1, 0)}
       ${paramInput('isSeuil', 'Seuil taux réduit',    '€', 500, 0)}
       ${paramInput('isTaux2', 'Taux IS normal',        '%', 1, 0)}
@@ -3224,6 +3269,197 @@ function renderBpParamsPage(){
       <div class="status-row"><span style="font-weight:600">Mode B</span><span style="font-size:12px;color:var(--text2)">Full Airbnb · 18j×3m haute · 12j×4m moy · 10j×5m basse</span></div>
       <div class="status-row" style="border:none"><span style="font-weight:600">Mode C</span><span style="font-size:12px;color:var(--text2)">Location longue durée meublée · Loyer × 12 mois</span></div>
     </div>`;
+}
+
+function renderBpFiscalite(){
+  const el = document.getElementById('bp-fiscalite-content');
+  if(!el) return;
+
+  const ANNEES = [2026,2027,2028,2029,2030,2031,2032,2033,2034,2035];
+  const AMORT_COEFF = 0.025;
+  const PART_CONSTRUC = 0.80;
+
+  function calcISBien(b, annee) {
+    const achatAn = parseInt(b.date.split('/')[2]);
+    const achatMois = parseInt(b.date.split('/')[1]);
+    if(annee < achatAn) return { ca:0, interets:0, charges:0, amort:0, cfe:0, resultat:0, is:0, vnc:0 };
+
+    const anneesDepuisAchat = annee - achatAn;
+    const moisActifs = achatAn === annee ? (12 - achatMois + 1) : 12;
+    const prorataMois = moisActifs / 12;
+
+    const ca = bpCaAnnuel(b, annee);
+
+    const mens = bpMensualite(b);
+    const frais = b.frais !== undefined ? b.frais : BP_PARAMS.fraisAcq;
+    const capital = b.credit && b.credit > 0 ? b.credit : b.prix + frais;
+    const tauxM = (b.taux !== undefined ? b.taux : BP_PARAMS.taux) / 100 / 12;
+    let cap = capital;
+    for(let i = 0; i < anneesDepuisAchat * 12; i++) {
+      const int = cap * tauxM; cap -= (mens - int);
+    }
+    let interetsAn = 0;
+    for(let i = 0; i < moisActifs; i++) {
+      const int = Math.max(0, cap * tauxM); interetsAn += int; cap -= (mens - int);
+    }
+
+    const chargesAn = bpChargesTotal(b) * moisActifs;
+
+    const baseAmort = b.prix * PART_CONSTRUC;
+    const amortAn = baseAmort * AMORT_COEFF * prorataMois;
+
+    const nbBiensActifs = Math.max(1, BP_BIENS.filter(bi => parseInt(bi.date.split('/')[2]) <= annee).length);
+    const cfeAn = (BP_PARAMS.cfeAn / nbBiensActifs) * prorataMois;
+
+    const resultat = Math.max(0, ca - interetsAn - chargesAn - amortAn - cfeAn);
+
+    const is = resultat <= BP_PARAMS.isSeuil
+      ? resultat * (BP_PARAMS.isTaux1 / 100)
+      : BP_PARAMS.isSeuil * (BP_PARAMS.isTaux1 / 100) + (resultat - BP_PARAMS.isSeuil) * (BP_PARAMS.isTaux2 / 100);
+
+    const amortCumul = baseAmort * AMORT_COEFF * Math.min(anneesDepuisAchat + prorataMois, 40);
+    const vnc = b.prix - amortCumul;
+
+    return { ca, interets: interetsAn, charges: chargesAn, amort: amortAn, cfe: cfeAn, resultat, is, vnc };
+  }
+
+  const dataAnnee = ANNEES.map(an => {
+    const rows = BP_BIENS.map(b => ({ b, ...calcISBien(b, an) }));
+    const tot = (k) => rows.reduce((s, r) => s + r[k], 0);
+    const nbBiens = rows.filter(r => parseInt(r.b.date.split('/')[2]) <= an).length;
+    return { an, rows, nbBiens, ca:tot('ca'), interets:tot('interets'), charges:tot('charges'), amort:tot('amort'), cfe:tot('cfe'), resultat:tot('resultat'), is:tot('is') };
+  });
+
+  const totalIS = dataAnnee.reduce((s,d)=>s+d.is, 0);
+  const totalCA = dataAnnee.reduce((s,d)=>s+d.ca, 0);
+  const totalResultat = dataAnnee.reduce((s,d)=>s+d.resultat, 0);
+  const txMoyen = totalCA > 0 ? totalIS/totalCA*100 : 0;
+
+  const rowsSynth = dataAnnee.map((d, idx) => {
+    const tx = d.ca > 0 ? (d.is/d.ca*100) : 0;
+    const iSpaye = idx > 0 ? dataAnnee[idx-1].is : 0;
+    const label2026 = idx === 0 ? '<span style="font-size:11px;color:var(--text3)">→ janv. 2027</span>' : '';
+    return `<tr>
+      <td style="font-weight:600">${d.an}</td>
+      <td style="color:var(--text3)">${d.nbBiens}</td>
+      <td style="color:var(--green);font-weight:500">${euro(Math.round(d.ca))}</td>
+      <td style="color:var(--red)">−${euro(Math.round(d.interets))}</td>
+      <td style="color:var(--red)">−${euro(Math.round(d.charges))}</td>
+      <td style="color:var(--red)">−${euro(Math.round(d.amort))}</td>
+      <td style="color:var(--red)">−${euro(Math.round(d.cfe))}</td>
+      <td style="font-weight:700;color:${d.resultat>0?'var(--text)':'var(--text3)'}">${d.resultat>0?euro(Math.round(d.resultat)):'<em style="font-size:11px;font-weight:400">Déficit</em>'}</td>
+      <td style="color:var(--amber);font-weight:600">${d.is>0?euro(Math.round(d.is))+' <span style="font-size:10px;font-weight:400">('+tx.toFixed(1)+'%)</span>':'—'}${label2026}</td>
+      <td style="color:var(--red);font-weight:600">${iSpaye>0?'−'+euro(Math.round(iSpaye)):idx===0?'—':'—'}</td>
+    </tr>`;
+  }).join('');
+
+  const rowsDetail = dataAnnee.map(d => {
+    const biensActifs = d.rows.filter(r => parseInt(r.b.date.split('/')[2]) <= d.an);
+    if(!biensActifs.length) return '';
+    const rowsBiens = biensActifs.map(r => `<tr>
+      <td><div style="font-weight:500;font-size:12px">${r.b.n}. ${r.b.adresse}</div></td>
+      <td><span class="badge badge-info" style="font-size:10px">Mode ${r.b.mode}</span></td>
+      <td style="color:var(--green)">${r.ca>0?euro(Math.round(r.ca)):'—'}</td>
+      <td style="color:var(--red)">${r.interets>0?'−'+euro(Math.round(r.interets)):'—'}</td>
+      <td style="color:var(--red)">${r.charges>0?'−'+euro(Math.round(r.charges)):'—'}</td>
+      <td style="color:var(--red)">${r.amort>0?'−'+euro(Math.round(r.amort)):'—'}</td>
+      <td style="font-weight:600;color:${r.resultat>0?'var(--text)':'var(--text3)'}">${r.resultat>0?euro(Math.round(r.resultat)):'<em style="font-size:11px;font-weight:400">Déficit</em>'}</td>
+      <td style="color:var(--amber);font-weight:600">${r.is>0?euro(Math.round(r.is)):'—'}</td>
+      <td style="font-size:11px;color:var(--text3)">${euro(Math.round(r.vnc))}</td>
+    </tr>`).join('');
+    return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px">
+      <div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'"
+           style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;cursor:pointer;background:var(--surface2);user-select:none">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:700">${d.an}</span>
+          <span style="font-size:12px;color:var(--text2)">${d.nbBiens} bien${d.nbBiens>1?'s':''}</span>
+          <span style="font-size:12px;color:var(--green)">CA : <strong>${euro(Math.round(d.ca))}</strong></span>
+          <span style="font-size:12px;color:var(--text2)">Résultat fiscal : <strong>${euro(Math.round(d.resultat))}</strong></span>
+          <span style="font-size:12px;color:var(--amber)">IS dû : <strong>${d.is>0?euro(Math.round(d.is)):'—'}</strong></span>
+        </div>
+        <span style="font-size:16px;color:var(--text3)">▸</span>
+      </div>
+      <div style="display:none;overflow-x:auto">
+        <table class="jtable" style="font-size:12px">
+          <thead><tr style="background:var(--surface2)">
+            <th>Bien</th><th>Mode</th>
+            <th style="color:var(--green)">CA</th>
+            <th style="color:var(--red)">Intérêts</th>
+            <th style="color:var(--red)">Charges</th>
+            <th style="color:var(--red)">Amortis.</th>
+            <th style="color:var(--amber)">Résultat</th>
+            <th style="color:var(--amber)">IS dû</th>
+            <th>VNC</th>
+          </tr></thead>
+          <tbody>${rowsBiens}</tbody>
+          <tfoot><tr style="background:var(--surface2);font-weight:600;font-size:12px">
+            <td colspan="2">TOTAL ${d.an}</td>
+            <td style="color:var(--green)">${euro(Math.round(d.ca))}</td>
+            <td style="color:var(--red)">−${euro(Math.round(d.interets))}</td>
+            <td style="color:var(--red)">−${euro(Math.round(d.charges))}</td>
+            <td style="color:var(--red)">−${euro(Math.round(d.amort))}</td>
+            <td>${euro(Math.round(d.resultat))}</td>
+            <td style="color:var(--amber)">${d.is>0?euro(Math.round(d.is)):'—'}</td>
+            <td></td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+  <div class="kpi-grid" style="margin-bottom:18px">
+    <div class="kpi"><div class="kpi-label">IS total 2026→2035</div><div class="kpi-val kpi-neg" style="font-size:17px">${euro(Math.round(totalIS))}</div></div>
+    <div class="kpi"><div class="kpi-label">CA locatif total</div><div class="kpi-val kpi-pos" style="font-size:17px">${euro(Math.round(totalCA))}</div></div>
+    <div class="kpi"><div class="kpi-label">Résultat fiscal cumulé</div><div class="kpi-val" style="font-size:17px">${euro(Math.round(totalResultat))}</div></div>
+    <div class="kpi"><div class="kpi-label">Taux IS effectif / CA</div><div class="kpi-val" style="font-size:17px">${txMoyen.toFixed(1)} %</div></div>
+  </div>
+  <div style="background:var(--blue-light);border:0.5px solid var(--blue-mid);border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--blue)">
+    <strong>SCI à l'IS ·</strong> Amortissement construction 2,5%/an sur 80% du prix · IS ${BP_PARAMS.isTaux1}% ≤ ${BP_PARAMS.isSeuil.toLocaleString('fr-FR')} € · ${BP_PARAMS.isTaux2}% au-delà · IS payé en <strong>janvier N+1</strong>
+  </div>
+  <div class="sl">Tableau de calcul IS — synthèse annuelle</div>
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:18px">
+    <div style="overflow-x:auto">
+      <table class="jtable">
+        <thead><tr style="background:var(--surface2)">
+          <th>Année</th><th>Biens</th>
+          <th style="color:var(--green)">CA locatif</th>
+          <th style="color:var(--red)">− Intérêts</th>
+          <th style="color:var(--red)">− Charges</th>
+          <th style="color:var(--red)">− Amortis.</th>
+          <th style="color:var(--red)">− CFE/bien</th>
+          <th style="color:var(--amber);font-weight:700">= Résultat fiscal</th>
+          <th style="color:var(--amber)">IS dû (exercice N)</th>
+          <th style="color:var(--red)">IS payé (janv. N+1)</th>
+        </tr></thead>
+        <tbody>${rowsSynth}</tbody>
+        <tfoot><tr style="background:var(--surface2);font-weight:700">
+          <td colspan="2">TOTAL</td>
+          <td style="color:var(--green)">${euro(Math.round(totalCA))}</td>
+          <td style="color:var(--red)">−${euro(Math.round(dataAnnee.reduce((s,d)=>s+d.interets,0)))}</td>
+          <td style="color:var(--red)">−${euro(Math.round(dataAnnee.reduce((s,d)=>s+d.charges,0)))}</td>
+          <td style="color:var(--red)">−${euro(Math.round(dataAnnee.reduce((s,d)=>s+d.amort,0)))}</td>
+          <td style="color:var(--red)">−${euro(Math.round(dataAnnee.reduce((s,d)=>s+d.cfe,0)))}</td>
+          <td>${euro(Math.round(totalResultat))}</td>
+          <td style="color:var(--amber)">${euro(Math.round(totalIS))}</td>
+          <td style="color:var(--red)">−${euro(Math.round(totalIS))}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+  </div>
+  <div class="sl">Détail par bien et par année</div>
+  ${rowsDetail}
+  <div class="card" style="margin-top:4px">
+    <div class="card-title" style="margin-bottom:10px">📘 Méthode de calcul</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:12px;color:var(--text2);line-height:1.9">
+      <div>🧮 <strong>Résultat fiscal</strong> = CA − Intérêts − Charges − Amortissements − CFE</div>
+      <div>📉 <strong>Amortissement</strong> = Prix × 80% × 2,5% × (mois / 12)</div>
+      <div>💶 <strong>IS taux réduit</strong> = ${BP_PARAMS.isTaux1}% sur les ${BP_PARAMS.isSeuil.toLocaleString('fr-FR')} premiers €</div>
+      <div>💶 <strong>IS taux normal</strong> = ${BP_PARAMS.isTaux2}% au-delà de ${BP_PARAMS.isSeuil.toLocaleString('fr-FR')} €</div>
+      <div>📅 <strong>IS payé</strong> en janvier N+1 (décalage d'un exercice)</div>
+      <div>⚠️ <strong>Revente</strong> : PV taxable = Prix vente − VNC (et non prix achat)</div>
+    </div>
+  </div>`;
 }
 
 function renderBpKpi(){
