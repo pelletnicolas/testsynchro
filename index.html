@@ -795,6 +795,20 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     <div class="fg"><label>Statut location</label>
       <select id="nb-statut"><option>Non loué</option><option>Bail signé - attente locataire</option><option>Bail signé - loué</option></select>
     </div>
+    <div class="sl" style="margin-top:4px">Charges annuelles du bien (€/an)</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Seront proratisées en trésorerie mensuelle (÷ 12). Laissez vide si inconnu.</div>
+    <div class="two-col">
+      <div class="fg"><label>Copropriété (€/an)</label><input id="nb-copro" type="number" oninput="updateNbChargesPreview()" min="0" step="1" placeholder="ex: 350"></div>
+      <div class="fg"><label>Taxe foncière (€/an)</label><input id="nb-fonciere" type="number" oninput="updateNbChargesPreview()" min="0" step="1" placeholder="ex: 246"></div>
+    </div>
+    <div class="two-col">
+      <div class="fg"><label>Assurance PNO (€/an)</label><input id="nb-assurpno" type="number" oninput="updateNbChargesPreview()" min="0" step="1" placeholder="ex: 50"></div>
+      <div class="fg"><label>Entretien / provision (€/an)</label><input id="nb-entretien" type="number" oninput="updateNbChargesPreview()" min="0" step="1" placeholder="ex: 200"></div>
+    </div>
+    <div class="fg"><label>Autres charges annuelles (€/an)</label><input id="nb-autrescharges" type="number" oninput="updateNbChargesPreview()" min="0" step="1" placeholder="gestion, divers…"></div>
+    <div id="nb-charges-preview" style="font-size:12px;color:var(--text3);background:var(--surface2);border-radius:var(--radius);padding:8px 12px;margin-bottom:4px">
+      Charge mensuelle estimée : <strong>—</strong>
+    </div>
     <div class="sl" style="margin-top:4px">Apports associés (CCA)</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Ces apports seront automatiquement enregistrés dans l'onglet Associés. Laissez 0 pour exclure un associé.</div>
     <div id="nb-cca-rows" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
@@ -871,6 +885,20 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     <div class="two-col">
       <div class="fg"><label>Dépôt de garantie (€)</label><input id="eb-depot" type="number" placeholder="0"></div>
       <div></div>
+    </div>
+    <div class="sl">Charges annuelles du bien (€/an)</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Seront proratisées en trésorerie mensuelle (÷ 12).</div>
+    <div class="two-col">
+      <div class="fg"><label>Copropriété (€/an)</label><input id="eb-copro" type="number" oninput="updateEbChargesPreview()" min="0" step="1" placeholder="ex: 350"></div>
+      <div class="fg"><label>Taxe foncière (€/an)</label><input id="eb-fonciere" type="number" oninput="updateEbChargesPreview()" min="0" step="1" placeholder="ex: 246"></div>
+    </div>
+    <div class="two-col">
+      <div class="fg"><label>Assurance PNO (€/an)</label><input id="eb-assurpno" type="number" oninput="updateEbChargesPreview()" min="0" step="1" placeholder="ex: 50"></div>
+      <div class="fg"><label>Entretien / provision (€/an)</label><input id="eb-entretien" type="number" oninput="updateEbChargesPreview()" min="0" step="1" placeholder="ex: 200"></div>
+    </div>
+    <div class="fg"><label>Autres charges annuelles (€/an)</label><input id="eb-autrescharges" type="number" oninput="updateEbChargesPreview()" min="0" step="1" placeholder="gestion, divers…"></div>
+    <div id="eb-charges-preview" style="font-size:12px;color:var(--text3);background:var(--surface2);border-radius:var(--radius);padding:8px 12px;margin-bottom:4px">
+      Charge mensuelle estimée : <strong>—</strong>
     </div>
     <div class="sl">Apports associés (CCA)</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Modifiez directement le montant de chaque associé pour ce bien.</div>
@@ -1459,6 +1487,7 @@ function renderDashboard(){
           <div><div class="kpi-label">Prix d'acquisition</div><div style="font-size:14px;font-weight:500">${euro(b.prix)}</div></div>
           <div><div class="kpi-label">Valeur estimée</div><div style="font-size:14px;font-weight:500">${euro(b.valeurEstimee||b.prix)}</div></div>
           <div><div class="kpi-label">Loyer total/mois</div><div style="font-size:14px;font-weight:500">${euro(Number(b.loyer)+Number(b.charges||0))}</div></div>
+          ${bienChargesAn(b)>0?`<div><div class="kpi-label">Charges/mois</div><div style="font-size:14px;font-weight:500;color:var(--red)">−${euro(Math.round(bienChargesMois(b)))}</div></div>`:''}
         </div>
         <div class="kpi-label" style="margin-top:12px;margin-bottom:0">Remboursement — ${pct.toFixed(1)}% remboursé</div>
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
@@ -1505,7 +1534,8 @@ function bienDrawerContent(b){
   const mens=taux>0?capital*taux*Math.pow(1+taux,duree)/(Math.pow(1+taux,duree)-1):0;
   const loyer=Number(b.loyer||0);
   const charges=Number(b.charges||0);
-  const cashflow=(loyer+charges)-mens;
+  const chargesMoisBien = bienChargesMois(b);
+  const cashflow=(loyer+charges)-mens-chargesMoisBien;
   const coutTotal=Number(b.prix)+Number(b.notaire||0)+Number(b.courtier||0)+Number(b.travaux||0);
   const pct=Math.max(0,Math.min(100,capital>0?(capital-Number(b.capitalRestant||capital))/capital*100:0));
 
@@ -1522,8 +1552,11 @@ function bienDrawerContent(b){
       <span style="font-weight:500">Mensualité crédit</span>
       <span style="font-weight:700;color:var(--red)">${mens>0?euro(mens,2)+'/mois':'—'}</span>
     </div>
-    ${mens>0?`<div class="status-row"><span style="font-weight:500">Cash-flow</span>
-      <span style="font-weight:700;color:${cashflow>=0?'var(--green)':'var(--red)'}">${cashflow>=0?'+':''}${euro(cashflow,0)}/mois</span></div>`:''}
+    ${mens>0?`<div class="status-row" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+      <span style="font-weight:500">Cash-flow net</span>
+      <span style="font-weight:700;color:${cashflow>=0?'var(--green)':'var(--red)'}">${cashflow>=0?'+':''}${euro(cashflow,0)}/mois</span>
+    </div>
+    <div style="font-size:11px;color:var(--text3);padding:2px 0 6px">Loyer+charges − mensualité${chargesMoisBien>0?' − charges bien':''}</div>`:''}
     <div style="margin-top:8px">
       <div class="kpi-label" style="margin-bottom:4px">Remboursement — ${pct.toFixed(1)}%</div>
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
@@ -1582,7 +1615,7 @@ function renderBiens(){
       const mens=taux>0?capital*taux*Math.pow(1+taux,duree)/(Math.pow(1+taux,duree)-1):0;
       const loyer=Number(b.loyer||0);
       const charges=Number(b.charges||0);
-      const cashflow=(loyer+charges)-mens;
+      const cashflow=(loyer+charges)-mens-bienChargesMois(b);
       const typeIcon={Studio:'🏠',T2:'🏠',T3:'🏠',T4:'🏠',Maison:'🏡'}[b.type]||'🏠';
       return`<div class="bien-row" onclick="openDrawerBien('${b.id}')">
         <div class="bien-row-icon">${typeIcon}</div>
@@ -1827,7 +1860,20 @@ function locataireDrawerContent(b){
     <div class="status-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:10px">
       <span style="font-weight:500">Total encaissé</span>
       <span style="font-size:16px;font-weight:700;color:var(--green)">${euro(loyer+charges)}/mois</span>
-    </div>`;
+    </div>
+    ${bienChargesAn(b)>0?`
+    <div class="sl" style="margin-top:8px;margin-bottom:6px">Charges annuelles du bien</div>
+    ${b.chargesAnnuelles?.copro?`<div class="status-row"><span style="font-size:12px">Copropriété</span><span style="font-size:12px">${euro(b.chargesAnnuelles.copro)}/an <span style="color:var(--text3)">(≈ ${Math.round(b.chargesAnnuelles.copro/12)} €/mois)</span></span></div>`:''}
+    ${b.chargesAnnuelles?.fonciere?`<div class="status-row"><span style="font-size:12px">Taxe foncière</span><span style="font-size:12px">${euro(b.chargesAnnuelles.fonciere)}/an <span style="color:var(--text3)">(≈ ${Math.round(b.chargesAnnuelles.fonciere/12)} €/mois)</span></span></div>`:''}
+    ${b.chargesAnnuelles?.assurpno?`<div class="status-row"><span style="font-size:12px">Assurance PNO</span><span style="font-size:12px">${euro(b.chargesAnnuelles.assurpno)}/an <span style="color:var(--text3)">(≈ ${Math.round(b.chargesAnnuelles.assurpno/12)} €/mois)</span></span></div>`:''}
+    ${b.chargesAnnuelles?.entretien?`<div class="status-row"><span style="font-size:12px">Entretien / provision</span><span style="font-size:12px">${euro(b.chargesAnnuelles.entretien)}/an <span style="color:var(--text3)">(≈ ${Math.round(b.chargesAnnuelles.entretien/12)} €/mois)</span></span></div>`:''}
+    ${b.chargesAnnuelles?.autres?`<div class="status-row"><span style="font-size:12px">Autres charges</span><span style="font-size:12px">${euro(b.chargesAnnuelles.autres)}/an <span style="color:var(--text3)">(≈ ${Math.round(b.chargesAnnuelles.autres/12)} €/mois)</span></span></div>`:''}
+    <div class="status-row" style="border-top:1px solid var(--border);margin-top:2px;padding-top:8px">
+      <span style="font-size:12px;font-weight:500">Total charges/mois</span>
+      <span style="font-weight:600;color:var(--red)">−${euro(Math.round(bienChargesMois(b)))}/mois</span>
+    </div>
+    `:''}
+    `;
 }
 
 function openDrawerLocataire(id){
@@ -1893,6 +1939,50 @@ function renderLocataires(){
 // ============================================================
 
 // Gestion dynamique des champs CCA dans le modal ajout bien
+
+// ============================================================
+// GESTION — CHARGES ANNUELLES PAR BIEN
+// ============================================================
+
+// Retourne le total des charges annuelles d'un bien (€/an)
+function bienChargesAn(b) {
+  const ca = b.chargesAnnuelles || {};
+  return (ca.copro||0) + (ca.fonciere||0) + (ca.assurpno||0) + (ca.entretien||0) + (ca.autres||0);
+}
+
+// Retourne le prorata mensuel (÷12)
+function bienChargesMois(b) {
+  return bienChargesAn(b) / 12;
+}
+
+// Preview dans le modal ajout
+function updateNbChargesPreview() {
+  const copro      = Number(document.getElementById('nb-copro')?.value) || 0;
+  const fonciere   = Number(document.getElementById('nb-fonciere')?.value) || 0;
+  const assurpno   = Number(document.getElementById('nb-assurpno')?.value) || 0;
+  const entretien  = Number(document.getElementById('nb-entretien')?.value) || 0;
+  const autres     = Number(document.getElementById('nb-autrescharges')?.value) || 0;
+  const total = copro + fonciere + assurpno + entretien + autres;
+  const el = document.getElementById('nb-charges-preview');
+  if(el) el.innerHTML = total > 0
+    ? `Total annuel : <strong>${total.toLocaleString('fr-FR')} €/an</strong> → prorata mensuel : <strong style="color:var(--red)">${Math.round(total/12).toLocaleString('fr-FR')} €/mois</strong>`
+    : `Charge mensuelle estimée : <strong>—</strong>`;
+}
+
+// Preview dans le modal édition
+function updateEbChargesPreview() {
+  const copro      = Number(document.getElementById('eb-copro')?.value) || 0;
+  const fonciere   = Number(document.getElementById('eb-fonciere')?.value) || 0;
+  const assurpno   = Number(document.getElementById('eb-assurpno')?.value) || 0;
+  const entretien  = Number(document.getElementById('eb-entretien')?.value) || 0;
+  const autres     = Number(document.getElementById('eb-autrescharges')?.value) || 0;
+  const total = copro + fonciere + assurpno + entretien + autres;
+  const el = document.getElementById('eb-charges-preview');
+  if(el) el.innerHTML = total > 0
+    ? `Total annuel : <strong>${total.toLocaleString('fr-FR')} €/an</strong> → prorata mensuel : <strong style="color:var(--red)">${Math.round(total/12).toLocaleString('fr-FR')} €/mois</strong>`
+    : `Charge mensuelle estimée : <strong>—</strong>`;
+}
+
 function toggleCcaRow(input, assoc) {
   const val = Number(input.value);
   const row = document.getElementById('nb-cca-row-' + assoc);
@@ -1954,6 +2044,13 @@ async function saveBien(){
     debut:document.getElementById('nb-debut').value,
     loyer:Number(document.getElementById('nb-loyer').value)||0,
     charges:0,locataire:'',
+    chargesAnnuelles:{
+      copro:       Number(document.getElementById('nb-copro').value)||0,
+      fonciere:    Number(document.getElementById('nb-fonciere').value)||0,
+      assurpno:    Number(document.getElementById('nb-assurpno').value)||0,
+      entretien:   Number(document.getElementById('nb-entretien').value)||0,
+      autres:      Number(document.getElementById('nb-autrescharges').value)||0,
+    },
     statut:document.getElementById('nb-statut').value,
     valeurEstimee:Number(document.getElementById('nb-prix').value)||0,
     demarches:[
@@ -2009,6 +2106,13 @@ function openEditBien(id){
   document.getElementById('eb-banque').value=b.banque||'';
   document.getElementById('eb-debut').value=b.debut||'';
   document.getElementById('eb-loyer').value=b.loyer||0;
+  const ca = b.chargesAnnuelles || {};
+  document.getElementById('eb-copro').value    = ca.copro    || '';
+  document.getElementById('eb-fonciere').value = ca.fonciere || '';
+  document.getElementById('eb-assurpno').value = ca.assurpno || '';
+  document.getElementById('eb-entretien').value= ca.entretien|| '';
+  document.getElementById('eb-autrescharges').value = ca.autres || '';
+  updateEbChargesPreview();
   document.getElementById('eb-charges').value=b.charges||0;
   document.getElementById('eb-statut').value=b.statut||'Non loué';
   document.getElementById('eb-locataire').value=b.locataire||'';
@@ -2067,6 +2171,13 @@ async function updateBien(){
   b.debut=g('eb-debut').value;
   b.loyer=gn('eb-loyer')??0;
   b.charges=gn('eb-charges')??0;
+  b.chargesAnnuelles={
+    copro:       Number(g('eb-copro').value)||0,
+    fonciere:    Number(g('eb-fonciere').value)||0,
+    assurpno:    Number(g('eb-assurpno').value)||0,
+    entretien:   Number(g('eb-entretien').value)||0,
+    autres:      Number(g('eb-autrescharges').value)||0,
+  };
   b.statut=g('eb-statut').value;
   b.locataire=g('eb-locataire').value.trim();
   b.tel=g('eb-tel').value.trim();
