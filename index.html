@@ -863,6 +863,22 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
       <div class="fg"><label>Banque</label><input id="eb-banque" type="text"></div>
       <div class="fg"><label>Début remboursement</label><input id="eb-debut" type="date"></div>
     </div>
+    <div class="two-col">
+      <div class="fg">
+        <label>Mode de remboursement</label>
+        <select id="eb-mode-remb" onchange="updateEbMensPreview()">
+          <option value="annuite">Annuité constante (mensualité fixe)</option>
+          <option value="amort_constant">Amortissement constant (capital fixe)</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Mensualité manuelle (€) <span style="font-weight:400;color:var(--text3)">— laisser vide = calculée</span></label>
+        <input id="eb-mens-manuelle" type="number" step="0.01" min="0" placeholder="auto" oninput="updateEbMensPreview()">
+      </div>
+    </div>
+    <div id="eb-mens-preview" style="background:var(--surface2);border-radius:var(--radius);padding:9px 12px;font-size:13px;margin-bottom:4px;color:var(--text2)">
+      Mensualité calculée : <strong>—</strong>
+    </div>
     <div class="sl">Location</div>
     <div class="two-col">
       <div class="fg"><label>Loyer HC (€/mois)</label><input id="eb-loyer" type="number"></div>
@@ -1378,6 +1394,11 @@ function statusBadge(s){
   if(s==='En attente')return`<span class="badge badge-warn">En attente</span>`;
   return`<span class="badge badge-info">À faire</span>`;
 }
+// Retourne la valeur estimée du bien, ou le prix d'achat si la date du jour est antérieure à la date d'achat
+function valeurBien(b){
+  if(b.dateAchat && new Date() < new Date(b.dateAchat)) return Number(b.prix)||0;
+  return Number(b.valeurEstimee||b.prix)||0;
+}
 function biensList(){return Object.values(DATA.biens)}
 function mvtsList(){return Object.values(DATA.mouvements).sort((a,b)=>a.date.localeCompare(b.date))}
 function ccaList(){return Object.values(DATA.cca).sort((a,b)=>b.date.localeCompare(a.date))}
@@ -1455,13 +1476,10 @@ function renderDashboard(){
   const biens=biensList();
   const soldes=computeSoldes();
   const tresorerie=soldes.length?soldes[soldes.length-1].solde:0;
-  const totalValeur=biens.reduce((s,b)=>s+Number(b.valeurEstimee||b.prix),0);
+  const totalValeur=biens.reduce((s,b)=>s+valeurBien(b),0);
   const totalCRD=biens.reduce((s,b)=>s+Number(b.capitalRestant||b.capital),0);
   const valNette=totalValeur-totalCRD;
-  const totalMens=biens.reduce((s,b)=>{
-    const c=Number(b.capital),t=Number(b.taux)/100/12,n=Number(b.duree);
-    return t>0?s+c*t*Math.pow(1+t,n)/(Math.pow(1+t,n)-1):s;
-  },0);
+  const totalMens=biens.reduce((s,b)=>s+bienMensualite(b),0);
 
   document.getElementById('dash-kpis').innerHTML=`
     <div class="kpi"><div class="kpi-label">Biens</div><div class="kpi-val">${biens.length}</div></div>
@@ -1485,7 +1503,7 @@ function renderDashboard(){
         </div>
         <div class="three-col">
           <div><div class="kpi-label">Prix d'acquisition</div><div style="font-size:14px;font-weight:500">${euro(b.prix)}</div></div>
-          <div><div class="kpi-label">Valeur estimée</div><div style="font-size:14px;font-weight:500">${euro(b.valeurEstimee||b.prix)}</div></div>
+          <div><div class="kpi-label">Valeur estimée</div><div style="font-size:14px;font-weight:500">${euro(valeurBien(b))}</div></div>
           <div><div class="kpi-label">Loyer total/mois</div><div style="font-size:14px;font-weight:500">${euro(Number(b.loyer)+Number(b.charges||0))}</div></div>
           ${bienChargesAn(b)>0?`<div><div class="kpi-label">Charges/mois</div><div style="font-size:14px;font-weight:500;color:var(--red)">−${euro(Math.round(bienChargesMois(b)))}</div></div>`:''}
         </div>
@@ -1529,9 +1547,8 @@ function bienDrawerContent(b){
       totalCCA[c.assoc]+=(Number(c.apport)-Number(c.remb));
   });
   const capital=Number(b.capital)||0;
-  const taux=Number(b.taux)/100/12;
   const duree=Number(b.duree)||0;
-  const mens=taux>0?capital*taux*Math.pow(1+taux,duree)/(Math.pow(1+taux,duree)-1):0;
+  const mens=bienMensualite(b);
   const loyer=Number(b.loyer||0);
   const charges=Number(b.charges||0);
   const chargesMoisBien = bienChargesMois(b);
@@ -1544,7 +1561,7 @@ function bienDrawerContent(b){
     <div class="status-row"><span>Prix d'acquisition</span><span>${euro(b.prix)}</span></div>
     <div class="status-row"><span>Date d'achat</span><span>${b.dateAchat?fdate(b.dateAchat):'—'}</span></div>
     <div class="status-row"><span>Coût total acquisition</span><span>${euro(coutTotal)}</span></div>
-    <div class="status-row"><span>Valeur estimée</span><span>${euro(b.valeurEstimee||b.prix)}</span></div>
+    <div class="status-row"><span>Valeur estimée</span><span>${euro(valeurBien(b))}</span></div>
     <div class="status-row"><span>Capital emprunté</span><span>${euro(b.capital)}</span></div>
     <div class="status-row"><span>Capital restant dû</span><span>${euro(b.capitalRestant||b.capital)}</span></div>
     <div class="status-row"><span>Banque</span><span>${b.banque||'—'} · ${b.taux}% · ${duree} mois</span></div>
@@ -1609,10 +1626,7 @@ function renderBiens(){
   }
   const html=`<div class="card" style="padding:0;overflow:hidden">`+
     biens.map(b=>{
-      const capital=Number(b.capital)||0;
-      const taux=Number(b.taux)/100/12;
-      const duree=Number(b.duree)||0;
-      const mens=taux>0?capital*taux*Math.pow(1+taux,duree)/(Math.pow(1+taux,duree)-1):0;
+      const mens=bienMensualite(b);
       const loyer=Number(b.loyer||0);
       const charges=Number(b.charges||0);
       const cashflow=(loyer+charges)-mens-bienChargesMois(b);
@@ -1741,42 +1755,93 @@ function renderAssocies(){
 // ============================================================
 // RENDER — EMPRUNT
 // ============================================================
-function empruntDrawerContent(b){
-  const c=Number(b.capital),t=Number(b.taux)/100/12,n=Number(b.duree);
-  if(!t||!n)return`<div class="empty-state">Données emprunt incomplètes</div>`;
-  const mens=c*t*Math.pow(1+t,n)/(Math.pow(1+t,n)-1);
-  const dateDebut=b.debut?new Date(b.debut):new Date(2026,4,1);
-  let cap=c;
-  const rows=[];
-  for(let i=1;i<=n;i++){
-    const interet=cap*t,amort=mens-interet,capFin=cap-amort;
-    const d=new Date(dateDebut);d.setMonth(d.getMonth()+i-1);
-    rows.push({i,date:`${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`,capDeb:cap,mens,interet,amort,capFin});
-    cap=capFin;
+// Calcule la mensualité d'un bien selon son mode et ses paramètres
+function bienMensualite(b) {
+  if(b.mensualiteManuelle && Number(b.mensualiteManuelle) > 0) return Number(b.mensualiteManuelle);
+  const c=Number(b.capital), t=Number(b.taux)/100/12, n=Number(b.duree);
+  if(!t || !n || !c) return 0;
+  if((b.modeRemboursement||'annuite') === 'amort_constant') {
+    return c/n + c*t; // 1ère mensualité (décroissante ensuite)
   }
-  const totalInterets1an=rows.slice(0,12).reduce((s,r)=>s+r.interet,0);
-  const pct=Math.max(0,Math.min(100,c>0?(c-Number(b.capitalRestant||c))/c*100:0));
+  return c*t*Math.pow(1+t,n)/(Math.pow(1+t,n)-1);
+}
+
+// Génère le tableau d'amortissement complet selon le mode
+function genTableauAmort(b) {
+  const c=Number(b.capital), t=Number(b.taux)/100/12, n=Number(b.duree);
+  if(!n || !c) return [];
+  const mode = b.modeRemboursement || 'annuite';
+  const mensManuelle = b.mensualiteManuelle && Number(b.mensualiteManuelle) > 0 ? Number(b.mensualiteManuelle) : null;
+  const dateDebut = b.debut ? new Date(b.debut) : new Date(2026,4,1);
+  let cap = c;
+  const rows = [];
+  const amortConstant = c / n; // capital remboursé fixe (mode amort. constant)
+  const mensAnnuite = mensManuelle || (t > 0 ? c*t*Math.pow(1+t,n)/(Math.pow(1+t,n)-1) : c/n);
+  for(let i=1; i<=n; i++){
+    const interet = Math.max(0, cap * t);
+    let amort, mens;
+    if(mensManuelle) {
+      // Mensualité manuelle : on déduit les intérêts pour trouver l'amortissement
+      mens = mensManuelle;
+      amort = Math.min(mens - interet, cap);
+    } else if(mode === 'amort_constant') {
+      amort = amortConstant;
+      mens = amort + interet;
+    } else {
+      mens = mensAnnuite;
+      amort = mens - interet;
+    }
+    const capFin = Math.max(0, cap - amort);
+    const d = new Date(dateDebut); d.setMonth(d.getMonth()+i-1);
+    rows.push({
+      i,
+      date: `${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`,
+      capDeb: cap, mens, interet, amort, capFin
+    });
+    cap = capFin;
+    if(cap <= 0.01) break;
+  }
+  return rows;
+}
+
+function empruntDrawerContent(b){
+  const c=Number(b.capital), t=Number(b.taux)/100/12, n=Number(b.duree);
+  if(!n||!c)return`<div class="empty-state">Données emprunt incomplètes</div>`;
+  const mode = b.modeRemboursement || 'annuite';
+  const rows = genTableauAmort(b);
+  const mens1 = rows[0]?.mens || 0;
+  const mensLabel = mode === 'amort_constant' ? 'Première mensualité' : (b.mensualiteManuelle ? 'Mensualité (manuelle)' : 'Mensualité');
+  const totalInterets = rows.reduce((s,r)=>s+r.interet, 0);
+  const totalInterets1an = rows.slice(0,12).reduce((s,r)=>s+r.interet,0);
+  const coutTotal = rows.reduce((s,r)=>s+r.mens,0) - c;
+  const pct = Math.max(0,Math.min(100,c>0?(c-Number(b.capitalRestant||c))/c*100:0));
+  const modeLabels = {annuite:'Annuité constante', amort_constant:'Amortissement constant'};
+  const mensCol = mode==='amort_constant'?'Mensualité (décrois.)':'Mensualité';
   return`
     <div class="kpi-grid" style="margin-bottom:16px">
       <div class="kpi"><div class="kpi-label">Capital emprunté</div><div class="kpi-val">${euro(c)}</div></div>
       <div class="kpi"><div class="kpi-label">Taux annuel</div><div class="kpi-val">${b.taux}%</div></div>
       <div class="kpi"><div class="kpi-label">Durée</div><div class="kpi-val">${n} mois</div></div>
-      <div class="kpi"><div class="kpi-label">Mensualité</div><div class="kpi-val">${euro(mens,2)}</div></div>
+      <div class="kpi"><div class="kpi-label">${mensLabel}</div><div class="kpi-val">${euro(mens1,2)}</div></div>
       <div class="kpi"><div class="kpi-label">Intérêts 1ère année</div><div class="kpi-val kpi-neg">${euro(totalInterets1an)}</div></div>
-      <div class="kpi"><div class="kpi-label">Coût total crédit</div><div class="kpi-val kpi-neg">${euro(mens*n-c)}</div></div>
+      <div class="kpi"><div class="kpi-label">Coût total crédit</div><div class="kpi-val kpi-neg">${euro(coutTotal)}</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <span class="badge badge-info">${modeLabels[mode]||mode}</span>
+      ${b.mensualiteManuelle?`<span class="badge badge-warn">Mensualité manuelle : ${euro(Number(b.mensualiteManuelle),2)}/mois</span>`:''}
     </div>
     <div style="margin-bottom:14px">
       <div class="kpi-label" style="margin-bottom:4px">Remboursement — ${pct.toFixed(1)}%</div>
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
     </div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:8px">${n} mois · ${rows.length} échéances</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:8px">${rows.length} échéances · Total intérêts : ${euro(Math.round(totalInterets))}</div>
     <div style="overflow-x:auto">
       <table class="jtable">
-        <thead><tr><th>N°</th><th>Date</th><th>Cap. début</th><th>Mensualité</th><th style="color:var(--red)">Intérêts</th><th style="color:var(--green)">Capital</th><th>Cap. fin</th></tr></thead>
+        <thead><tr><th>N°</th><th>Date</th><th>Cap. début</th><th>${mensCol}</th><th style="color:var(--red)">Intérêts</th><th style="color:var(--green)">Capital</th><th>Cap. fin</th></tr></thead>
         <tbody>${rows.map(r=>`<tr>
-          <td>${r.i}</td><td>${r.date}</td>
+          <td style="color:var(--text3)">${r.i}</td><td>${r.date}</td>
           <td>${euro(r.capDeb,0)}</td>
-          <td>${euro(r.mens,2)}</td>
+          <td style="font-weight:500">${euro(r.mens,2)}</td>
           <td style="color:var(--red)">${euro(r.interet,2)}</td>
           <td style="color:var(--green)">${euro(r.amort,2)}</td>
           <td>${euro(r.capFin,0)}</td>
@@ -1802,8 +1867,8 @@ function renderEmprunt(){
 
   const html=`<div class="card" style="padding:0;overflow:hidden">`+
     biens.map(b=>{
-      const c=Number(b.capital),t=Number(b.taux)/100/12,n=Number(b.duree);
-      const mens=c*t*Math.pow(1+t,n)/(Math.pow(1+t,n)-1);
+      const mens=bienMensualite(b);
+      const c=Number(b.capital||0);
       const pct=Math.max(0,Math.min(100,c>0?(c-Number(b.capitalRestant||c))/c*100:0));
       return`<div class="bien-row" onclick="openDrawerEmprunt('${b.id}')">
         <div class="bien-row-icon" style="background:var(--amber-light);color:var(--amber)">🏦</div>
@@ -1943,6 +2008,32 @@ function renderLocataires(){
 // ============================================================
 // GESTION — CHARGES ANNUELLES PAR BIEN
 // ============================================================
+
+// Preview mensualité dans modal édition
+function updateEbMensPreview() {
+  const c = Number(document.getElementById('eb-capital')?.value) || 0;
+  const t = Number(document.getElementById('eb-taux')?.value) / 100 / 12;
+  const n = Number(document.getElementById('eb-duree')?.value) || 0;
+  const mode = document.getElementById('eb-mode-remb')?.value || 'annuite';
+  const mensManuelle = Number(document.getElementById('eb-mens-manuelle')?.value) || 0;
+  const el = document.getElementById('eb-mens-preview');
+  if(!el) return;
+  if(mensManuelle > 0) {
+    el.innerHTML = `Mensualité <strong>manuelle</strong> : <strong style="color:var(--accent)">${euro(mensManuelle,2)}/mois</strong> · Les intérêts sont déduits automatiquement dans le tableau.`;
+    return;
+  }
+  if(!c || !n) { el.innerHTML = 'Mensualité calculée : <strong>—</strong>'; return; }
+  let mens1;
+  if(mode === 'amort_constant') {
+    mens1 = c/n + c*t;
+    const mensN = c/n + (c/n)*t; // approximation dernière
+    el.innerHTML = `Mode <strong>amortissement constant</strong> · Première mensualité : <strong style="color:var(--red)">${euro(mens1,2)}/mois</strong> → décroissante jusqu'à ~${euro(Math.round(c/n),0)}/mois`;
+  } else {
+    mens1 = t > 0 ? c*t*Math.pow(1+t,n)/(Math.pow(1+t,n)-1) : c/n;
+    const coutTotal = mens1*n - c;
+    el.innerHTML = `Mode <strong>annuité constante</strong> · Mensualité : <strong style="color:var(--red)">${euro(mens1,2)}/mois</strong> · Coût total intérêts : ${euro(Math.round(coutTotal))}`;
+  }
+}
 
 // Retourne le total des charges annuelles d'un bien (€/an)
 function bienChargesAn(b) {
@@ -2103,6 +2194,9 @@ function openEditBien(id){
   document.getElementById('eb-crd').value=b.capitalRestant||b.capital||'';
   document.getElementById('eb-taux').value=b.taux||'';
   document.getElementById('eb-duree').value=b.duree||'';
+  document.getElementById('eb-mode-remb').value=b.modeRemboursement||'annuite';
+  document.getElementById('eb-mens-manuelle').value=b.mensualiteManuelle||'';
+  updateEbMensPreview();
   document.getElementById('eb-banque').value=b.banque||'';
   document.getElementById('eb-debut').value=b.debut||'';
   document.getElementById('eb-loyer').value=b.loyer||0;
@@ -2167,6 +2261,10 @@ async function updateBien(){
   b.capitalRestant=gn('eb-crd')??b.capital;
   b.taux=gn('eb-taux')??b.taux;
   b.duree=gn('eb-duree')??b.duree;
+  b.modeRemboursement=g('eb-mode-remb').value||'annuite';
+  const mensManuelle=gn('eb-mens-manuelle');
+  if(mensManuelle!==null && mensManuelle>0) b.mensualiteManuelle=mensManuelle;
+  else delete b.mensualiteManuelle;
   b.banque=g('eb-banque').value.trim();
   b.debut=g('eb-debut').value;
   b.loyer=gn('eb-loyer')??0;
