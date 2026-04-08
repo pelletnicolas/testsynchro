@@ -320,6 +320,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
 
   <div class="nav-bar">
     <button class="nav-btn active" id="nav-gestion" onclick="showMainTab('gestion')">Gestion</button>
+    <button class="nav-btn" id="nav-projection" onclick="showMainTab('projection')">🔮 Projection</button>
     <button class="nav-btn" id="nav-marche" onclick="showMainTab('marche')">Marché</button>
     <button class="nav-btn" id="nav-bp" onclick="showMainTab('bp')">Business Plan</button>
   </div>
@@ -347,6 +348,12 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     <button class="subnav-btn" id="sub-associes" onclick="showSubPage('associes',this)">Associés</button>
     <button class="subnav-btn" id="sub-emprunt" onclick="showSubPage('emprunt',this)">Emprunt</button>
     <button class="subnav-btn" id="sub-locataires" onclick="showSubPage('locataires',this)">Locataires</button>
+  </div>
+  <div class="subnav-bar" id="subnav-projection">
+    <button class="subnav-btn active" id="proj-sub-dashboard" onclick="showProjPage('proj-dashboard',this)">Dashboard</button>
+    <button class="subnav-btn" id="proj-sub-biens" onclick="showProjPage('proj-biens',this)">Biens</button>
+    <button class="subnav-btn" id="proj-sub-emprunt" onclick="showProjPage('proj-emprunt',this)">Emprunt</button>
+    <button class="subnav-btn" id="proj-sub-locataires" onclick="showProjPage('proj-locataires',this)">Locataires</button>
   </div>
 
   <div class="main">
@@ -446,6 +453,65 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
       <div id="locataires-content"></div>
     </div>
 
+
+    <!-- ========================================================= -->
+    <!-- PROJECTION PAGES -->
+    <!-- ========================================================= -->
+
+    <!-- PROJ DASHBOARD -->
+    <div class="page" id="page-proj-dashboard">
+      <div style="background:linear-gradient(135deg,var(--amber-light),var(--blue-light));border:1px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔮</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--amber)">Mode Projection — Simulation hypothétique</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Les biens réels sont recopiés + vos biens fictifs ajoutés. Les données réelles ne sont jamais modifiées.</div>
+        </div>
+        <button class="btn btn-sm" onclick="resetProjBiens()" style="margin-left:auto;color:var(--red);border-color:var(--red);flex-shrink:0">↺ Réinitialiser</button>
+      </div>
+      <div class="kpi-grid" id="proj-dash-kpis"></div>
+      <div class="sl">Comparatif Réel vs Projection</div>
+      <div id="proj-dash-compare" class="card" style="margin-bottom:14px"></div>
+      <div class="sl">Patrimoine projeté</div>
+      <div id="proj-dash-biens"></div>
+    </div>
+
+    <!-- PROJ BIENS -->
+    <div class="page" id="page-proj-biens">
+      <div style="background:linear-gradient(135deg,var(--amber-light),var(--blue-light));border:1px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔮</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--amber)">Biens projetés</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Biens réels (lecture seule) + biens fictifs que vous ajoutez pour simuler.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openAddProjBienModal()">+ Bien fictif</button>
+      </div>
+      <div id="proj-biens-list"></div>
+    </div>
+
+    <!-- PROJ EMPRUNT -->
+    <div class="page" id="page-proj-emprunt">
+      <div style="background:linear-gradient(135deg,var(--amber-light),var(--blue-light));border:1px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔮</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--amber)">Emprunts projetés</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Tableaux incluant les biens fictifs.</div>
+        </div>
+      </div>
+      <div class="page-title" style="margin-bottom:16px">Tableaux d'amortissement · Projection</div>
+      <div id="proj-empr-content"></div>
+    </div>
+
+    <!-- PROJ LOCATAIRES -->
+    <div class="page" id="page-proj-locataires">
+      <div style="background:linear-gradient(135deg,var(--amber-light),var(--blue-light));border:1px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔮</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--amber)">Locataires projetés</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Vue locataires des biens réels + fictifs.</div>
+        </div>
+      </div>
+      <div id="proj-locataires-content"></div>
+    </div>
 
     <!-- MARCHÉ IMMOBILIER — Analyse -->
     <div class="page" id="page-marche-analyse">
@@ -987,6 +1053,71 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-add-bien')">Annuler</button>
       <button class="btn btn-primary" onclick="saveBien()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PROJECTION — Ajouter un bien fictif -->
+<div class="modal-bg" id="modal-add-proj-bien">
+  <div class="modal">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+      <span style="font-size:20px">🔮</span>
+      <div class="modal-title" style="margin-bottom:0">Ajouter un bien fictif · Projection</div>
+    </div>
+    <div style="background:var(--amber-light);border-radius:var(--radius);padding:8px 12px;margin-bottom:14px;font-size:12px;color:var(--amber)">
+      Ce bien n'existe que dans la simulation. Il ne sera pas sauvegardé dans les données réelles.
+    </div>
+    <div class="two-col">
+      <div class="fg"><label>Adresse / nom fictif</label><input id="pb-adresse" type="text" placeholder="Ex: 12 rue de la Paix"></div>
+      <div class="fg"><label>Ville / CP</label><input id="pb-ville" type="text" placeholder="Marseille 13001"></div>
+    </div>
+    <div class="two-col">
+      <div class="fg"><label>Type</label><select id="pb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option></select></div>
+      <div class="fg"><label>Surface (m²)</label><input id="pb-surface" type="number" placeholder="30"></div>
+    </div>
+    <div class="two-col">
+      <div class="fg"><label>Prix d'acquisition (€)</label><input id="pb-prix" type="number" placeholder="120000" oninput="updatePbPreview()"></div>
+      <div class="fg"><label>Date d'achat prévue</label><input id="pb-dateachat" type="date"></div>
+    </div>
+    <div class="two-col">
+      <div class="fg"><label>Frais de notaire (€)</label><input id="pb-notaire" type="number" placeholder="10000"></div>
+      <div class="fg"><label>Travaux (€)</label><input id="pb-travaux" type="number" value="0"></div>
+    </div>
+    <div class="sl" style="margin-top:4px">Emprunt</div>
+    <div class="two-col">
+      <div class="fg"><label>Capital emprunté (€)</label><input id="pb-capital" type="number" placeholder="120000" oninput="updatePbPreview()"></div>
+      <div class="fg"><label>Taux annuel (%)</label><input id="pb-taux" type="number" step="0.01" placeholder="3.50" oninput="updatePbPreview()"></div>
+    </div>
+    <div class="two-col">
+      <div class="fg"><label>Durée (mois)</label><input id="pb-duree" type="number" placeholder="240" oninput="updatePbPreview()"></div>
+      <div class="fg"><label>Banque</label><input id="pb-banque" type="text" placeholder="LCL"></div>
+    </div>
+    <div class="fg"><label>Début remboursement</label><input id="pb-debut" type="date"></div>
+    <div id="pb-mens-preview" style="font-size:12px;color:var(--text3);background:var(--surface2);border-radius:var(--radius);padding:8px 12px;margin-bottom:4px">
+      Mensualité estimée : <strong>—</strong>
+    </div>
+    <div class="sl" style="margin-top:4px">Location</div>
+    <div class="two-col">
+      <div class="fg"><label>Loyer prévu HC (€/mois)</label><input id="pb-loyer" type="number" placeholder="700" oninput="updatePbPreview()"></div>
+      <div class="fg"><label>Statut location</label>
+        <select id="pb-statut"><option>Non loué</option><option>Bail signé - attente locataire</option><option selected>Bail signé - loué</option></select>
+      </div>
+    </div>
+    <div class="sl" style="margin-top:4px">Charges annuelles (€/an)</div>
+    <div class="two-col">
+      <div class="fg"><label>Copropriété</label><input id="pb-copro" type="number" placeholder="350" oninput="updatePbPreview()"></div>
+      <div class="fg"><label>Taxe foncière</label><input id="pb-fonciere" type="number" placeholder="250" oninput="updatePbPreview()"></div>
+    </div>
+    <div class="two-col">
+      <div class="fg"><label>Assurance PNO</label><input id="pb-assurpno" type="number" placeholder="50" oninput="updatePbPreview()"></div>
+      <div class="fg"><label>Entretien</label><input id="pb-entretien" type="number" placeholder="200" oninput="updatePbPreview()"></div>
+    </div>
+    <div id="pb-cf-preview" style="font-size:13px;font-weight:600;background:var(--surface2);border-radius:var(--radius);padding:10px 14px;margin-bottom:4px;display:flex;justify-content:space-between">
+      <span>Cash-flow estimé</span><span id="pb-cf-val">—</span>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-add-proj-bien')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveProjBien()">Ajouter à la projection</button>
     </div>
   </div>
 </div>
@@ -1581,6 +1712,7 @@ function computeSoldes(){
 // ============================================================
 let currentSubPage = 'dashboard';
 let currentBpPage = 'dashboard';
+let currentProjPage = 'proj-dashboard';
 
 function showBpPage(id, btn) {
   currentBpPage = id.replace('bp-','');
@@ -1595,19 +1727,33 @@ function showMainTab(tab) {
   document.getElementById('nav-marche').classList.toggle('active', tab === 'marche');
   document.getElementById('nav-bp').classList.toggle('active', tab === 'bp');
   document.getElementById('nav-gestion').classList.toggle('active', tab === 'gestion');
+  document.getElementById('nav-projection').classList.toggle('active', tab === 'projection');
 
   document.getElementById('subnav-gestion').classList.toggle('visible', tab === 'gestion');
   document.getElementById('subnav-bp').classList.toggle('visible', tab === 'bp');
   document.getElementById('subnav-marche').classList.toggle('visible', tab === 'marche');
+  document.getElementById('subnav-projection').classList.toggle('visible', tab === 'projection');
 
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   if (tab === 'marche') {
     document.getElementById('page-' + currentMarchePage).classList.add('active');
   } else if (tab === 'bp') {
     document.getElementById('page-bp-' + currentBpPage).classList.add('active');
+  } else if (tab === 'projection') {
+    document.getElementById('page-' + currentProjPage).classList.add('active');
+    renderProjAll();
   } else {
     document.getElementById('page-' + currentSubPage).classList.add('active');
   }
+}
+
+function showProjPage(id, btn) {
+  currentProjPage = id;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('#subnav-projection .subnav-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderProjAll();
 }
 
 let currentMarchePage = 'marche-analyse';
@@ -2061,6 +2207,304 @@ function renderAll(){
   renderAssocies();
   renderEmprunt();
   renderLocataires();
+}
+
+// ============================================================
+// PROJECTION — Données & logique
+// ============================================================
+
+// Biens fictifs stockés en localStorage (clé simple, pas Firebase)
+function loadProjBiens(){
+  try{ return JSON.parse(localStorage.getItem('sci_proj_biens')||'[]'); }catch(e){return[];}
+}
+function saveProjBiensLocal(arr){
+  localStorage.setItem('sci_proj_biens', JSON.stringify(arr));
+}
+
+// Fusionner biens réels + fictifs
+function projBiensList(){
+  const reels = biensList().map(b=>({...b, _fictif:false}));
+  const fictifs = loadProjBiens().map(b=>({...b, _fictif:true}));
+  return [...reels, ...fictifs];
+}
+
+function resetProjBiens(){
+  if(!confirm('Supprimer tous les biens fictifs de la projection ?')) return;
+  localStorage.removeItem('sci_proj_biens');
+  renderProjAll();
+  showToast('✓ Projection réinitialisée');
+}
+
+// ---- Modal ajout bien fictif ----
+function openAddProjBienModal(){
+  // reset fields
+  ['pb-adresse','pb-ville','pb-banque'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['pb-prix','pb-notaire','pb-travaux','pb-capital','pb-taux','pb-loyer','pb-copro','pb-fonciere','pb-assurpno','pb-entretien'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const d=document.getElementById('pb-duree');if(d)d.value=240;
+  const s=document.getElementById('pb-surface');if(s)s.value='';
+  document.getElementById('pb-mens-preview').innerHTML='Mensualité estimée : <strong>—</strong>';
+  document.getElementById('pb-cf-val').textContent='—';
+  document.getElementById('pb-cf-val').style.color='var(--text)';
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('pb-dateachat').value=today;
+  document.getElementById('pb-debut').value=today;
+  openModal('modal-add-proj-bien');
+}
+
+function updatePbPreview(){
+  const capital=Number(document.getElementById('pb-capital').value)||0;
+  const taux=Number(document.getElementById('pb-taux').value)||0;
+  const duree=Number(document.getElementById('pb-duree').value)||0;
+  const loyer=Number(document.getElementById('pb-loyer').value)||0;
+  const copro=Number(document.getElementById('pb-copro').value)||0;
+  const fonciere=Number(document.getElementById('pb-fonciere').value)||0;
+  const assurpno=Number(document.getElementById('pb-assurpno').value)||0;
+  const entretien=Number(document.getElementById('pb-entretien').value)||0;
+  const chargesMois=(copro+fonciere+assurpno+entretien)/12;
+
+  let mens=0;
+  if(capital>0&&taux>0&&duree>0){
+    const r=taux/100/12;
+    mens=capital*r*Math.pow(1+r,duree)/(Math.pow(1+r,duree)-1);
+  }
+  const cf=loyer-mens-chargesMois;
+
+  const mpEl=document.getElementById('pb-mens-preview');
+  if(mpEl) mpEl.innerHTML=mens>0?`Mensualité estimée : <strong>${euro(mens,0)}/mois</strong>`:'Mensualité estimée : <strong>—</strong>';
+
+  const cfEl=document.getElementById('pb-cf-val');
+  if(cfEl){
+    if(loyer>0||mens>0){
+      cfEl.textContent=(cf>=0?'+':'')+euro(cf,0)+'/mois';
+      cfEl.style.color=cf>=0?'var(--green)':'var(--red)';
+    } else {
+      cfEl.textContent='—';
+      cfEl.style.color='var(--text)';
+    }
+  }
+}
+
+function saveProjBien(){
+  const adresse=document.getElementById('pb-adresse').value.trim();
+  if(!adresse){showToast('Adresse requise');return;}
+  const b={
+    id:'proj_'+Date.now(),
+    adresse,
+    ville:document.getElementById('pb-ville').value.trim(),
+    type:document.getElementById('pb-type').value,
+    surface:Number(document.getElementById('pb-surface').value)||0,
+    prix:Number(document.getElementById('pb-prix').value)||0,
+    dateAchat:document.getElementById('pb-dateachat').value,
+    notaire:Number(document.getElementById('pb-notaire').value)||0,
+    travaux:Number(document.getElementById('pb-travaux').value)||0,
+    capital:Number(document.getElementById('pb-capital').value)||0,
+    capitalRestant:Number(document.getElementById('pb-capital').value)||0,
+    taux:Number(document.getElementById('pb-taux').value)||0,
+    duree:Number(document.getElementById('pb-duree').value)||240,
+    banque:document.getElementById('pb-banque').value.trim(),
+    debut:document.getElementById('pb-debut').value,
+    loyer:Number(document.getElementById('pb-loyer').value)||0,
+    charges:0,locataire:'',
+    chargesAnnuelles:{
+      copro:Number(document.getElementById('pb-copro').value)||0,
+      fonciere:Number(document.getElementById('pb-fonciere').value)||0,
+      assurpno:Number(document.getElementById('pb-assurpno').value)||0,
+      entretien:Number(document.getElementById('pb-entretien').value)||0,
+      autres:0
+    },
+    statut:document.getElementById('pb-statut').value,
+    valeurEstimee:Number(document.getElementById('pb-prix').value)||0,
+    _fictif:true
+  };
+  const arr=loadProjBiens();
+  arr.push(b);
+  saveProjBiensLocal(arr);
+  closeModal('modal-add-proj-bien');
+  showToast('✓ Bien fictif ajouté à la projection');
+  renderProjAll();
+}
+
+function deleteProjBien(id){
+  if(!confirm('Supprimer ce bien fictif de la projection ?')) return;
+  const arr=loadProjBiens().filter(b=>b.id!==id);
+  saveProjBiensLocal(arr);
+  renderProjAll();
+  showToast('✓ Bien fictif supprimé');
+}
+
+// ---- Render Projection ----
+function renderProjAll(){
+  renderProjDashboard();
+  renderProjBiens();
+  renderProjEmprunt();
+  renderProjLocataires();
+}
+
+function renderProjDashboard(){
+  const el=document.getElementById('proj-dash-kpis');if(!el)return;
+  const biens=projBiensList();
+  const reels=biensList();
+  const fictifs=loadProjBiens();
+
+  // KPIs projetés
+  const totalValeur=biens.reduce((s,b)=>s+valeurBien(b),0);
+  const totalCRD=biens.reduce((s,b)=>s+Number(b.capitalRestant||b.capital),0);
+  const valNette=totalValeur-totalCRD;
+  const totalMens=biens.reduce((s,b)=>s+bienMensualite(b),0);
+  const totalLoyers=biens.reduce((s,b)=>s+Number(b.loyer||0)+Number(b.charges||0),0);
+  const totalChargesMois=biens.reduce((s,b)=>s+bienChargesMois(b),0);
+  const cashflowTotal=totalLoyers-totalMens-totalChargesMois;
+
+  el.innerHTML=`
+    <div class="kpi"><div class="kpi-label">Biens projetés</div><div class="kpi-val">${biens.length} <span class="unit">(+${fictifs.length} fictifs)</span></div></div>
+    <div class="kpi"><div class="kpi-label">Valeur totale</div><div class="kpi-val">${euro(totalValeur)}</div></div>
+    <div class="kpi"><div class="kpi-label">Capital restant dû</div><div class="kpi-val">${euro(totalCRD)}</div></div>
+    <div class="kpi"><div class="kpi-label">Valeur nette</div><div class="kpi-val ${valNette>=0?'kpi-pos':'kpi-neg'}">${valNette>=0?'+':''}${euro(valNette)}</div></div>
+    <div class="kpi"><div class="kpi-label">Mensualités/mois</div><div class="kpi-val">${euro(totalMens,0)}</div></div>
+    <div class="kpi"><div class="kpi-label">Cash-flow net/mois</div><div class="kpi-val ${cashflowTotal>=0?'kpi-pos':'kpi-neg'}">${cashflowTotal>=0?'+':''}${euro(cashflowTotal,0)}</div></div>
+  `;
+
+  // Comparatif
+  const rValeur=reels.reduce((s,b)=>s+valeurBien(b),0);
+  const rCRD=reels.reduce((s,b)=>s+Number(b.capitalRestant||b.capital),0);
+  const rMens=reels.reduce((s,b)=>s+bienMensualite(b),0);
+  const rLoyers=reels.reduce((s,b)=>s+Number(b.loyer||0)+Number(b.charges||0),0);
+  const rChargesMois=reels.reduce((s,b)=>s+bienChargesMois(b),0);
+  const rCF=rLoyers-rMens-rChargesMois;
+  const diffValeur=totalValeur-rValeur;
+  const diffCRD=totalCRD-rCRD;
+  const diffCF=cashflowTotal-rCF;
+
+  const diffRow=(label,reel,proj,diff,isNegBad=true)=>{
+    const sign=diff>=0?'+':'';
+    const color=diff>=0?(isNegBad?'var(--green)':'var(--red)'):(isNegBad?'var(--red)':'var(--green)');
+    return`<div class="status-row">
+      <span style="font-size:13px">${label}</span>
+      <span style="display:flex;gap:14px;align-items:center">
+        <span style="font-size:12px;color:var(--text3)">Réel : ${euro(reel,0)}</span>
+        <span style="font-size:13px;font-weight:500">Proj : ${euro(proj,0)}</span>
+        <span style="font-size:12px;font-weight:700;color:${color}">${sign}${euro(diff,0)}</span>
+      </span>
+    </div>`;
+  };
+
+  document.getElementById('proj-dash-compare').innerHTML=`
+    ${fictifs.length===0?`<div class="empty-state" style="padding:20px">Ajoutez des biens fictifs via l'onglet "Biens" pour voir l'impact.</div>`:
+    diffRow('🏠 Biens',reels.length,biens.length,fictifs.length)+
+    diffRow('💶 Valeur totale',rValeur,totalValeur,diffValeur)+
+    diffRow('🏦 Capital restant dû',rCRD,totalCRD,diffCRD,false)+
+    diffRow('💶 Cash-flow net/mois',rCF,cashflowTotal,diffCF)}
+  `;
+
+  // Liste biens projetés
+  document.getElementById('proj-dash-biens').innerHTML=biens.length===0
+    ?`<div class="empty-state">Aucun bien</div>`
+    :biens.map(b=>{
+      const mens=bienMensualite(b);
+      const loyer=Number(b.loyer||0)+Number(b.charges||0);
+      const cf=loyer-mens-bienChargesMois(b);
+      return`<div class="card" style="${b._fictif?'border-color:var(--amber);border-width:1px':''}">
+        <div class="card-header">
+          <div>
+            <div style="font-weight:500;font-size:14px">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700;vertical-align:middle">FICTIF</span>':''}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px">${b.ville}</div>
+          </div>
+          ${locBadge(b.statut)}
+        </div>
+        <div class="three-col">
+          <div><div class="kpi-label">Prix</div><div style="font-size:14px;font-weight:500">${euro(b.prix)}</div></div>
+          <div><div class="kpi-label">Loyer/mois</div><div style="font-size:14px;font-weight:500">${euro(loyer)}</div></div>
+          <div><div class="kpi-label">Cash-flow</div><div style="font-size:14px;font-weight:600;color:${cf>=0?'var(--green)':'var(--red)'}">${cf>=0?'+':''}${euro(cf,0)}</div></div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+function renderProjBiens(){
+  const el=document.getElementById('proj-biens-list');if(!el)return;
+  const biens=projBiensList();
+  if(biens.length===0){el.innerHTML=`<div class="empty-state">Aucun bien. Ajoutez des biens fictifs pour simuler.</div>`;return;}
+  el.innerHTML=`<div class="card" style="padding:0;overflow:hidden">`+
+    biens.map(b=>{
+      const mens=bienMensualite(b);
+      const loyer=Number(b.loyer||0)+Number(b.charges||0);
+      const cf=loyer-mens-bienChargesMois(b);
+      return`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
+        <div class="bien-row-icon" style="${b._fictif?'background:var(--amber-light);color:var(--amber)':''}">
+          ${b._fictif?'🔮':({Studio:'🏠',T2:'🏠',T3:'🏠',T4:'🏠',Maison:'🏡'}[b.type]||'🏠')}
+        </div>
+        <div class="bien-row-info">
+          <div class="bien-row-addr">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
+          <div class="bien-row-sub">${b.type} ${b.surface}m² · ${(b.ville||'').split('·')[0].trim()} · ${euro(loyer)}/mois · CF ${cf>=0?'+':''}${euro(cf,0)}</div>
+        </div>
+        <div class="bien-row-right">
+          ${locBadge(b.statut)}
+          ${b._fictif?`<button class="btn btn-danger btn-sm" onclick="deleteProjBien('${b.id}');event.stopPropagation()">✕</button>`:''}
+        </div>
+      </div>`;
+    }).join('')+`</div>`;
+}
+
+function renderProjEmprunt(){
+  const el=document.getElementById('proj-empr-content');if(!el)return;
+  const biens=projBiensList().filter(b=>Number(b.taux)>0&&Number(b.duree)>0);
+  if(biens.length===0){el.innerHTML=`<div class="empty-state">Aucun emprunt dans la projection</div>`;return;}
+  const html=`<div class="card" style="padding:0;overflow:hidden">`+
+    biens.map(b=>{
+      const mens=bienMensualite(b);
+      const c=Number(b.capital||0);
+      const pct=Math.max(0,Math.min(100,c>0?(c-Number(b.capitalRestant||c))/c*100:0));
+      return`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
+        <div class="bien-row-icon" style="background:var(--amber-light);color:var(--amber)">🏦</div>
+        <div class="bien-row-info">
+          <div class="bien-row-addr">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
+          <div class="bien-row-sub">${b.banque||'—'} · ${b.taux}% · ${euro(mens,0)}/mois · ${pct.toFixed(1)}% remboursé</div>
+        </div>
+        <div class="bien-row-right">
+          <span style="font-size:12px;font-weight:600;color:var(--text)">${euro(b.capitalRestant||b.capital)}</span>
+          <span style="font-size:10px;color:var(--text3)">Capital restant dû</span>
+        </div>
+      </div>`;
+    }).join('')+`</div>`;
+  el.innerHTML=html;
+}
+
+function renderProjLocataires(){
+  const el=document.getElementById('proj-locataires-content');if(!el)return;
+  const biens=projBiensList();
+  const loues=biens.filter(b=>b.statut==='Bail signé - loué');
+  const nonLoues=biens.filter(b=>b.statut!=='Bail signé - loué');
+  const totalLoyers=loues.reduce((s,b)=>s+Number(b.loyer||0),0);
+
+  el.innerHTML=`
+    <div class="kpi-grid" style="margin-bottom:14px">
+      <div class="kpi"><div class="kpi-label">Biens loués</div><div class="kpi-val kpi-pos">${loues.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Non loués</div><div class="kpi-val">${nonLoues.length}</div></div>
+      <div class="kpi"><div class="kpi-label">Loyers HC/mois</div><div class="kpi-val kpi-pos">${euro(totalLoyers)}</div></div>
+    </div>
+    ${loues.length>0?`<div class="sl">Biens loués</div>
+    <div class="card" style="padding:0;overflow:hidden">`+
+    loues.map(b=>`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
+      <div class="bien-row-icon av-teal" style="background:var(--green-light);color:var(--green)">👤</div>
+      <div class="bien-row-info">
+        <div class="bien-row-addr">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
+        <div class="bien-row-sub">${b.locataire||'(fictif)'} · ${euro(Number(b.loyer||0)+Number(b.charges||0))}/mois</div>
+      </div>
+      <div class="bien-row-right">
+        <span style="font-size:12px;font-weight:600;color:var(--green)">${euro(b.loyer||0)}/mois</span>
+      </div>
+    </div>`).join('')+`</div>`:''}
+    ${nonLoues.length>0?`<div class="sl">Non loués / en attente</div>
+    <div class="card" style="padding:0;overflow:hidden">`+
+    nonLoues.map(b=>`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
+      <div class="bien-row-icon" style="background:var(--red-light);color:var(--red)">🔑</div>
+      <div class="bien-row-info">
+        <div class="bien-row-addr">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
+        <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.statut}</div>
+      </div>
+      ${locBadge(b.statut)}
+    </div>`).join('')+`</div>`:''}
+  `;
 }
 
 // ============================================================
