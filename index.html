@@ -354,6 +354,9 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
     <button class="subnav-btn" id="proj-sub-biens" onclick="showProjPage('proj-biens',this)">Biens</button>
     <button class="subnav-btn" id="proj-sub-emprunt" onclick="showProjPage('proj-emprunt',this)">Emprunt</button>
     <button class="subnav-btn" id="proj-sub-locataires" onclick="showProjPage('proj-locataires',this)">Locataires</button>
+    <button class="subnav-btn" id="proj-sub-tresorerie" onclick="showProjPage('proj-tresorerie',this)">💰 Trésorerie</button>
+    <button class="subnav-btn" id="proj-sub-resultat" onclick="showProjPage('proj-resultat',this)">📊 Résultat & IS</button>
+    <button class="subnav-btn" id="proj-sub-cca" onclick="showProjPage('proj-cca',this)">👥 CCA</button>
   </div>
 
   <div class="main">
@@ -511,6 +514,49 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
         </div>
       </div>
       <div id="proj-locataires-content"></div>
+    </div>
+
+    <!-- PROJ TRÉSORERIE MENSUELLE -->
+    <div class="page" id="page-proj-tresorerie">
+      <div style="background:linear-gradient(135deg,var(--amber-light),var(--blue-light));border:1px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔮</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--amber)">Trésorerie mensuelle projetée · Projection</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Flux mois par mois sur 10 ans, biens réels + fictifs. Cliquez sur une année pour la déplier.</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px;padding:12px 16px">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text2)">
+          <span>🟢 CF positif</span><span>🔴 CF négatif</span>
+          <span style="color:var(--amber);font-weight:600">📅 Mois d'acquisition (fictif)</span>
+          <span style="color:var(--blue)">📅 Mois d'acquisition (réel)</span>
+        </div>
+      </div>
+      <div id="proj-tresorerie-content"></div>
+    </div>
+
+    <!-- PROJ RÉSULTAT & IS -->
+    <div class="page" id="page-proj-resultat">
+      <div style="background:linear-gradient(135deg,var(--amber-light),var(--blue-light));border:1px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔮</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--amber)">Résultat fiscal & IS · Projection</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">CA − intérêts − charges − amortissement = résultat fiscal · IS = 15% ≤ 42 500 € · 25% au-delà</div>
+        </div>
+      </div>
+      <div id="proj-resultat-content"></div>
+    </div>
+
+    <!-- PROJ CCA -->
+    <div class="page" id="page-proj-cca">
+      <div style="background:linear-gradient(135deg,var(--amber-light),var(--blue-light));border:1px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔮</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--amber)">Comptes courants associés · Projection</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Apports CCA réels + apports fictifs estimés pour les biens de simulation.</div>
+        </div>
+      </div>
+      <div id="proj-cca-content"></div>
     </div>
 
     <!-- MARCHÉ IMMOBILIER — Analyse -->
@@ -2338,6 +2384,503 @@ function renderProjAll(){
   renderProjBiens();
   renderProjEmprunt();
   renderProjLocataires();
+  renderProjTresorerie();
+  renderProjResultat();
+  renderProjCCA();
+}
+
+// ============================================================
+// PROJECTION — Convertisseur biens réels → format calcul
+// ============================================================
+// Convertit un bien DATA.biens en format utilisable pour les calculs projetés
+function bienToProj(b) {
+  const dateAchat = b.dateAchat || new Date().toISOString().split('T')[0];
+  const parts = dateAchat.split('-');
+  const dateStr = parts.length===3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateAchat; // DD/MM/YYYY
+  return {
+    id: b.id,
+    adresse: b.adresse,
+    _fictif: b._fictif || false,
+    date: dateStr,
+    prix: Number(b.prix)||0,
+    loyer: Number(b.loyer||0) + Number(b.charges||0),
+    taux: Number(b.taux)||0,
+    duree: Number(b.duree)||240,
+    credit: Number(b.capital)||0,
+    frais: Number(b.notaire||0) + Number(b.courtier||0) + Number(b.travaux||0),
+    chargesAnnuelles: b.chargesAnnuelles || {},
+    statut: b.statut || 'Non loué',
+    mode: 'C', // location longue durée (loyer fixe)
+    irl: 0,    // pas d'indexation pour la projection simple
+  };
+}
+
+// Mensualité d'un bien projeté
+function projMensualite(pb) {
+  const capital = pb.credit > 0 ? pb.credit : pb.prix + (pb.frais||0);
+  const taux = pb.taux;
+  const duree = pb.duree;
+  if(!capital||!taux||!duree) return 0;
+  const r = taux/100/12;
+  return capital * r * Math.pow(1+r,duree) / (Math.pow(1+r,duree)-1);
+}
+
+// Charges mensuelles d'un bien projeté (utilise les champs réels s'ils existent, sinon BP_PARAMS)
+function projChargesMois(pb) {
+  if(pb.chargesAnnuelles) {
+    const ca = pb.chargesAnnuelles;
+    const tot = (Number(ca.copro)||0)+(Number(ca.fonciere)||0)+(Number(ca.assurpno)||0)+(Number(ca.entretien)||0)+(Number(ca.autres)||0);
+    if(tot>0) return tot/12;
+  }
+  // Fallback BP_PARAMS
+  return (BP_PARAMS.coproAn + BP_PARAMS.fonciereAn + BP_PARAMS.assurAn)/12 + (pb.prix * BP_PARAMS.entretienCoeff/100)/12;
+}
+
+// CA mensuel d'un bien projeté (loyer ou 0 si non actif ce mois)
+function projCaMensuel(pb, an, mois) {
+  const parts = (pb.date||'').split('/');
+  if(parts.length<3) return 0;
+  const achatAn = parseInt(parts[2]);
+  const achatMois = parseInt(parts[1]);
+  if(an < achatAn || (an===achatAn && mois < achatMois)) return 0;
+  if(pb.statut === 'Non loué') return 0;
+  return pb.loyer || 0;
+}
+
+// CA annuel
+function projCaAnnuel(pb, an) {
+  let s=0;
+  for(let m=1;m<=12;m++) s+=projCaMensuel(pb,an,m);
+  return s;
+}
+
+// IS annuel simplifié (résultat fiscal = CA - intérêts - charges - amortissement)
+function projCalcIS(pb, an) {
+  const parts = (pb.date||'').split('/');
+  if(parts.length<3) return {ca:0,interets:0,charges:0,amort:0,resultat:0,is:0};
+  const achatAn = parseInt(parts[2]);
+  const achatMois = parseInt(parts[1]);
+  if(an < achatAn) return {ca:0,interets:0,charges:0,amort:0,resultat:0,is:0};
+
+  const moisActifs = achatAn===an ? (12-achatMois+1) : 12;
+  const ca = projCaAnnuel(pb, an);
+
+  // Calcul intérêts exacts sur l'année
+  const capital = pb.credit>0 ? pb.credit : pb.prix+(pb.frais||0);
+  const r = pb.taux/100/12;
+  const mens = projMensualite(pb);
+  const anneesEcoulees = an - achatAn;
+  let cap = capital;
+  for(let i=0;i<anneesEcoulees*12;i++){
+    const inte=cap*r; cap-=(mens-inte);
+    if(cap<=0){cap=0;break;}
+  }
+  let interetsAn=0;
+  for(let i=0;i<moisActifs;i++){
+    const inte=Math.max(0,cap*r); interetsAn+=inte; cap-=(mens-inte);
+    if(cap<=0){cap=0;break;}
+  }
+
+  const charges = projChargesMois(pb)*moisActifs;
+  const amort = pb.prix*0.8*0.025*(moisActifs/12);
+  const resultat = Math.max(0, ca-interetsAn-charges-amort);
+  const isSeuil = BP_PARAMS.isSeuil||42500;
+  const t1 = (BP_PARAMS.isTaux1||15)/100;
+  const t2 = (BP_PARAMS.isTaux2||25)/100;
+  const is = resultat<=isSeuil ? resultat*t1 : isSeuil*t1+(resultat-isSeuil)*t2;
+  return {ca,interets:interetsAn,charges,amort,resultat,is};
+}
+
+// ============================================================
+// PROJECTION — Trésorerie mensuelle
+// ============================================================
+function renderProjTresorerie() {
+  const container = document.getElementById('proj-tresorerie-content');
+  if(!container) return;
+
+  const allBiens = projBiensList().map(bienToProj);
+  if(allBiens.length===0){
+    container.innerHTML='<div class="empty-state">Aucun bien dans la projection.</div>';
+    return;
+  }
+
+  const mois_fr = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const ANNEES = [];
+  // Déterminer la plage d'années : de l'année du premier bien à +10 ans
+  const tousAchats = allBiens.map(b=>{const p=b.date.split('/');return parseInt(p[2]);}).filter(n=>!isNaN(n));
+  const anMin = tousAchats.length ? Math.min(...tousAchats) : new Date().getFullYear();
+  const anMax = Math.max(anMin+9, new Date().getFullYear()+9);
+  for(let a=anMin;a<=anMax;a++) ANNEES.push(a);
+
+  let cumulGlobal=0;
+  const dataParAnnee={};
+
+  for(const an of ANNEES){
+    dataParAnnee[an]=[];
+    for(let m=1;m<=12;m++){
+      const biensActifs=allBiens.filter(b=>{
+        const p=b.date.split('/');
+        const ba=parseInt(p[2]),bm=parseInt(p[1]);
+        return ba<an||(ba===an&&bm<=m);
+      });
+      const acquisitions=allBiens.filter(b=>{
+        const p=b.date.split('/');
+        return parseInt(p[2])===an&&parseInt(p[1])===m;
+      });
+
+      const ca=biensActifs.reduce((s,b)=>s+projCaMensuel(b,an,m),0);
+      const mensualites=biensActifs.reduce((s,b)=>s+projMensualite(b),0);
+      const charges=biensActifs.reduce((s,b)=>s+projChargesMois(b),0);
+      const coutAcq=acquisitions.reduce((s,b)=>s+b.prix+(b.frais||0),0);
+      const creditDebloque=acquisitions.reduce((s,b)=>s+(b.credit>0?b.credit:b.prix+(b.frais||0)),0);
+      const apportCCA=acquisitions.reduce((s,b)=>Math.max(0,s+(b.prix+(b.frais||0))-b.credit),0);
+
+      // IS de l'année précédente payé en janvier
+      let isPaye=0;
+      if(m===1&&an>anMin){
+        const biensAnPrec=allBiens.filter(b=>parseInt(b.date.split('/')[2])<=an-1);
+        isPaye=biensAnPrec.reduce((s,b)=>s+projCalcIS(b,an-1).is,0);
+      }
+      // CFE en janvier (hors première année)
+      const taxesAn=m===1&&an>anMin ? (BP_PARAMS.cfeAn||0) : 0;
+
+      const totalEncaiss=ca+apportCCA+creditDebloque;
+      const totalDecaiss=mensualites+charges+coutAcq+isPaye+taxesAn;
+      const cfNet=totalEncaiss-totalDecaiss;
+      cumulGlobal+=cfNet;
+
+      dataParAnnee[an].push({
+        an,m,ca,mensualites,charges,coutAcq,creditDebloque,apportCCA,
+        isPaye,taxesAn,totalEncaiss,totalDecaiss,cfNet,cumul:cumulGlobal,
+        isAcquisition:acquisitions.length>0,
+        acquisitions,
+        biensActifs:biensActifs.length
+      });
+    }
+  }
+
+  let html='';
+  for(const an of ANNEES){
+    const rows=dataParAnnee[an]||[];
+    const caAn=rows.reduce((s,r)=>s+r.ca,0);
+    const cfAn=rows.reduce((s,r)=>s+r.cfNet,0);
+    const ccaAn=rows.reduce((s,r)=>s+r.apportCCA,0);
+    const mensAn=rows.reduce((s,r)=>s+r.mensualites,0);
+    const chargesAn=rows.reduce((s,r)=>s+r.charges,0);
+    const coutAcqAn=rows.reduce((s,r)=>s+r.coutAcq,0);
+    const isAn=rows.reduce((s,r)=>s+r.isPaye,0);
+    const creditAn=rows.reduce((s,r)=>s+r.creditDebloque,0);
+    const cumulFin=rows.length?rows[rows.length-1].cumul:0;
+    const nbFin=rows.length?rows[rows.length-1].biensActifs:0;
+    const cfColor=cfAn>=0?'var(--green)':'var(--red)';
+
+    html+=`<div class="card" style="margin-bottom:10px;padding:0;overflow:hidden">
+      <div onclick="toggleProjTresoAnnee(${an})" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;background:var(--surface2);user-select:none">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:700">${an}</span>
+          <span style="font-size:12px;color:var(--text2)">${nbFin} bien${nbFin>1?'s':''}</span>
+          <span style="font-size:12px;color:var(--blue)">CA : <strong>${euro(Math.round(caAn))}</strong></span>
+          ${ccaAn>0?`<span style="font-size:12px;color:var(--blue)">Apport CCA : <strong>${euro(Math.round(ccaAn))}</strong></span>`:''}
+          ${isAn>0?`<span style="font-size:12px;color:var(--amber)">IS payé : <strong>−${euro(Math.round(isAn))}</strong></span>`:''}
+          <span style="font-size:12px;font-weight:600;color:${cfColor}">CF : ${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</span>
+          <span style="font-size:12px;color:var(--text3)">Cumul : ${euro(Math.round(cumulFin))}</span>
+        </div>
+        <span id="proj-treso-chev-${an}" style="font-size:16px;color:var(--text3);transition:transform .2s">▸</span>
+      </div>
+      <div id="proj-treso-body-${an}" style="display:none;overflow-x:auto">
+        <table class="jtable" style="font-size:12px">
+          <thead><tr style="background:var(--surface2)">
+            <th>Mois</th><th>Biens</th>
+            <th style="color:var(--green)">CA locatif</th>
+            <th style="color:var(--blue)">Apport CCA</th>
+            <th style="color:var(--blue)">Crédit</th>
+            <th style="color:var(--green)">Total encaiss.</th>
+            <th style="color:var(--red)">Mensualités</th>
+            <th style="color:var(--red)">Charges</th>
+            <th style="color:var(--red)">Acquisitions</th>
+            <th style="color:var(--amber)">IS (an préc.)</th>
+            <th style="color:var(--red)">Total décaiss.</th>
+            <th style="font-weight:700">CF net</th>
+            <th>Cumul</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r=>{
+              const cfCol=r.cfNet>=0?'var(--green)':'var(--red)';
+              const hasFictif=r.acquisitions.some(b=>b._fictif);
+              const hasReel=r.acquisitions.some(b=>!b._fictif);
+              const rowBg=r.isAcquisition?(hasFictif?'background:var(--amber-light)':'background:var(--blue-light)'):'';
+              const acqLabel=r.isAcquisition?` 📅 ${r.acquisitions.map(b=>b.adresse.substring(0,15)).join(', ')}`:'';
+              return`<tr style="${rowBg}">
+                <td style="white-space:nowrap;font-weight:${r.isAcquisition?'600':'400'}">${mois_fr[r.m-1]} ${r.an}${acqLabel}</td>
+                <td style="color:var(--text3)">${r.biensActifs}</td>
+                <td class="amount-pos">${r.ca>0?euro(Math.round(r.ca)):'—'}</td>
+                <td style="color:var(--blue)">${r.apportCCA>0?euro(Math.round(r.apportCCA)):'—'}</td>
+                <td style="color:var(--blue)">${r.creditDebloque>0?euro(Math.round(r.creditDebloque)):'—'}</td>
+                <td style="font-weight:500;color:var(--green)">${euro(Math.round(r.totalEncaiss))}</td>
+                <td style="color:var(--red)">${r.mensualites>0?euro(Math.round(r.mensualites)):'—'}</td>
+                <td style="color:var(--amber)">${r.charges>0?euro(Math.round(r.charges)):'—'}</td>
+                <td style="color:var(--red)">${r.coutAcq>0?euro(Math.round(r.coutAcq)):'—'}</td>
+                <td style="color:var(--amber)">${r.isPaye>0?euro(Math.round(r.isPaye)):'—'}</td>
+                <td style="font-weight:500;color:var(--red)">${euro(Math.round(r.totalDecaiss))}</td>
+                <td style="font-weight:700;color:${cfCol}">${r.cfNet>=0?'+':''}${euro(Math.round(r.cfNet))}</td>
+                <td style="font-size:11px;color:${r.cumul>=0?'var(--green)':'var(--red)'}">${euro(Math.round(r.cumul))}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot><tr style="background:var(--surface2);font-weight:600">
+            <td colspan="2">TOTAL ${an}</td>
+            <td style="color:var(--green)">${euro(Math.round(caAn))}</td>
+            <td style="color:var(--blue)">${ccaAn>0?euro(Math.round(ccaAn)):'—'}</td>
+            <td style="color:var(--blue)">${creditAn>0?euro(Math.round(creditAn)):'—'}</td>
+            <td style="color:var(--green)">${euro(Math.round(caAn+ccaAn+creditAn))}</td>
+            <td style="color:var(--red)">${euro(Math.round(mensAn))}</td>
+            <td style="color:var(--amber)">${euro(Math.round(chargesAn))}</td>
+            <td style="color:var(--red)">${coutAcqAn>0?euro(Math.round(coutAcqAn)):'—'}</td>
+            <td style="color:var(--amber)">${isAn>0?euro(Math.round(isAn)):'—'}</td>
+            <td style="color:var(--red)">${euro(Math.round(mensAn+chargesAn+coutAcqAn+isAn))}</td>
+            <td style="color:${cfColor};font-weight:700">${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</td>
+            <td style="color:${cumulFin>=0?'var(--green)':'var(--red)'}">${euro(Math.round(cumulFin))}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>`;
+  }
+  container.innerHTML=html;
+}
+
+function toggleProjTresoAnnee(an){
+  const body=document.getElementById('proj-treso-body-'+an);
+  const chev=document.getElementById('proj-treso-chev-'+an);
+  if(!body)return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'block';
+  if(chev)chev.style.transform=open?'':'rotate(90deg)';
+}
+
+// ============================================================
+// PROJECTION — Résultat fiscal & IS
+// ============================================================
+function renderProjResultat(){
+  const el=document.getElementById('proj-resultat-content');
+  if(!el) return;
+
+  const allBiens=projBiensList().map(bienToProj);
+  if(allBiens.length===0){el.innerHTML='<div class="empty-state">Aucun bien dans la projection.</div>';return;}
+
+  const tousAchats=allBiens.map(b=>{const p=b.date.split('/');return parseInt(p[2]);}).filter(n=>!isNaN(n));
+  const anMin=tousAchats.length?Math.min(...tousAchats):new Date().getFullYear();
+  const anMax=Math.max(anMin+9,new Date().getFullYear()+9);
+  const ANNEES=[];
+  for(let a=anMin;a<=anMax;a++) ANNEES.push(a);
+
+  const dataAnnee=ANNEES.map(an=>{
+    const rows=allBiens.map(b=>({b,...projCalcIS(b,an)}));
+    const tot=k=>rows.reduce((s,r)=>s+r[k],0);
+    const nbBiens=rows.filter(r=>{const p=r.b.date.split('/');return parseInt(p[2])<=an;}).length;
+    return{an,rows,nbBiens,ca:tot('ca'),interets:tot('interets'),charges:tot('charges'),amort:tot('amort'),resultat:tot('resultat'),is:tot('is')};
+  });
+
+  const totalIS=dataAnnee.reduce((s,d)=>s+d.is,0);
+  const totalCA=dataAnnee.reduce((s,d)=>s+d.ca,0);
+
+  // KPIs synthèse
+  const kpiHtml=`<div class="kpi-grid" style="margin-bottom:16px">
+    <div class="kpi"><div class="kpi-label">CA total projeté</div><div class="kpi-val kpi-pos">${euro(Math.round(totalCA))}</div></div>
+    <div class="kpi"><div class="kpi-label">IS total estimé</div><div class="kpi-val" style="color:var(--amber)">${euro(Math.round(totalIS))}</div></div>
+    <div class="kpi"><div class="kpi-label">Tx IS moyen</div><div class="kpi-val">${totalCA>0?(totalIS/totalCA*100).toFixed(1):'0'}%</div></div>
+    <div class="kpi"><div class="kpi-label">Résultat fiscal total</div><div class="kpi-val">${euro(Math.round(dataAnnee.reduce((s,d)=>s+d.resultat,0)))}</div></div>
+  </div>`;
+
+  // Table synthèse annuelle
+  const synthHtml=`<div class="card" style="margin-bottom:14px">
+    <div class="card-title" style="margin-bottom:12px">Synthèse annuelle</div>
+    <div style="overflow-x:auto">
+    <table class="jtable">
+      <thead><tr>
+        <th>Année</th><th>Biens</th>
+        <th style="color:var(--green)">CA locatif</th>
+        <th style="color:var(--red)">Intérêts</th>
+        <th style="color:var(--red)">Charges</th>
+        <th style="color:var(--red)">Amortissement</th>
+        <th>Résultat fiscal</th>
+        <th style="color:var(--amber)">IS dû</th>
+        <th style="color:var(--red)">IS payé (jan. suiv.)</th>
+      </tr></thead>
+      <tbody>
+        ${dataAnnee.map((d,idx)=>{
+          const tx=d.ca>0?(d.is/d.ca*100):0;
+          const iSpaye=idx>0?dataAnnee[idx-1].is:0;
+          return`<tr>
+            <td style="font-weight:600">${d.an}</td>
+            <td style="color:var(--text3)">${d.nbBiens}</td>
+            <td style="color:var(--green);font-weight:500">${euro(Math.round(d.ca))}</td>
+            <td style="color:var(--red)">−${euro(Math.round(d.interets))}</td>
+            <td style="color:var(--red)">−${euro(Math.round(d.charges))}</td>
+            <td style="color:var(--red)">−${euro(Math.round(d.amort))}</td>
+            <td style="font-weight:700;color:${d.resultat>0?'var(--text)':'var(--text3)'}">
+              ${d.resultat>0?euro(Math.round(d.resultat)):'<em style="font-size:11px;font-weight:400">Déficit</em>'}
+            </td>
+            <td style="color:var(--amber);font-weight:600">
+              ${d.is>0?euro(Math.round(d.is))+' <span style="font-size:10px">('+tx.toFixed(1)+'%)</span>':'—'}
+              ${idx===0?'<span style="font-size:10px;color:var(--text3)">→ jan. '+(d.an+1)+'</span>':''}
+            </td>
+            <td style="color:var(--red);font-weight:600">${iSpaye>0?'−'+euro(Math.round(iSpaye)):idx===0?'—':'—'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot><tr style="background:var(--surface2);font-weight:700">
+        <td colspan="2">TOTAL</td>
+        <td style="color:var(--green)">${euro(Math.round(totalCA))}</td>
+        <td colspan="3"></td>
+        <td>${euro(Math.round(dataAnnee.reduce((s,d)=>s+d.resultat,0)))}</td>
+        <td style="color:var(--amber)">${euro(Math.round(totalIS))}</td>
+        <td></td>
+      </tr></tfoot>
+    </table>
+    </div>
+  </div>`;
+
+  // Détail par bien
+  const detailHtml=`<div class="sl">Détail par bien · Dernière année projetée</div>`+
+    dataAnnee.slice(-1).map(d=>{
+      const biensActifs=d.rows.filter(r=>{const p=r.b.date.split('/');return parseInt(p[2])<=d.an;});
+      if(!biensActifs.length) return '';
+      return`<div class="card" style="padding:0;overflow:hidden">
+        <div style="overflow-x:auto">
+        <table class="jtable" style="font-size:12px">
+          <thead><tr>
+            <th>Bien</th><th>CA</th><th>Intérêts</th><th>Charges</th><th>Amort.</th><th>Résultat</th><th>IS</th>
+          </tr></thead>
+          <tbody>${biensActifs.map(r=>`<tr style="${r.b._fictif?'border-left:3px solid var(--amber)':''}">
+            <td>${r.b.adresse.substring(0,22)}${r.b._fictif?' 🔮':''}</td>
+            <td style="color:var(--green)">${euro(Math.round(r.ca))}</td>
+            <td style="color:var(--red)">−${euro(Math.round(r.interets))}</td>
+            <td style="color:var(--red)">−${euro(Math.round(r.charges))}</td>
+            <td style="color:var(--red)">−${euro(Math.round(r.amort))}</td>
+            <td style="font-weight:600">${r.resultat>0?euro(Math.round(r.resultat)):'<em style="color:var(--text3)">Déficit</em>'}</td>
+            <td style="color:var(--amber);font-weight:600">${r.is>0?euro(Math.round(r.is)):'—'}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+        </div>
+      </div>`;
+    }).join('');
+
+  el.innerHTML=kpiHtml+synthHtml+detailHtml;
+}
+
+// ============================================================
+// PROJECTION — CCA (Comptes courants associés)
+// ============================================================
+function renderProjCCA(){
+  const el=document.getElementById('proj-cca-content');
+  if(!el) return;
+
+  const assocs=['Nicolas','Romain','Enzo'];
+  const assocColors={Nicolas:'av-blue',Romain:'av-teal',Enzo:'av-amber'};
+  const assocInits={Nicolas:'NI',Romain:'RO',Enzo:'EN'};
+
+  // 1. CCA réels (depuis DATA.cca)
+  const soldesReels={Nicolas:0,Romain:0,Enzo:0};
+  ccaList().forEach(c=>{soldesReels[c.assoc]=(soldesReels[c.assoc]||0)+Number(c.apport)-Number(c.remb);});
+  const totalCCAReels=Object.values(soldesReels).reduce((s,v)=>s+v,0);
+
+  // 2. Apports estimés pour les biens fictifs
+  // Pour chaque bien fictif, on estime l'apport = prix + frais - crédit, réparti équitablement entre associés
+  const fictifs=loadProjBiens();
+  const apportsFictifs={Nicolas:0,Romain:0,Enzo:0};
+  const lignesFictifs=[];
+  fictifs.forEach(b=>{
+    const frais=Number(b.notaire||0)+Number(b.courtier||0)+Number(b.travaux||0);
+    const credit=Number(b.capital)||0;
+    const apportTotal=Math.max(0,(Number(b.prix)||0)+frais-credit);
+    const parAssoc=Math.round(apportTotal/3);
+    assocs.forEach(a=>{apportsFictifs[a]+=parAssoc;});
+    lignesFictifs.push({adresse:b.adresse,apportTotal,parAssoc,dateAchat:b.dateAchat});
+  });
+
+  // 3. Soldes projetés = réels + fictifs
+  const soldesProj={};
+  assocs.forEach(a=>{soldesProj[a]=(soldesReels[a]||0)+(apportsFictifs[a]||0);});
+  const totalProj=Object.values(soldesProj).reduce((s,v)=>s+v,0);
+
+  // KPIs
+  const kpiHtml=`<div class="three-col" style="margin-bottom:14px">
+    ${assocs.map(a=>{
+      const reel=soldesReels[a]||0;
+      const proj=soldesProj[a]||0;
+      const diff=proj-reel;
+      const barW=totalProj>0?Math.max(0,proj/totalProj*100):33.3;
+      return`<div class="kpi">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <div class="av ${assocColors[a]}">${assocInits[a]}</div>
+          <div style="font-size:13px;font-weight:500">${a}</div>
+        </div>
+        <div class="kpi-val">${euro(proj)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">
+          Réel : ${euro(reel)} 
+          ${diff>0?`<span style="color:var(--amber);font-weight:600">+${euro(diff)}</span>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+          <div style="flex:1;height:4px;background:var(--surface2);border-radius:99px;overflow:hidden">
+            <div style="width:${barW}%;height:100%;background:var(--blue);border-radius:99px;"></div>
+          </div>
+          <span style="font-size:11px;color:var(--text2);font-weight:600">${totalProj>0?(proj/totalProj*100).toFixed(1):33.3}%</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">des apports projetés</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  // Tableau synthèse réel vs projeté
+  const compHtml=`<div class="sl">Comparatif Réel vs Projection</div>
+  <div class="card" style="margin-bottom:14px">
+    <div style="overflow-x:auto">
+    <table class="jtable">
+      <thead><tr><th>Associé</th><th>CCA réel</th><th>Apport fictif estimé</th><th>CCA projeté</th><th>Delta</th></tr></thead>
+      <tbody>
+        ${assocs.map(a=>{
+          const reel=soldesReels[a]||0;
+          const fictif=apportsFictifs[a]||0;
+          const proj=soldesProj[a]||0;
+          return`<tr>
+            <td style="font-weight:500">${a}</td>
+            <td>${euro(reel)}</td>
+            <td style="color:var(--amber)">${fictif>0?'+'+euro(fictif):'—'}</td>
+            <td style="font-weight:700">${euro(proj)}</td>
+            <td style="color:${fictif>0?'var(--amber)':'var(--text3)'};font-weight:600">${fictif>0?'+'+euro(fictif):'—'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot><tr style="background:var(--surface2);font-weight:700">
+        <td>TOTAL</td>
+        <td>${euro(totalCCAReels)}</td>
+        <td style="color:var(--amber)">${Object.values(apportsFictifs).reduce((s,v)=>s+v,0)>0?'+'+euro(Object.values(apportsFictifs).reduce((s,v)=>s+v,0)):'—'}</td>
+        <td>${euro(totalProj)}</td>
+        <td></td>
+      </tr></tfoot>
+    </table>
+    </div>
+  </div>`;
+
+  // Détail biens fictifs
+  const detailFictifHtml=fictifs.length>0?`<div class="sl">Détail apports estimés par bien fictif</div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="overflow-x:auto">
+    <table class="jtable">
+      <thead><tr><th>Bien fictif</th><th>Date achat</th><th>Apport total estimé</th><th>Par associé (÷3)</th></tr></thead>
+      <tbody>
+        ${lignesFictifs.map(l=>`<tr>
+          <td>🔮 ${l.adresse}</td>
+          <td style="color:var(--text3)">${l.dateAchat?fdate(l.dateAchat):'—'}</td>
+          <td style="font-weight:600;color:var(--amber)">${euro(l.apportTotal)}</td>
+          <td>${euro(l.parAssoc)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>`:'<div class="empty-state" style="padding:20px">Aucun bien fictif — ajoutez des biens fictifs pour simuler les apports CCA.</div>';
+
+  el.innerHTML=kpiHtml+compHtml+detailFictifHtml;
 }
 
 function renderProjDashboard(){
