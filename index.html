@@ -2531,9 +2531,25 @@ function renderProjTresorerie() {
       const ca=biensActifs.reduce((s,b)=>s+projCaMensuel(b,an,m),0);
       const mensualites=biensActifs.reduce((s,b)=>s+projMensualite(b),0);
       const charges=biensActifs.reduce((s,b)=>s+projChargesMois(b),0);
-      const coutAcq=acquisitions.reduce((s,b)=>s+b.prix+(b.frais||0),0);
+      const prixAchat=acquisitions.reduce((s,b)=>s+b.prix,0);
+      const fraisAcq=acquisitions.reduce((s,b)=>s+(b.frais||0),0);
+      const coutAcq=prixAchat+fraisAcq;
       const creditDebloque=acquisitions.reduce((s,b)=>s+(b.credit>0?b.credit:b.prix+(b.frais||0)),0);
-      const apportCCA=acquisitions.reduce((s,b)=>Math.max(0,s+(b.prix+(b.frais||0))-b.credit),0);
+
+      // Apport CCA : pour les biens RÉELS, on lit les vrais montants de DATA.cca
+      // Pour les biens FICTIFS, on estime = max(0, prix + frais - crédit)
+      const apportCCA=acquisitions.reduce((s,b)=>{
+        if(!b._fictif){
+          // Lire les vrais apports CCA liés à ce bien dans DATA.cca
+          const apportsReels=Object.values(DATA.cca)
+            .filter(c=>c.bienId===b.id)
+            .reduce((t,c)=>t+Number(c.apport||0),0);
+          return s+apportsReels;
+        } else {
+          // Bien fictif : estimation
+          return s+Math.max(0,(b.prix+(b.frais||0))-b.credit);
+        }
+      },0);
 
       // IS de l'année précédente payé en janvier
       let isPaye=0;
@@ -2550,7 +2566,7 @@ function renderProjTresorerie() {
       cumulGlobal+=cfNet;
 
       dataParAnnee[an].push({
-        an,m,ca,mensualites,charges,coutAcq,creditDebloque,apportCCA,
+        an,m,ca,mensualites,charges,coutAcq,prixAchat,fraisAcq,creditDebloque,apportCCA,
         isPaye,taxesAn,totalEncaiss,totalDecaiss,cfNet,cumul:cumulGlobal,
         isAcquisition:acquisitions.length>0,
         acquisitions,
@@ -2568,6 +2584,8 @@ function renderProjTresorerie() {
     const mensAn=rows.reduce((s,r)=>s+r.mensualites,0);
     const chargesAn=rows.reduce((s,r)=>s+r.charges,0);
     const coutAcqAn=rows.reduce((s,r)=>s+r.coutAcq,0);
+    const prixAchatAn=rows.reduce((s,r)=>s+r.prixAchat,0);
+    const fraisAcqAn=rows.reduce((s,r)=>s+r.fraisAcq,0);
     const isAn=rows.reduce((s,r)=>s+r.isPaye,0);
     const creditAn=rows.reduce((s,r)=>s+r.creditDebloque,0);
     const cumulFin=rows.length?rows[rows.length-1].cumul:0;
@@ -2575,17 +2593,49 @@ function renderProjTresorerie() {
     const cfColor=cfAn>=0?'var(--green)':'var(--red)';
 
     html+=`<div class="card" style="margin-bottom:10px;padding:0;overflow:hidden">
-      <div onclick="toggleProjTresoAnnee(${an})" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;background:var(--surface2);user-select:none">
-        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:700">${an}</span>
-          <span style="font-size:12px;color:var(--text2)">${nbFin} bien${nbFin>1?'s':''}</span>
-          <span style="font-size:12px;color:var(--blue)">CA : <strong>${euro(Math.round(caAn))}</strong></span>
-          ${ccaAn>0?`<span style="font-size:12px;color:var(--blue)">Apport CCA : <strong>${euro(Math.round(ccaAn))}</strong></span>`:''}
-          ${isAn>0?`<span style="font-size:12px;color:var(--amber)">IS payé : <strong>−${euro(Math.round(isAn))}</strong></span>`:''}
-          <span style="font-size:12px;font-weight:600;color:${cfColor}">CF : ${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</span>
-          <span style="font-size:12px;color:var(--text3)">Cumul : ${euro(Math.round(cumulFin))}</span>
+      <div onclick="toggleProjTresoAnnee(${an})" style="cursor:pointer;user-select:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 8px;background:var(--surface2)">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-size:15px;font-weight:700">${an}</span>
+            <span style="font-size:11px;color:var(--text3);background:var(--surface);border-radius:99px;padding:2px 8px">${nbFin} bien${nbFin>1?'s':''}</span>
+            <span style="font-size:13px;font-weight:700;color:${cfColor}">${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</span>
+            <span style="font-size:11px;color:var(--text3)">CF net</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:11px;color:var(--text3)">Cumul : <strong style="color:${cumulFin>=0?'var(--green)':'var(--red)'}">${euro(Math.round(cumulFin))}</strong></span>
+            <span id="proj-treso-chev-${an}" style="font-size:16px;color:var(--text3);transition:transform .2s">▸</span>
+          </div>
         </div>
-        <span id="proj-treso-chev-${an}" style="font-size:16px;color:var(--text3);transition:transform .2s">▸</span>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));background:var(--surface2);border-top:0.5px solid var(--border)">
+          <div style="padding:8px 14px;border-right:0.5px solid var(--border)">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Déblocage emprunt</div>
+            <div style="font-size:13px;font-weight:600;color:var(--blue)">${creditAn>0?euro(Math.round(creditAn)):'—'}</div>
+          </div>
+          <div style="padding:8px 14px;border-right:0.5px solid var(--border)">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">CA locatif</div>
+            <div style="font-size:13px;font-weight:600;color:var(--green)">${euro(Math.round(caAn))}</div>
+          </div>
+          <div style="padding:8px 14px;border-right:0.5px solid var(--border)">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Apport CCA</div>
+            <div style="font-size:13px;font-weight:600;color:var(--blue)">${ccaAn>0?euro(Math.round(ccaAn)):'—'}</div>
+          </div>
+          <div style="padding:8px 14px;border-right:0.5px solid var(--border)">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Acquisitions</div>
+            <div style="font-size:13px;font-weight:600;color:var(--red)">${coutAcqAn>0?'−'+euro(Math.round(coutAcqAn)):'—'}</div>
+          </div>
+          <div style="padding:8px 14px;border-right:0.5px solid var(--border)">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Mensualités crédit</div>
+            <div style="font-size:13px;font-weight:600;color:var(--red)">${mensAn>0?'−'+euro(Math.round(mensAn)):'—'}</div>
+          </div>
+          <div style="padding:8px 14px;border-right:0.5px solid var(--border)">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Autres charges</div>
+            <div style="font-size:13px;font-weight:600;color:var(--amber)">${chargesAn>0?'−'+euro(Math.round(chargesAn)):'—'}</div>
+          </div>
+          <div style="padding:8px 14px;">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Impôt (IS)</div>
+            <div style="font-size:13px;font-weight:600;color:var(--amber)">${isAn>0?'−'+euro(Math.round(isAn)):'—'}</div>
+          </div>
+        </div>
       </div>
       <div id="proj-treso-body-${an}" style="display:none;overflow-x:auto">
         <table class="jtable" style="font-size:12px">
@@ -2597,7 +2647,8 @@ function renderProjTresorerie() {
             <th style="color:var(--green)">Total encaiss.</th>
             <th style="color:var(--red)">Mensualités</th>
             <th style="color:var(--red)">Charges</th>
-            <th style="color:var(--red)">Acquisitions</th>
+            <th style="color:var(--red)">Achat bien</th>
+            <th style="color:var(--red)">Charges acq.</th>
             <th style="color:var(--amber)">IS (an préc.)</th>
             <th style="color:var(--red)">Total décaiss.</th>
             <th style="font-weight:700">CF net</th>
@@ -2619,7 +2670,8 @@ function renderProjTresorerie() {
                 <td style="font-weight:500;color:var(--green)">${euro(Math.round(r.totalEncaiss))}</td>
                 <td style="color:var(--red)">${r.mensualites>0?euro(Math.round(r.mensualites)):'—'}</td>
                 <td style="color:var(--amber)">${r.charges>0?euro(Math.round(r.charges)):'—'}</td>
-                <td style="color:var(--red)">${r.coutAcq>0?euro(Math.round(r.coutAcq)):'—'}</td>
+                <td style="color:var(--red)">${r.prixAchat>0?euro(Math.round(r.prixAchat)):'—'}</td>
+                <td style="color:var(--red)">${r.fraisAcq>0?euro(Math.round(r.fraisAcq)):'—'}</td>
                 <td style="color:var(--amber)">${r.isPaye>0?euro(Math.round(r.isPaye)):'—'}</td>
                 <td style="font-weight:500;color:var(--red)">${euro(Math.round(r.totalDecaiss))}</td>
                 <td style="font-weight:700;color:${cfCol}">${r.cfNet>=0?'+':''}${euro(Math.round(r.cfNet))}</td>
@@ -2635,7 +2687,8 @@ function renderProjTresorerie() {
             <td style="color:var(--green)">${euro(Math.round(caAn+ccaAn+creditAn))}</td>
             <td style="color:var(--red)">${euro(Math.round(mensAn))}</td>
             <td style="color:var(--amber)">${euro(Math.round(chargesAn))}</td>
-            <td style="color:var(--red)">${coutAcqAn>0?euro(Math.round(coutAcqAn)):'—'}</td>
+            <td style="color:var(--red)">${prixAchatAn>0?euro(Math.round(prixAchatAn)):'—'}</td>
+            <td style="color:var(--red)">${fraisAcqAn>0?euro(Math.round(fraisAcqAn)):'—'}</td>
             <td style="color:var(--amber)">${isAn>0?euro(Math.round(isAn)):'—'}</td>
             <td style="color:var(--red)">${euro(Math.round(mensAn+chargesAn+coutAcqAn+isAn))}</td>
             <td style="color:${cfColor};font-weight:700">${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</td>
@@ -2704,12 +2757,10 @@ function renderProjResultat(){
         <th style="color:var(--red)">Amortissement</th>
         <th>Résultat fiscal</th>
         <th style="color:var(--amber)">IS dû</th>
-        <th style="color:var(--red)">IS payé (jan. suiv.)</th>
       </tr></thead>
       <tbody>
         ${dataAnnee.map((d,idx)=>{
           const tx=d.ca>0?(d.is/d.ca*100):0;
-          const iSpaye=idx>0?dataAnnee[idx-1].is:0;
           return`<tr>
             <td style="font-weight:600">${d.an}</td>
             <td style="color:var(--text3)">${d.nbBiens}</td>
@@ -2722,9 +2773,7 @@ function renderProjResultat(){
             </td>
             <td style="color:var(--amber);font-weight:600">
               ${d.is>0?euro(Math.round(d.is))+' <span style="font-size:10px">('+tx.toFixed(1)+'%)</span>':'—'}
-              ${idx===0?'<span style="font-size:10px;color:var(--text3)">→ jan. '+(d.an+1)+'</span>':''}
             </td>
-            <td style="color:var(--red);font-weight:600">${iSpaye>0?'−'+euro(Math.round(iSpaye)):idx===0?'—':'—'}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -2734,7 +2783,6 @@ function renderProjResultat(){
         <td colspan="3"></td>
         <td>${euro(Math.round(dataAnnee.reduce((s,d)=>s+d.resultat,0)))}</td>
         <td style="color:var(--amber)">${euro(Math.round(totalIS))}</td>
-        <td></td>
       </tr></tfoot>
     </table>
     </div>
@@ -2784,8 +2832,8 @@ function renderProjCCA(){
   ccaList().forEach(c=>{soldesReels[c.assoc]=(soldesReels[c.assoc]||0)+Number(c.apport)-Number(c.remb);});
   const totalCCAReels=Object.values(soldesReels).reduce((s,v)=>s+v,0);
 
-  // 2. Apports estimés pour les biens fictifs
-  // Pour chaque bien fictif, on estime l'apport = prix + frais - crédit, réparti équitablement entre associés
+  // 2. Apports estimés pour les biens fictifs UNIQUEMENT
+  // Pour les biens réels, les apports sont déjà dans DATA.cca (soldesReels)
   const fictifs=loadProjBiens();
   const apportsFictifs={Nicolas:0,Romain:0,Enzo:0};
   const lignesFictifs=[];
@@ -4713,7 +4761,6 @@ function renderBpFiscalite(){
       <td style="color:var(--red)">−${euro(Math.round(d.cfe))}</td>
       <td style="font-weight:700;color:${d.resultat>0?'var(--text)':'var(--text3)'}">${d.resultat>0?euro(Math.round(d.resultat)):'<em style="font-size:11px;font-weight:400">Déficit</em>'}</td>
       <td style="color:var(--amber);font-weight:600">${d.is>0?euro(Math.round(d.is))+' <span style="font-size:10px;font-weight:400">('+tx.toFixed(1)+'%)</span>':'—'}${label2026}</td>
-      <td style="color:var(--red);font-weight:600">${iSpaye>0?'−'+euro(Math.round(iSpaye)):idx===0?'—':'—'}</td>
     </tr>`;
   }).join('');
 
@@ -4794,7 +4841,6 @@ function renderBpFiscalite(){
           <th style="color:var(--red)">− CFE/bien</th>
           <th style="color:var(--amber);font-weight:700">= Résultat fiscal</th>
           <th style="color:var(--amber)">IS dû (exercice N)</th>
-          <th style="color:var(--red)">IS payé (janv. N+1)</th>
         </tr></thead>
         <tbody>${rowsSynth}</tbody>
         <tfoot><tr style="background:var(--surface2);font-weight:700">
@@ -4806,7 +4852,6 @@ function renderBpFiscalite(){
           <td style="color:var(--red)">−${euro(Math.round(dataAnnee.reduce((s,d)=>s+d.cfe,0)))}</td>
           <td>${euro(Math.round(totalResultat))}</td>
           <td style="color:var(--amber)">${euro(Math.round(totalIS))}</td>
-          <td style="color:var(--red)">−${euro(Math.round(totalIS))}</td>
         </tr></tfoot>
       </table>
     </div>
