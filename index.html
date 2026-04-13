@@ -334,6 +334,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
  <button class="subnav-btn" id="bp-sub-revente" onclick="showBpPage('bp-revente',this)">Simulation revente</button>
  <button class="subnav-btn" id="bp-sub-tresorerie-mensuelle" onclick="showBpPage('bp-tresorerie-mensuelle',this)"> Trésorerie mensuelle</button>
  <button class="subnav-btn" id="bp-sub-params" onclick="showBpPage('bp-params',this)">Paramètres</button>
+ <button class="subnav-btn" id="bp-sub-cca" onclick="showBpPage('bp-cca',this)">CCA Associés</button>
  </div>
  <div class="subnav-bar" id="subnav-marche">
  <button class="subnav-btn active" id="marche-sub-analyse" onclick="showMarchePage('marche-analyse',this)">Analyse quartier</button>
@@ -1032,6 +1033,13 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
  <button class="btn btn-sm btn-danger" onclick="resetBpParams()">↺ Réinitialiser</button>
  </div>
  <div id="bp-params-content"></div>
+ </div>
+
+ <div class="page" id="page-bp-cca">
+ <div class="page-header">
+ <div class="page-title">Business Plan · Comptes Courants Associés</div>
+ </div>
+ <div id="bp-cca-content"></div>
  </div>
 
  </div>
@@ -3933,6 +3941,7 @@ function renderBpPage(page){
  else if(page==='tresorerie-mensuelle') renderBpTresorerieMensuelle();
  else if(page==='params') renderBpParamsPage();
  else if(page==='fiscalite') renderBpFiscalite();
+ else if(page==='cca') renderBpCCA();
 }
 
 function bienApport(b){
@@ -4221,6 +4230,7 @@ function refreshAllBpViews(){
  else if(currentBpPage==='revente') renderBpRevente();
  else if(currentBpPage==='tresorerie-mensuelle') renderBpTresorerieMensuelle();
  else if(currentBpPage==='fiscalite') renderBpFiscalite();
+ else if(currentBpPage==='cca') renderBpCCA();
 }
 
 function saveBpBien(){
@@ -4869,6 +4879,226 @@ function renderBpFiscalite(){
  <div>️ <strong>Revente</strong> : PV taxable = Prix vente − VNC (et non prix achat)</div>
  </div>
  </div>`;
+}
+
+// ============================================================
+// BUSINESS PLAN — CCA ASSOCIÉS
+// ============================================================
+function renderBpCCA(){
+  const el = document.getElementById('bp-cca-content');
+  if(!el) return;
+
+  const ASSOCS = ['Nicolas','Romain','Enzo'];
+  const euro = (v) => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
+
+  // --- Apports enregistrés depuis DATA.cca ---
+  const apportsEnreg = {}; // assoc -> [{bienId, date, montant, apport, remb, libelle}]
+  ASSOCS.forEach(a => apportsEnreg[a] = []);
+  Object.values(DATA.cca||{}).forEach(c => {
+    if(ASSOCS.includes(c.assoc)){
+      apportsEnreg[c.assoc].push({
+        bienId: c.bienId||'',
+        date: c.date||'',
+        montant: Number(c.apport||0) - Number(c.remb||0),
+        apport: Number(c.apport||0),
+        remb: Number(c.remb||0),
+        libelle: c.libelle||''
+      });
+    }
+  });
+
+  // --- Apports plan BP (biens non encore enregistrés) ---
+  const biensEnregAdresses = Object.values(DATA.biens||{}).map(b=>(b.adresse||'').toLowerCase().trim());
+  const apportsBP = {}; // assoc -> [{bien, date, montant}]
+  ASSOCS.forEach(a => apportsBP[a] = []);
+
+  BP_BIENS.forEach(b => {
+    const dejaSaisi = biensEnregAdresses.some(addr => b.adresse.toLowerCase().trim().includes(addr.substring(0,10)) || addr.includes(b.adresse.toLowerCase().trim().substring(0,10)));
+    if(!dejaSaisi){
+      const credit = b.credit && b.credit > 0 ? b.credit : (b.prix + (b.frais||BP_PARAMS.fraisAcq));
+      const apportTotal = Math.max(0, b.prix + (b.frais||BP_PARAMS.fraisAcq) - credit);
+      const apportParAssoc = Math.round(apportTotal / ASSOCS.length);
+      ASSOCS.forEach(a => {
+        apportsBP[a].push({ bien: b, date: b.date, montant: apportParAssoc });
+      });
+    }
+  });
+
+  // --- KPIs globaux ---
+  const soldesEnreg = {};
+  const soldesBP = {};
+  ASSOCS.forEach(a => {
+    soldesEnreg[a] = apportsEnreg[a].reduce((s,x)=>s+x.montant, 0);
+    soldesBP[a] = apportsBP[a].reduce((s,x)=>s+x.montant, 0);
+  });
+  const totalEnreg = ASSOCS.reduce((s,a)=>s+soldesEnreg[a], 0);
+  const totalBP = ASSOCS.reduce((s,a)=>s+soldesBP[a], 0);
+
+  // --- KPI cards ---
+  let html = `<div class="kpi-grid" style="margin-bottom:18px">
+    <div class="kpi"><div class="kpi-label">CCA enregistrés</div><div class="kpi-val" style="color:var(--blue)">${euro(totalEnreg)}</div></div>
+    <div class="kpi"><div class="kpi-label">CCA plan BP</div><div class="kpi-val" style="color:var(--amber)">${euro(totalBP)}</div></div>
+    <div class="kpi"><div class="kpi-label">Total CCA 2026–2035</div><div class="kpi-val">${euro(totalEnreg + totalBP)}</div></div>
+    <div class="kpi"><div class="kpi-label">CCA par associé</div><div class="kpi-val" style="font-size:16px">${euro(Math.round((totalEnreg+totalBP)/3))}</div></div>
+  </div>`;
+
+  // --- Tableau synthèse par associé ---
+  html += `<div class="card" style="margin-bottom:14px">
+    <div class="card-title" style="margin-bottom:12px">Synthèse par associé</div>
+    <div style="overflow-x:auto">
+    <table class="jtable">
+      <thead><tr>
+        <th>Associé</th>
+        <th style="color:var(--blue)">Apports</th>
+        <th style="color:var(--red)">Remboursements</th>
+        <th style="color:var(--blue)">Solde enregistré</th>
+        <th style="color:var(--amber)">Plan BP (biens à venir)</th>
+        <th style="font-weight:700">Total 2026–2035</th>
+        <th>Nb biens</th>
+      </tr></thead>
+      <tbody>
+        ${ASSOCS.map(a => {
+          const apportBrut = apportsEnreg[a].reduce((s,x)=>s+x.apport,0);
+          const rembBrut = apportsEnreg[a].reduce((s,x)=>s+x.remb,0);
+          const soldeEnreg = apportBrut - rembBrut;
+          const soldeBP = apportsBP[a].reduce((s,x)=>s+x.montant,0);
+          const nbBiens = new Set(apportsEnreg[a].filter(x=>x.bienId).map(x=>x.bienId)).size;
+          return `<tr>
+            <td style="font-weight:600">${a}</td>
+            <td style="color:var(--blue)">${apportBrut>0?euro(apportBrut):'—'}</td>
+            <td style="color:var(--red)">${rembBrut>0?'−'+euro(rembBrut):'—'}</td>
+            <td style="color:var(--blue);font-weight:600">${euro(soldeEnreg)}</td>
+            <td style="color:var(--amber)">${soldeBP>0?euro(soldeBP):'—'}</td>
+            <td style="font-weight:700">${euro(soldeEnreg+soldeBP)}</td>
+            <td style="color:var(--text3)">${nbBiens}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot><tr style="background:var(--surface2);font-weight:700">
+        <td>TOTAL</td>
+        <td style="color:var(--blue)">${euro(ASSOCS.reduce((s,a)=>s+apportsEnreg[a].reduce((t,x)=>t+x.apport,0),0))}</td>
+        <td style="color:var(--red)">−${euro(ASSOCS.reduce((s,a)=>s+apportsEnreg[a].reduce((t,x)=>t+x.remb,0),0))}</td>
+        <td style="color:var(--blue)">${euro(totalEnreg)}</td>
+        <td style="color:var(--amber)">${euro(totalBP)}</td>
+        <td>${euro(totalEnreg+totalBP)}</td>
+        <td></td>
+      </tr></tfoot>
+    </table>
+    </div>
+  </div>`;
+
+  // --- Tableau complet par bien (plan BP) ---
+  const ccaParBienId = {};
+  Object.values(DATA.cca||{}).forEach(c => {
+    if(!c.bienId) return;
+    if(!ccaParBienId[c.bienId]) ccaParBienId[c.bienId] = {};
+    if(!ccaParBienId[c.bienId][c.assoc]) ccaParBienId[c.bienId][c.assoc] = {apport:0, remb:0};
+    ccaParBienId[c.bienId][c.assoc].apport += Number(c.apport||0);
+    ccaParBienId[c.bienId][c.assoc].remb += Number(c.remb||0);
+  });
+
+  const bienIdParN = {};
+  BP_BIENS.forEach(b => {
+    Object.values(DATA.biens||{}).forEach(bien => {
+      const addrBp = b.adresse.toLowerCase().trim();
+      const addrEnreg = (bien.adresse||'').toLowerCase().trim();
+      if(addrBp.includes(addrEnreg.substring(0,12)) || addrEnreg.includes(addrBp.substring(0,12))) {
+        bienIdParN[b.n] = bien.id;
+      }
+    });
+  });
+
+  let totalCoutAcq = 0, totalCredit = 0, totalCCA = 0, totalFinancement = 0, totalTreso = 0;
+  const totalParAssocTableau = {};
+  ASSOCS.forEach(a => totalParAssocTableau[a] = 0);
+
+  const lignesTableau = BP_BIENS.map(b => {
+    const bienId = bienIdParN[b.n];
+    const dejaSaisi = !!bienId;
+    const frais = b.frais || BP_PARAMS.fraisAcq;
+    const coutAcq = b.prix + frais;
+
+    // Crédit : lire depuis DATA.biens si bien enregistré, sinon BP
+    let credit;
+    if(dejaSaisi && DATA.biens[bienId] && DATA.biens[bienId].capital){
+      credit = Number(DATA.biens[bienId].capital);
+    } else {
+      credit = b.credit && b.credit > 0 ? b.credit : coutAcq;
+    }
+
+    let apportTotalLigne = 0;
+    let apportsParAssoc = {};
+
+    if(dejaSaisi && ccaParBienId[bienId]) {
+      ASSOCS.forEach(a => {
+        const d = ccaParBienId[bienId][a] || {apport:0, remb:0};
+        apportsParAssoc[a] = d.apport - d.remb;
+        apportTotalLigne += apportsParAssoc[a];
+      });
+    } else if(dejaSaisi) {
+      ASSOCS.forEach(a => apportsParAssoc[a] = 0);
+    } else {
+      const apportEst = Math.max(0, coutAcq - credit);
+      const parAssoc = Math.round(apportEst / ASSOCS.length);
+      ASSOCS.forEach(a => apportsParAssoc[a] = parAssoc);
+      apportTotalLigne = apportEst;
+    }
+
+    const financement = credit + apportTotalLigne;
+    const coutTreso = financement - coutAcq;
+
+    totalCoutAcq += coutAcq;
+    totalCredit += credit;
+    totalCCA += apportTotalLigne;
+    totalFinancement += financement;
+    totalTreso += coutTreso;
+    ASSOCS.forEach(a => totalParAssocTableau[a] += apportsParAssoc[a]);
+
+    const tresoColor = coutTreso > 0 ? 'var(--green)' : coutTreso < 0 ? 'var(--red)' : 'var(--text3)';
+
+    return `<tr style="${dejaSaisi?'background:var(--blue-light)':''}">
+      <td style="color:var(--text3)">${b.n}</td>
+      <td style="font-weight:500">${b.adresse}</td>
+      <td style="color:var(--text3)">${b.date}</td>
+      <td>${euro(b.prix)}</td>
+      <td style="color:var(--text3)">${euro(frais)}</td>
+      <td style="font-weight:600">${euro(coutAcq)}</td>
+      <td style="color:var(--blue)">${euro(credit)}</td>
+      <td style="font-weight:600">${apportTotalLigne>0?euro(apportTotalLigne):'—'}</td>
+      ${ASSOCS.map(a=>`<td style="font-size:11px">${apportsParAssoc[a]>0?euro(apportsParAssoc[a]):'—'}</td>`).join('')}
+      <td style="color:var(--blue);font-weight:600">${euro(financement)}</td>
+      <td style="font-weight:700;color:${tresoColor}">${coutTreso===0?'—':(coutTreso>0?'+':'')+euro(coutTreso)}</td>
+    </tr>`;
+  });
+
+  html += `<div class="sl" style="margin-top:6px">Plan d'acquisition CCA — 2026–2035</div>`;
+  html += `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px">
+    <div style="overflow-x:auto">
+    <table class="jtable" style="font-size:12px">
+      <thead><tr style="background:var(--surface2)">
+        <th>N°</th><th>Bien</th><th>Date acq.</th><th>Prix</th><th>Frais</th>
+        <th style="font-weight:700">Coût acq.</th>
+        <th style="color:var(--blue)">Prêt</th>
+        <th>CCA total</th>
+        ${ASSOCS.map(a=>`<th>${a}</th>`).join('')}
+        <th style="color:var(--blue)">Financement total</th>
+        <th>Coût tréso.</th>
+      </tr></thead>
+      <tbody>${lignesTableau.join('')}</tbody>
+      <tfoot><tr style="background:var(--surface2);font-weight:700">
+        <td colspan="5">TOTAL</td>
+        <td>${euro(totalCoutAcq)}</td>
+        <td style="color:var(--blue)">${euro(totalCredit)}</td>
+        <td>${euro(totalCCA)}</td>
+        ${ASSOCS.map(a=>`<td>${euro(totalParAssocTableau[a])}</td>`).join('')}
+        <td style="color:var(--blue)">${euro(totalFinancement)}</td>
+        <td style="color:${totalTreso>0?'var(--green)':totalTreso<0?'var(--red)':'var(--text3)'}">${totalTreso===0?'—':(totalTreso>0?'+':'')+euro(totalTreso)}</td>
+      </tr></tfoot>
+    </table>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
 }
 
 function renderBpKpi(){
