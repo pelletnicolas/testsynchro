@@ -826,61 +826,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
 
  <!-- BP DASHBOARD -->
  <div class="page" id="page-bp-dashboard">
- <div class="page-header">
- <div>
- <div class="page-title">Business Plan · Tableau de bord</div>
-
- </div>
- </div>
- <!-- KPIs portefeuille -->
- <div class="kpi-grid" style="margin-bottom:18px">
- <div class="kpi"><div class="kpi-label"> Biens prévus</div><div class="kpi-val">20</div></div>
- <div class="kpi"><div class="kpi-label"> Horizon</div><div class="kpi-val" style="font-size:14px">2026→2035</div></div>
- <div class="kpi"><div class="kpi-label"> Invest. total estimé</div><div class="kpi-val" style="font-size:15px">2 180 000 €</div></div>
- <div class="kpi"><div class="kpi-label"> Crédit total</div><div class="kpi-val" style="font-size:15px">2 354 400 €</div></div>
- <div class="kpi"><div class="kpi-label"> Apports CCA/assoc.</div><div class="kpi-val" style="font-size:15px">4 000 €</div></div>
- <div class="kpi"><div class="kpi-label"> Taux · Durée</div><div class="kpi-val" style="font-size:14px">3,5% · 20 ans</div></div>
- </div>
- <!-- Patrimoine net 2035 -->
- <div class="sl">Patrimoine net estimé 2035</div>
- <div class="card">
- <div class="three-col">
- <div>
- <div class="kpi-label">Valeur portefeuille 2035</div>
- <div style="font-size:20px;font-weight:600;margin-top:6px">~3 240 000 €</div>
- <div style="font-size:11px;color:var(--text3);margin-top:4px">20 biens × 109k€ × (1+2%)⁹·⁵</div>
- </div>
- <div>
- <div class="kpi-label">Capital restant dû 2035</div>
- <div style="font-size:20px;font-weight:600;margin-top:6px;color:var(--red)">~1 780 000 €</div>
- <div style="font-size:11px;color:var(--text3);margin-top:4px">Après ~5,5 ans d'amortissement moyen</div>
- </div>
- <div>
- <div class="kpi-label" style="font-weight:600">Patrimoine net 2035</div>
- <div style="font-size:22px;font-weight:700;margin-top:6px;color:var(--green)">~1 460 000 €</div>
- <div style="font-size:11px;color:var(--text3);margin-top:4px">soit ~487 000 €/associé (÷3)</div>
- </div>
- </div>
- <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text3)">
- Projections indicatives · Taux 3,5% fixe 20 ans · Loyers +1,5%/an IRL · Immobilier +2%/an · Avant IS sur PV et frais de vente
- </div>
- </div>
- <!-- Modes de location -->
- <div class="sl">Stratégie de location — 3 modes</div>
- <div class="three-col">
- <div class="card" style="border-left:3px solid var(--blue)">
- <div style="font-size:13px;font-weight:600;color:var(--blue);margin-bottom:8px">Mode A — Bail + Airbnb</div>
- <div style="font-size:12px;color:var(--text2);line-height:1.7">Bail étudiant meublé Sep→Mai (9 mois)<br>+ Airbnb estival Juin·Juil·Août<br><span style="color:var(--text3)">Pas de chevauchement</span></div>
- </div>
- <div class="card" style="border-left:3px solid var(--green)">
- <div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:8px">Mode B — Full Airbnb</div>
- <div style="font-size:12px;color:var(--text2);line-height:1.7">54n haute × 1,2 · 48n moy × 1,0<br>50n basse × 0,9 toute l'année<br><span style="color:var(--text3)">Idéal quartiers touristiques</span></div>
- </div>
- <div class="card" style="border-left:3px solid var(--accent)">
- <div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:8px">Mode C — Longue durée</div>
- <div style="font-size:12px;color:var(--text2);line-height:1.7">Loyer mensuel meublé × 12 mois<br>Revenus stables et prévisibles<br><span style="color:var(--text3)">Idéal quartiers résidentiels</span></div>
- </div>
- </div>
+ <div id="bp-dash-content"></div>
  </div>
 
  <!-- BP PORTEFEUILLE -->
@@ -1228,10 +1174,23 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
  <div id="eb-mens-preview" style="background:var(--surface2);border-radius:var(--radius);padding:9px 12px;font-size:13px;margin-bottom:4px;color:var(--text2)">
  Mensualité calculée : <strong>—</strong>
  </div>
- <div class="sl">Location</div>
+ <div class="sl">Location & Mode de gestion</div>
+ <div class="fg">
+ <label>Mode de gestion</label>
+ <select id="eb-mode-location" onchange="updateEbModePreview()">
+ <option value="C">Mode C — Longue durée (loyer × 12 mois)</option>
+ <option value="A">Mode A — Bail meublé 9 mois + Airbnb été (Juin·Juil·Août)</option>
+ <option value="B">Mode B — Full Airbnb toute l'année</option>
+ </select>
+ </div>
  <div class="two-col">
- <div class="fg"><label>Loyer HC (€/mois)</label><input id="eb-loyer" type="number"></div>
+ <div class="fg"><label>Loyer HC (€/mois) <span style="font-weight:400;color:var(--text3)">— Modes A et C</span></label><input id="eb-loyer" type="number" oninput="updateEbModePreview()"></div>
+ <div class="fg"><label>Prix Airbnb / nuit (€) <span style="font-weight:400;color:var(--text3)">— Modes A et B</span></label><input id="eb-airbnb-nuit" type="number" placeholder="0" oninput="updateEbModePreview()"></div>
+ </div>
+ <div id="eb-mode-preview" style="background:var(--surface2);border-radius:var(--radius);padding:9px 12px;font-size:12px;margin-bottom:8px;color:var(--text2)">CA estimé : <strong>—</strong></div>
+ <div class="two-col">
  <div class="fg"><label>Charges locataire (€/mois)</label><input id="eb-charges" type="number"></div>
+ <div></div>
  </div>
  <div class="two-col">
  <div class="fg"><label>Statut location</label>
@@ -1790,6 +1749,8 @@ function showMainTab(tab) {
  document.getElementById('page-' + currentMarchePage).classList.add('active');
  } else if (tab === 'bp') {
  document.getElementById('page-bp-' + currentBpPage).classList.add('active');
+ if(currentBpPage==='dashboard') renderBpDashboard();
+ else renderBpPortefeuille();
  } else if (tab === 'projection') {
  document.getElementById('page-' + currentProjPage).classList.add('active');
  renderProjAll();
@@ -1944,6 +1905,18 @@ function bienDrawerContent(b){
  <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
  </div>
  <div class="sl">Location</div>
+ ${(()=>{
+ const mode = b.modeLocation || 'C';
+ const modeColors = {A:'var(--blue)', B:'var(--green)', C:'var(--accent)'};
+ const modeLabels = {A:'Mode A — Bail 9 mois + Airbnb été', B:'Mode B — Full Airbnb', C:'Mode C — Longue durée'};
+ const caAn = bienCaAnnuel(b);
+ const nowM = new Date().getMonth()+1;
+ const nowY = new Date().getFullYear();
+ const caMois = bienCaMensuel(b, nowY, nowM);
+ return `<div class="status-row"><span>Mode de gestion</span><span style="font-weight:600;color:${modeColors[mode]}">${modeLabels[mode]}</span></div>
+ <div class="status-row"><span>CA estimé / mois (actuel)</span><span style="font-weight:600;color:var(--green)">${euro(Math.round(caMois))}</span></div>
+ <div class="status-row"><span>CA estimé / an</span><span style="font-weight:600">${euro(Math.round(caAn))}</span></div>`;
+ })()}
  <div class="status-row"><span>Loyer HC</span><span>${euro(loyer)}/mois</span></div>
  <div class="status-row"><span>Charges locataire</span><span>${euro(charges)}/mois</span></div>
  <div class="status-row"><span>Total encaissé</span><span style="font-weight:500">${euro(loyer+charges)}/mois</span></div>
@@ -2000,7 +1973,7 @@ function renderBiens(){
  <div class="bien-row-icon">${typeIcon}</div>
  <div class="bien-row-info">
  <div class="bien-row-addr">${b.adresse}</div>
- <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.ville.split('·')[0].trim()}</div>
+ <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.ville.split('·')[0].trim()} · <span style="color:${({A:'var(--blue)',B:'var(--green)',C:'var(--accent)'})[b.modeLocation||'C']}">Mode ${b.modeLocation||'C'}</span> · CA ~${euro(Math.round(bienCaAnnuel(b)/12),0)}/mois</div>
  </div>
  <div class="bien-row-right">
  ${locBadge(b.statut)}
@@ -2129,6 +2102,50 @@ function bienMensualite(b) {
  return c/n + c*t; // 1ère mensualité (décroissante ensuite)
  }
  return c*t*Math.pow(1+t,n)/(Math.pow(1+t,n)-1);
+}
+
+// CA mensuel d'un bien réel selon son mode de gestion (A/B/C) et la saisonnalité
+function bienCaMensuel(b, annee, mois) {
+ const mode = b.modeLocation || 'C';
+ const loyer = Number(b.loyer || 0);
+ const airbnb = Number(b.airbnb_nuit || 0);
+ if (mode === 'C') return loyer;
+ if (mode === 'A') {
+ if ([6, 7, 8].includes(mois)) return airbnb * 18;
+ return loyer;
+ }
+ if (mode === 'B') {
+ if ([6, 7, 8].includes(mois)) return airbnb * 18;
+ if ([4, 5, 9, 10].includes(mois)) return airbnb * 12;
+ return airbnb * 10 * 0.9;
+ }
+ return loyer;
+}
+
+// CA annuel estimé d'un bien réel
+function bienCaAnnuel(b) {
+ const mode = b.modeLocation || 'C';
+ const loyer = Number(b.loyer || 0);
+ const airbnb = Number(b.airbnb_nuit || 0);
+ if (mode === 'C') return loyer * 12;
+ if (mode === 'A') return loyer * 9 + airbnb * 18 * 3;
+ if (mode === 'B') return airbnb * 18 * 3 + airbnb * 12 * 4 + airbnb * 10 * 0.9 * 5;
+ return loyer * 12;
+}
+
+// Preview CA dans le modal edit bien
+function updateEbModePreview() {
+ const mode = document.getElementById('eb-mode-location')?.value || 'C';
+ const loyer = Number(document.getElementById('eb-loyer')?.value || 0);
+ const airbnb = Number(document.getElementById('eb-airbnb-nuit')?.value || 0);
+ const modeLabels = {A:'Mode A — Bail 9 mois + Airbnb été', B:'Mode B — Full Airbnb', C:'Mode C — Longue durée'};
+ let caAn = 0;
+ if (mode === 'C') caAn = loyer * 12;
+ else if (mode === 'A') caAn = loyer * 9 + airbnb * 18 * 3;
+ else if (mode === 'B') caAn = airbnb * 18 * 3 + airbnb * 12 * 4 + airbnb * 10 * 0.9 * 5;
+ const colors = {A:'var(--blue)', B:'var(--green)', C:'var(--accent)'};
+ const el = document.getElementById('eb-mode-preview');
+ if (el) el.innerHTML = `<span style="color:${colors[mode]};font-weight:600">${modeLabels[mode]}</span> · CA estimé/an : <strong style="color:var(--text)">${euro(Math.round(caAn))}</strong>`;
 }
 
 // Génère le tableau d'amortissement complet selon le mode
@@ -3407,6 +3424,8 @@ function openEditBien(id){
  updateEbMensPreview();
  document.getElementById('eb-banque').value=b.banque||'';
  document.getElementById('eb-debut').value=b.debut||'';
+ document.getElementById('eb-mode-location').value=b.modeLocation||'C';
+ document.getElementById('eb-airbnb-nuit').value=b.airbnb_nuit||0;
  document.getElementById('eb-loyer').value=b.loyer||0;
  const ca = b.chargesAnnuelles || {};
  document.getElementById('eb-copro').value = ca.copro || '';
@@ -3416,6 +3435,7 @@ function openEditBien(id){
  document.getElementById('eb-autrescharges').value = ca.autres || '';
  updateEbChargesPreview();
  document.getElementById('eb-charges').value=b.charges||0;
+ updateEbModePreview();
  document.getElementById('eb-statut').value=b.statut||'Non loué';
  document.getElementById('eb-locataire').value=b.locataire||'';
  document.getElementById('eb-tel').value=b.tel||'';
@@ -3475,7 +3495,9 @@ async function updateBien(){
  else delete b.mensualiteManuelle;
  b.banque=g('eb-banque').value.trim();
  b.debut=g('eb-debut').value;
+ b.modeLocation=g('eb-mode-location').value||'C';
  b.loyer=gn('eb-loyer')??0;
+ b.airbnb_nuit=gn('eb-airbnb-nuit')??0;
  b.charges=gn('eb-charges')??0;
  b.chargesAnnuelles={
  copro: Number(g('eb-copro').value)||0,
@@ -3930,7 +3952,8 @@ function bpCRD(b, anneeRef){
 }
 
 function renderBpPage(page){
- if(page==='portefeuille') renderBpPortefeuille();
+ if(page==='dashboard') renderBpDashboard();
+ else if(page==='portefeuille') renderBpPortefeuille();
  else if(page==='projection') renderBpProjection();
  else if(page==='frise') renderBpFrise();
  else if(page==='kpi') renderBpKpi();
@@ -3956,6 +3979,185 @@ function togglePortefAnnee(annee){
  const isOpen = body.style.display !== 'none';
  body.style.display = isOpen ? 'none' : 'block';
  chevron.style.transform = isOpen ? '' : 'rotate(90deg)';
+}
+
+function renderBpDashboard(){
+  const el = document.getElementById('bp-dash-content');
+  if(!el) return;
+
+  const fmt = (v, dec=0) => new Intl.NumberFormat('fr-FR',{maximumFractionDigits:dec}).format(v);
+  const eur = (v) => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
+
+  // --- Calculs dynamiques ---
+  const nbBiens = BP_BIENS.length;
+  const investTotal = BP_BIENS.reduce((s,b)=>s+b.prix+(b.frais||BP_PARAMS.fraisAcq),0);
+  const creditTotal = BP_BIENS.reduce((s,b)=>{
+    const fr=b.frais||BP_PARAMS.fraisAcq;
+    return s+(b.credit&&b.credit>0?b.credit:b.prix+fr);
+  },0);
+  const ca2035 = BP_BIENS.reduce((s,b)=>s+bpCaAnnuel(b,2035),0);
+  const mens2035 = BP_BIENS.reduce((s,b)=>s+bpMensualite(b)*12,0);
+  const crd2035 = BP_BIENS.reduce((s,b)=>s+bpCRD(b,2035),0);
+  const val2035 = BP_BIENS.reduce((s,b)=>{
+    const achat=parseInt(b.date.split('/')[2]);
+    return s+b.prix*Math.pow(1+BP_PARAMS.immoHausse/100,2035-achat);
+  },0);
+  const patrimoineNet2035 = val2035 - crd2035;
+  const cfAnnuel2035 = ca2035 - mens2035;
+  const dscr = ca2035 / mens2035;
+  const ltv = crd2035 / val2035;
+  const rendBrut = (ca2035 / investTotal) * 100;
+
+  // Calendrier acquisitions par année
+  const parAnnee = {};
+  BP_BIENS.forEach(b => {
+    const an = b.date.split('/')[2];
+    if(!parAnnee[an]) parAnnee[an] = 0;
+    parAnnee[an]++;
+  });
+
+  el.innerHTML = `
+  <style>
+    .bpd-hero{background:linear-gradient(135deg,#0f1923 0%,#1a2535 50%,#0f1923 100%);border-radius:12px;padding:32px 28px 28px;margin-bottom:16px;position:relative;overflow:hidden}
+    .bpd-hero::before{content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(201,168,76,0.12) 0%,transparent 70%);pointer-events:none}
+    .bpd-hero-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(201,168,76,0.7);margin-bottom:8px}
+    .bpd-hero-title{font-size:22px;font-weight:700;color:#fff;margin-bottom:4px;line-height:1.2}
+    .bpd-hero-sub{font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:24px}
+    .bpd-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:rgba(255,255,255,0.06);border-radius:8px;overflow:hidden}
+    .bpd-metric{background:#0f1923;padding:16px 18px}
+    .bpd-metric-label{font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px}
+    .bpd-metric-val{font-size:20px;font-weight:700;color:#fff;line-height:1}
+    .bpd-metric-val.gold{color:#C9A84C}
+    .bpd-metric-val.green{color:#3DB87A}
+    .bpd-metric-sub{font-size:10px;color:rgba(255,255,255,0.25);margin-top:4px}
+    .bpd-section{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin:20px 0 10px;padding-left:2px}
+    .bpd-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+    .bpd-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+    .bpd-card{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:18px}
+    .bpd-card-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px}
+    .bpd-stat-row{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:0.5px solid var(--border)}
+    .bpd-stat-row:last-child{border-bottom:none}
+    .bpd-stat-label{font-size:12px;color:var(--text2)}
+    .bpd-stat-val{font-size:13px;font-weight:600;color:var(--text)}
+    .bpd-bar-wrap{margin-top:6px}
+    .bpd-bar-track{height:4px;background:var(--surface2);border-radius:99px;overflow:hidden;margin-top:5px}
+    .bpd-bar-fill{height:100%;border-radius:99px}
+    .bpd-cal{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+    .bpd-cal-item{background:var(--surface2);border-radius:6px;padding:8px 6px;text-align:center}
+    .bpd-cal-an{font-size:10px;color:var(--text3);margin-bottom:3px}
+    .bpd-cal-nb{font-size:16px;font-weight:700;color:var(--text)}
+    .bpd-cal-dot{display:flex;justify-content:center;gap:2px;margin-top:4px}
+    .bpd-cal-dot span{width:5px;height:5px;border-radius:50%;background:#C9A84C}
+    .bpd-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600}
+    .bpd-footer{font-size:11px;color:var(--text3);margin-top:16px;padding-top:12px;border-top:0.5px solid var(--border);line-height:1.6}
+    @media(max-width:600px){.bpd-grid2,.bpd-grid3{grid-template-columns:1fr}.bpd-cal{grid-template-columns:repeat(4,1fr)}}
+  </style>
+
+  <!-- HERO -->
+  <div class="bpd-hero">
+    <div class="bpd-hero-label">SCI PERIPE · Marseille · Dossier bancaire 2026</div>
+    <div class="bpd-hero-title">Portefeuille immobilier 2026–2035</div>
+    <div class="bpd-hero-sub">Société Civile Immobilière · 3 associés · Fiscalité IS · Stratégie mixte locative</div>
+    <div class="bpd-metrics">
+      <div class="bpd-metric">
+        <div class="bpd-metric-label">Biens acquis</div>
+        <div class="bpd-metric-val gold">${nbBiens}</div>
+        <div class="bpd-metric-sub">2026 → 2035</div>
+      </div>
+      <div class="bpd-metric">
+        <div class="bpd-metric-label">Investissement total</div>
+        <div class="bpd-metric-val">${eur(investTotal)}</div>
+        <div class="bpd-metric-sub">Prix + frais d'acquisition</div>
+      </div>
+      <div class="bpd-metric">
+        <div class="bpd-metric-label">CA locatif 2035</div>
+        <div class="bpd-metric-val green">${eur(ca2035)}</div>
+        <div class="bpd-metric-sub">${eur(Math.round(ca2035/12))}/mois</div>
+      </div>
+      <div class="bpd-metric">
+        <div class="bpd-metric-label">Patrimoine net 2035</div>
+        <div class="bpd-metric-val gold">${eur(patrimoineNet2035)}</div>
+        <div class="bpd-metric-sub">${eur(Math.round(patrimoineNet2035/3))}/associé</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RATIOS BANCAIRES -->
+  <div class="bpd-section">Ratios bancaires — horizon 2035</div>
+  <div class="bpd-grid3">
+    <div class="bpd-card">
+      <div class="bpd-card-title">DSCR</div>
+      <div style="font-size:28px;font-weight:700;color:${dscr>=1.2?'var(--green)':'var(--red)'};margin-bottom:4px">${fmt(dscr,2)}x</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Revenus / Mensualités annuelles</div>
+      <div class="bpd-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)"><span>Seuil bancaire 1,2x</span><span style="color:${dscr>=1.2?'var(--green)':'var(--red)'}">${dscr>=1.2?'Conforme':'Attention'}</span></div>
+        <div class="bpd-bar-track"><div class="bpd-bar-fill" style="width:${Math.min(100,dscr/2*100)}%;background:${dscr>=1.2?'var(--green)':'var(--red)'}"></div></div>
+      </div>
+    </div>
+    <div class="bpd-card">
+      <div class="bpd-card-title">LTV 2035</div>
+      <div style="font-size:28px;font-weight:700;color:${ltv<=0.8?'var(--green)':'var(--amber)'};margin-bottom:4px">${fmt(ltv*100,1)}%</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Encours / Valeur portefeuille</div>
+      <div class="bpd-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)"><span>Seuil bancaire 80%</span><span style="color:${ltv<=0.8?'var(--green)':'var(--amber)'}">${ltv<=0.8?'Conforme':'Vigilance'}</span></div>
+        <div class="bpd-bar-track"><div class="bpd-bar-fill" style="width:${Math.min(100,ltv*100)}%;background:${ltv<=0.8?'var(--green)':'var(--amber)'}"></div></div>
+      </div>
+    </div>
+    <div class="bpd-card">
+      <div class="bpd-card-title">Rendement brut 2035</div>
+      <div style="font-size:28px;font-weight:700;color:var(--blue);margin-bottom:4px">${fmt(rendBrut,1)}%</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">CA annuel / Investissement total</div>
+      <div class="bpd-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)"><span>Référence marché 5%</span><span style="color:var(--blue)">${rendBrut>=5?'Au-dessus':'En dessous'}</span></div>
+        <div class="bpd-bar-track"><div class="bpd-bar-fill" style="width:${Math.min(100,rendBrut/10*100)}%;background:var(--blue)"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STRUCTURE FINANCIERE + PATRIMOINE -->
+  <div class="bpd-grid2">
+    <div class="bpd-card">
+      <div class="bpd-card-title">Structure de financement</div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Investissement total</span><span class="bpd-stat-val">${eur(investTotal)}</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Financement bancaire</span><span class="bpd-stat-val" style="color:var(--blue)">${eur(creditTotal)}</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Apports associés (CCA)</span><span class="bpd-stat-val" style="color:var(--amber)">${eur(Math.max(0,investTotal-creditTotal))}</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Levier moyen</span><span class="bpd-stat-val">${fmt(creditTotal/investTotal*100,0)}%</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Taux · Durée</span><span class="bpd-stat-val">${BP_PARAMS.taux}% · ${BP_PARAMS.duree/12} ans</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Mensualités totales 2035</span><span class="bpd-stat-val" style="color:var(--red)">${eur(mens2035/12)}/mois</span></div>
+    </div>
+    <div class="bpd-card">
+      <div class="bpd-card-title">Patrimoine à l'horizon 2035</div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Valeur du portefeuille</span><span class="bpd-stat-val">${eur(val2035)}</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Capital restant dû</span><span class="bpd-stat-val" style="color:var(--red)">${eur(crd2035)}</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label" style="font-weight:600">Patrimoine net</span><span class="bpd-stat-val" style="color:var(--green);font-weight:700">${eur(patrimoineNet2035)}</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Par associé (÷3)</span><span class="bpd-stat-val" style="color:var(--green)">${eur(Math.round(patrimoineNet2035/3))}</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">CA locatif annuel</span><span class="bpd-stat-val" style="color:var(--green)">${eur(ca2035)}</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Cash-flow net annuel</span><span class="bpd-stat-val" style="color:${cfAnnuel2035>=0?'var(--green)':'var(--red)'}">${cfAnnuel2035>=0?'+':''}${eur(cfAnnuel2035)}</span></div>
+    </div>
+  </div>
+
+  <!-- CALENDRIER ACQUISITIONS -->
+  <div class="bpd-section">Calendrier d'acquisition</div>
+  <div class="bpd-card" style="margin-bottom:12px">
+    <div class="bpd-cal">
+      ${Object.entries(parAnnee).sort().map(([an,nb])=>`
+        <div class="bpd-cal-item">
+          <div class="bpd-cal-an">${an}</div>
+          <div class="bpd-cal-nb">${nb}</div>
+          <div class="bpd-cal-dot">${Array(nb).fill('<span></span>').join('')}</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:3px">bien${nb>1?'s':''}</div>
+        </div>`).join('')}
+    </div>
+    <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+      <span class="bpd-badge" style="background:var(--blue-light);color:var(--blue)">Mode A · Bail + Airbnb</span>
+      <span class="bpd-badge" style="background:var(--green-light);color:var(--green)">Mode B · Full Airbnb</span>
+      <span class="bpd-badge" style="background:var(--amber-light);color:var(--amber)">Mode C · Longue durée</span>
+    </div>
+  </div>
+
+  <div class="bpd-footer">
+    Hypothèses · Taux fixe ${BP_PARAMS.taux}% sur ${BP_PARAMS.duree/12} ans · Revalorisation loyers +${BP_PARAMS.irl}%/an (IRL) · Revalorisation immobilier +${BP_PARAMS.immoHausse}%/an · IS ${BP_PARAMS.isTaux1}% jusqu'à ${fmt(BP_PARAMS.isSeuil)} € puis ${BP_PARAMS.isTaux2}% · Avant impôt sur plus-value et frais de vente
+  </div>`;
 }
 
 function renderBpPortefeuille(){
@@ -4221,7 +4423,8 @@ function deleteBpBienFromModal(){
 
 function refreshAllBpViews(){
  renderBpPortefeuille();
- if(currentBpPage==='projection') renderBpProjection();
+ if(currentBpPage==='dashboard') renderBpDashboard();
+ else if(currentBpPage==='projection') renderBpProjection();
  else if(currentBpPage==='frise') renderBpFrise();
  else if(currentBpPage==='kpi') renderBpKpi();
  else if(currentBpPage==='revente') renderBpRevente();
