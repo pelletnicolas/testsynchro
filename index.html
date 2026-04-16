@@ -210,8 +210,14 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
  .ac-stat{border-right:none;border-bottom:0.5px solid rgba(255,255,255,0.06);padding:24px 16px}
  .ac-logo{width:120px;height:120px}
 }
-
+canvas{max-width:100%;display:block}
+@media(max-width:640px){.two-col{grid-template-columns:1fr}}
+.alerte-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:6px}
+.alerte-warn{background:var(--amber-light);color:var(--amber)}
+.alerte-ok{background:var(--green-light);color:var(--green)}
+.alerte-red{background:var(--red-light);color:var(--red)}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -369,8 +375,30 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
  <div id="dash-loading" class="loading-overlay"><div class="spinner"></div> Chargement…</div>
  <div id="dash-content" style="display:none">
  <div class="kpi-grid" id="dash-kpis"></div>
- <div class="sl">Patrimoine</div>
- <div id="dash-biens"></div>
+ <!-- GRAPHIQUES RÉPARTITION -->
+ <div class="two-col" style="margin-bottom:14px">
+ <div class="card" style="padding:16px">
+ <div class="card-title" style="margin-bottom:14px">Répartition valeur patrimoine</div>
+ <canvas id="chart-valeur" height="220"></canvas>
+ </div>
+ <div class="card" style="padding:16px">
+ <div class="card-title" style="margin-bottom:14px">Répartition par type de bien</div>
+ <canvas id="chart-types" height="220"></canvas>
+ </div>
+ </div>
+ <div class="two-col" style="margin-bottom:14px">
+ <div class="card" style="padding:16px">
+ <div class="card-title" style="margin-bottom:14px">Cash-flow mensuel par bien</div>
+ <canvas id="chart-cashflow" height="220"></canvas>
+ </div>
+ <div class="card" style="padding:16px">
+ <div class="card-title" style="margin-bottom:14px">Avancement remboursements</div>
+ <canvas id="chart-amort" height="220"></canvas>
+ </div>
+ </div>
+ <!-- ALERTES RAPIDES -->
+ <div class="sl">Alertes & statuts</div>
+ <div id="dash-alertes" style="margin-bottom:14px"></div>
  <div class="sl">Derniers mouvements</div>
  <div class="card" id="dash-mvts"></div>
  </div>
@@ -1806,6 +1834,7 @@ function renderDashboard(){
  const totalCRD=biens.reduce((s,b)=>s+Number(b.capitalRestant||b.capital),0);
  const valNette=totalValeur-totalCRD;
  const totalMens=biens.reduce((s,b)=>s+bienMensualite(b),0);
+ const totalLoyerMois=biens.reduce((s,b)=>s+Number(b.loyer||0)+Number(b.charges||0),0);
 
  document.getElementById('dash-kpis').innerHTML=`
  <div class="kpi"><div class="kpi-label">Biens</div><div class="kpi-val">${biens.length}</div></div>
@@ -1814,31 +1843,160 @@ function renderDashboard(){
  <div class="kpi"><div class="kpi-label">Valeur nette SCI</div><div class="kpi-val ${valNette>=0?'kpi-pos':'kpi-neg'}">${valNette>=0?'+':''}${euro(valNette)}</div></div>
  <div class="kpi"><div class="kpi-label">Trésorerie</div><div class="kpi-val kpi-pos">${euro(tresorerie,2)}</div></div>
  <div class="kpi"><div class="kpi-label">Mensualités</div><div class="kpi-val">${euro(totalMens,0)}<span class="unit">/mois</span></div></div>
+ <div class="kpi"><div class="kpi-label">Loyers encaissés</div><div class="kpi-val">${euro(totalLoyerMois,0)}<span class="unit">/mois</span></div></div>
  `;
 
- document.getElementById('dash-biens').innerHTML=biens.length===0
- ?`<div class="empty-state">Aucun bien enregistré</div>`
- :biens.map(b=>{
- const pct=Math.max(0,Math.min(100,((Number(b.capital)-Number(b.capitalRestant||b.capital))/Number(b.capital)*100)));
- const debutAn=b.debut?parseInt(b.debut.split('-')[0]):null;
- const finAn=debutAn?debutAn+Math.round(Number(b.duree)/12):null;
- return`<div class="card">
- <div class="card-header">
- <div><div style="font-weight:500;font-size:14px">${b.adresse}</div><div style="font-size:12px;color:var(--text3);margin-top:2px">${b.ville}</div></div>
- ${locBadge(b.statut)}
- </div>
- <div class="three-col">
- <div><div class="kpi-label">Prix d'acquisition</div><div style="font-size:14px;font-weight:500">${euro(b.prix)}</div></div>
- <div><div class="kpi-label">Valeur estimée</div><div style="font-size:14px;font-weight:500">${euro(valeurBien(b))}</div></div>
- <div><div class="kpi-label">Loyer total/mois</div><div style="font-size:14px;font-weight:500">${euro(Number(b.loyer)+Number(b.charges||0))}</div></div>
- ${bienChargesAn(b)>0?`<div><div class="kpi-label">Charges/mois</div><div style="font-size:14px;font-weight:500;color:var(--red)">−${euro(Math.round(bienChargesMois(b)))}</div></div>`:''}
- </div>
- <div class="kpi-label" style="margin-top:12px;margin-bottom:0">Remboursement — ${pct.toFixed(1)}% remboursé</div>
- <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
- <div style="font-size:11px;color:var(--text3);margin-top:4px">${finAn?'Fin prévue : '+finAn:''} · ${b.banque||''}</div>
- </div>`;
- }).join('');
+ // Déterminer les couleurs selon thème
+ const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+ const textColor = isDark ? '#a89e8e' : '#6b6355';
+ const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+ const palette = ['#1A6FB5','#1A7A4A','#C9A84C','#C0392B','#7B5EA7','#2980B9','#16A085','#E67E22','#8E44AD'];
 
+ // Détruire les charts existants si refresh
+ ['chart-valeur','chart-types','chart-cashflow','chart-amort'].forEach(id=>{
+  const existing = Chart.getChart(id);
+  if(existing) existing.destroy();
+ });
+
+ // ── GRAPHIQUE 1 : Répartition valeur patrimoine (Donut) ──
+ const cvValeur = document.getElementById('chart-valeur');
+ if(biens.length>0){
+  new Chart(cvValeur,{
+   type:'doughnut',
+   data:{
+    labels: biens.map(b=>b.adresse.split(' ').slice(0,3).join(' ')),
+    datasets:[{
+     data: biens.map(b=>valeurBien(b)),
+     backgroundColor: biens.map((_,i)=>palette[i%palette.length]),
+     borderWidth:2,
+     borderColor: isDark?'#252220':'#fff'
+    }]
+   },
+   options:{
+    responsive:true,
+    plugins:{
+     legend:{position:'bottom',labels:{font:{size:10},color:textColor,boxWidth:12,padding:10}},
+     tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${euro(ctx.raw)}`}}
+    }
+   }
+  });
+ } else {
+  cvValeur.parentElement.innerHTML+='<div class="empty-state">Aucun bien</div>';
+ }
+
+ // ── GRAPHIQUE 2 : Répartition par type de bien (Donut) ──
+ const typesCount={};
+ biens.forEach(b=>{typesCount[b.type]=(typesCount[b.type]||0)+1});
+ const cvTypes = document.getElementById('chart-types');
+ if(Object.keys(typesCount).length>0){
+  new Chart(cvTypes,{
+   type:'doughnut',
+   data:{
+    labels: Object.keys(typesCount),
+    datasets:[{
+     data: Object.values(typesCount),
+     backgroundColor:['#1A6FB5','#1A7A4A','#C9A84C','#C0392B','#7B5EA7'],
+     borderWidth:2,
+     borderColor: isDark?'#252220':'#fff'
+    }]
+   },
+   options:{
+    responsive:true,
+    plugins:{
+     legend:{position:'bottom',labels:{font:{size:11},color:textColor,boxWidth:12,padding:10}},
+     tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} bien${ctx.raw>1?'s':''}`}}
+    }
+   }
+  });
+ }
+
+ // ── GRAPHIQUE 3 : Cash-flow mensuel par bien (Barres) ──
+ const biensCF = biens.map(b=>{
+  const loyer=Number(b.loyer||0)+Number(b.charges||0);
+  const mens=bienMensualite(b);
+  const charges=bienChargesMois(b);
+  return{label:b.adresse.split(' ').slice(0,3).join(' '), cf: loyer-mens-charges};
+ });
+ const cvCF = document.getElementById('chart-cashflow');
+ if(biensCF.length>0){
+  new Chart(cvCF,{
+   type:'bar',
+   data:{
+    labels: biensCF.map(x=>x.label),
+    datasets:[{
+     label:'CF net/mois (€)',
+     data: biensCF.map(x=>x.cf),
+     backgroundColor: biensCF.map(x=>x.cf>=0?'rgba(26,122,74,0.75)':'rgba(192,57,43,0.75)'),
+     borderRadius:4
+    }]
+   },
+   options:{
+    responsive:true,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw>=0?'+':''}${euro(ctx.raw,0)}/mois`}}},
+    scales:{
+     x:{ticks:{color:textColor,font:{size:9}},grid:{color:gridColor}},
+     y:{ticks:{color:textColor,font:{size:10},callback:v=>euro(v,0)},grid:{color:gridColor}}
+    }
+   }
+  });
+ }
+
+ // ── GRAPHIQUE 4 : Avancement remboursements (Barres horizontales) ──
+ const biensAmort = biens.filter(b=>Number(b.capital)>0).map(b=>{
+  const cap=Number(b.capital);
+  const crd=Number(b.capitalRestant||cap);
+  const pct=Math.max(0,Math.min(100,(cap-crd)/cap*100));
+  return{label:b.adresse.split(' ').slice(0,3).join(' '), pct: Math.round(pct*10)/10};
+ });
+ const cvAmort = document.getElementById('chart-amort');
+ if(biensAmort.length>0){
+  new Chart(cvAmort,{
+   type:'bar',
+   data:{
+    labels: biensAmort.map(x=>x.label),
+    datasets:[
+     {label:'Remboursé (%)',data:biensAmort.map(x=>x.pct),backgroundColor:'rgba(26,111,181,0.75)',borderRadius:4},
+     {label:'Restant (%)',data:biensAmort.map(x=>100-x.pct),backgroundColor:isDark?'rgba(255,255,255,0.07)':'rgba(0,0,0,0.07)',borderRadius:4}
+    ]
+   },
+   options:{
+    indexAxis:'y',
+    responsive:true,
+    plugins:{
+     legend:{position:'bottom',labels:{font:{size:10},color:textColor,boxWidth:12}},
+     tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw}%`}}
+    },
+    scales:{
+     x:{stacked:true,max:100,ticks:{color:textColor,font:{size:10},callback:v=>v+'%'},grid:{color:gridColor}},
+     y:{stacked:true,ticks:{color:textColor,font:{size:9}}}
+    }
+   }
+  });
+ } else {
+  cvAmort.parentElement.innerHTML+='<div class="empty-state" style="font-size:12px">Aucun emprunt renseigné</div>';
+ }
+
+ // ── ALERTES RAPIDES ──
+ const alertes=[];
+ biens.forEach(b=>{
+  const isAirbnb=(b.modeLocation==='B');
+ if(!isAirbnb && !b.locataire && b.statut!=='Vacant') alertes.push({type:'warn', msg:`<strong>${b.adresse}</strong> — statut locatif à vérifier`});
+  const pct=Number(b.capital)>0?(Number(b.capital)-Number(b.capitalRestant||b.capital))/Number(b.capital)*100:0;
+  if(pct>=95) alertes.push({type:'ok', msg:`<strong>${b.adresse}</strong> — crédit presque soldé (${pct.toFixed(0)}%)`});
+  const mens=bienMensualite(b);
+  const loyer=Number(b.loyer||0)+Number(b.charges||0);
+  const cf=loyer-mens-bienChargesMois(b);
+  if(mens>0 && cf<0) alertes.push({type:'red', msg:`<strong>${b.adresse}</strong> — cash-flow négatif : ${euro(cf,0)}/mois`});
+ });
+ if(tresorerie<0) alertes.push({type:'red',msg:`<strong>Trésorerie négative</strong> : ${euro(tresorerie,2)}`});
+ const alertesEl = document.getElementById('dash-alertes');
+ if(alertes.length===0){
+  alertesEl.innerHTML=`<div class="alerte-item alerte-ok">✓ Aucune alerte en cours</div>`;
+ } else {
+  alertesEl.innerHTML=alertes.map(a=>`<div class="alerte-item alerte-${a.type}">${a.type==='ok'?'✓':a.type==='warn'?'⚠':'✕'} ${a.msg}</div>`).join('');
+ }
+
+ // ── DERNIERS MOUVEMENTS ──
  const recent=soldes.slice(-6).reverse();
  document.getElementById('dash-mvts').innerHTML=`
  <div class="card-header">
@@ -1913,14 +2071,23 @@ function bienDrawerContent(b){
  const nowM = new Date().getMonth()+1;
  const nowY = new Date().getFullYear();
  const caMois = bienCaMensuel(b, nowY, nowM);
+ const isAirbnb = (mode === 'B');
  return `<div class="status-row"><span>Mode de gestion</span><span style="font-weight:600;color:${modeColors[mode]}">${modeLabels[mode]}</span></div>
+ ${isAirbnb ? `<div class="status-row"><span>Statut location</span><span class="badge badge-info">Airbnb</span></div>` : ''}
  <div class="status-row"><span>CA estimé / mois (actuel)</span><span style="font-weight:600;color:var(--green)">${euro(Math.round(caMois))}</span></div>
  <div class="status-row"><span>CA estimé / an</span><span style="font-weight:600">${euro(Math.round(caAn))}</span></div>`;
  })()}
- <div class="status-row"><span>Loyer HC</span><span>${euro(loyer)}/mois</span></div>
+ ${(()=>{
+ const mode = b.modeLocation || 'C';
+ const isAirbnb = (mode === 'B');
+ if (isAirbnb) return '';
+ const loyer=Number(b.loyer||0);
+ const charges=Number(b.charges||0);
+ return `<div class="status-row"><span>Loyer HC</span><span>${euro(loyer)}/mois</span></div>
  <div class="status-row"><span>Charges locataire</span><span>${euro(charges)}/mois</span></div>
  <div class="status-row"><span>Total encaissé</span><span style="font-weight:500">${euro(loyer+charges)}/mois</span></div>
- <div class="status-row"><span>Locataire</span><span>${b.locataire||'—'}</span></div>
+ <div class="status-row"><span>Locataire</span><span>${b.locataire||'—'}</span></div>`;
+ })()}
  <div class="sl">Apports associés (CCA)</div>
  ${assocs.map(a=>`
  <div class="status-row">
@@ -1973,10 +2140,10 @@ function renderBiens(){
  <div class="bien-row-icon">${typeIcon}</div>
  <div class="bien-row-info">
  <div class="bien-row-addr">${b.adresse}</div>
- <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.ville.split('·')[0].trim()} · <span style="color:${({A:'var(--blue)',B:'var(--green)',C:'var(--accent)'})[b.modeLocation||'C']}">Mode ${b.modeLocation||'C'}</span> · CA ~${euro(Math.round(bienCaAnnuel(b)/12),0)}/mois</div>
+ <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.ville.split('·')[0].trim()} · <span style="color:${({A:'var(--blue)',B:'var(--green)',C:'var(--accent)'})[b.modeLocation||'C']}">Mode ${b.modeLocation||'C'}</span> · ${(b.modeLocation||'C')==='C'?'Encaissé :':'CA ~'} ${(b.modeLocation||'C')==='C'?euro(Number(b.loyer||0)+Number(b.charges||0),0):euro(Math.round(bienCaAnnuel(b)/12),0)}/mois${bienChargesMois(b)>0?` · <span style="color:var(--red)">−${euro(Math.round(bienChargesMois(b)),0)}/mois charges</span>`:''}${mens>0?` · <span style="color:var(--text2)">crédit ${euro(Math.round(mens),0)}/mois</span>`:''}</div>
  </div>
  <div class="bien-row-right">
- ${locBadge(b.statut)}
+ ${b.modeLocation==='B'?`<span class="badge badge-info">Airbnb</span>`:locBadge(b.statut)}
  ${mens>0?`<span style="font-size:11px;color:${cashflow>=0?'var(--green)':'var(--red)'};font-weight:600">${cashflow>=0?'+':''}${euro(cashflow,0)}/mois</span>`:''}
  </div>
  <span style="color:var(--text3);font-size:16px">›</span>
@@ -2108,40 +2275,43 @@ function bienMensualite(b) {
 function bienCaMensuel(b, annee, mois) {
  const mode = b.modeLocation || 'C';
  const loyer = Number(b.loyer || 0);
+ const charges = Number(b.charges || 0);
  const airbnb = Number(b.airbnb_nuit || 0);
- if (mode === 'C') return loyer;
+ if (mode === 'C') return loyer + charges;
  if (mode === 'A') {
  if ([6, 7, 8].includes(mois)) return airbnb * 18;
- return loyer;
+ return loyer + charges;
  }
  if (mode === 'B') {
  if ([6, 7, 8].includes(mois)) return airbnb * 18;
  if ([4, 5, 9, 10].includes(mois)) return airbnb * 12;
  return airbnb * 10 * 0.9;
  }
- return loyer;
+ return loyer + charges;
 }
 
-// CA annuel estimé d'un bien réel
+// CA annuel estimé d'un bien réel (loyer + charges locataire inclus)
 function bienCaAnnuel(b) {
  const mode = b.modeLocation || 'C';
  const loyer = Number(b.loyer || 0);
+ const charges = Number(b.charges || 0);
  const airbnb = Number(b.airbnb_nuit || 0);
- if (mode === 'C') return loyer * 12;
- if (mode === 'A') return loyer * 9 + airbnb * 18 * 3;
+ if (mode === 'C') return (loyer + charges) * 12;
+ if (mode === 'A') return (loyer + charges) * 9 + airbnb * 18 * 3;
  if (mode === 'B') return airbnb * 18 * 3 + airbnb * 12 * 4 + airbnb * 10 * 0.9 * 5;
- return loyer * 12;
+ return (loyer + charges) * 12;
 }
 
 // Preview CA dans le modal edit bien
 function updateEbModePreview() {
  const mode = document.getElementById('eb-mode-location')?.value || 'C';
  const loyer = Number(document.getElementById('eb-loyer')?.value || 0);
+ const charges = Number(document.getElementById('eb-charges')?.value || 0);
  const airbnb = Number(document.getElementById('eb-airbnb-nuit')?.value || 0);
  const modeLabels = {A:'Mode A — Bail 9 mois + Airbnb été', B:'Mode B — Full Airbnb', C:'Mode C — Longue durée'};
  let caAn = 0;
- if (mode === 'C') caAn = loyer * 12;
- else if (mode === 'A') caAn = loyer * 9 + airbnb * 18 * 3;
+ if (mode === 'C') caAn = (loyer + charges) * 12;
+ else if (mode === 'A') caAn = (loyer + charges) * 9 + airbnb * 18 * 3;
  else if (mode === 'B') caAn = airbnb * 18 * 3 + airbnb * 12 * 4 + airbnb * 10 * 0.9 * 5;
  const colors = {A:'var(--blue)', B:'var(--green)', C:'var(--accent)'};
  const el = document.getElementById('eb-mode-preview');
@@ -3182,26 +3352,33 @@ function renderLocataires(){
  const container=document.getElementById('locataires-content');
  if(!container)return;
 
- const loues=biens.filter(b=>b.statut==='Bail signé - loué');
- const attente=biens.filter(b=>b.statut==='Bail signé - attente locataire');
- const nonLoues=biens.filter(b=>b.statut==='Non loué');
+ const airbnbs=biens.filter(b=>b.modeLocation==='B');
+ const biensBail=biens.filter(b=>b.modeLocation!=='B');
+ const loues=biensBail.filter(b=>b.statut==='Bail signé - loué');
+ const attente=biensBail.filter(b=>b.statut==='Bail signé - attente locataire');
+ const nonLoues=biensBail.filter(b=>b.statut==='Non loué');
  const totalLoyersHC=loues.reduce((s,b)=>s+Number(b.loyer||0),0);
  const totalCharges=loues.reduce((s,b)=>s+Number(b.charges||0),0);
+ const totalCaAirbnb=airbnbs.reduce((s,b)=>s+Math.round(bienCaAnnuel(b)/12),0);
 
  const rowLoc = b => {
+ const isAirbnb = b.modeLocation==='B';
  const loyer=Number(b.loyer||0),charges=Number(b.charges||0);
- const br=bailRestantHtml(b);
- const statusColor=b.statut==='Bail signé - loué'?'var(--green)':b.statut==='Bail signé - attente locataire'?'var(--amber)':'var(--text3)';
- const statusIcon=b.statut==='Bail signé - loué'?'':b.statut==='Bail signé - attente locataire'?'⏳':'';
+ const statusColor=isAirbnb?'var(--blue)':b.statut==='Bail signé - loué'?'var(--green)':b.statut==='Bail signé - attente locataire'?'var(--amber)':'var(--text3)';
+ const statusIcon=isAirbnb?'\u{1F3E0}':b.statut==='Bail signé - loué'?'\u2714\uFE0F':b.statut==='Bail signé - attente locataire'?'\u23F3':'';
+ const bgIcon=isAirbnb?'var(--blue-light)':b.statut==='Bail signé - loué'?'var(--green-light)':b.statut==='Bail signé - attente locataire'?'var(--amber-light)':'var(--surface2)';
+ const caEstime=Math.round(bienCaAnnuel(b)/12);
  return`<div class="bien-row" onclick="openDrawerLocataire('${b.id}')">
- <div class="bien-row-icon" style="background:${b.statut==='Bail signé - loué'?'var(--green-light)':b.statut==='Bail signé - attente locataire'?'var(--amber-light)':'var(--surface2)'};color:${statusColor}">${statusIcon}</div>
+ <div class="bien-row-icon" style="background:${bgIcon};color:${statusColor}">${statusIcon}</div>
  <div class="bien-row-info">
- <div class="bien-row-addr">${b.locataire||b.adresse}</div>
- <div class="bien-row-sub">${b.locataire?b.adresse+' · ':''} ${b.type} ${b.surface}m²</div>
+ <div class="bien-row-addr">${b.adresse}</div>
+ <div class="bien-row-sub">${b.type} ${b.surface}m²${isAirbnb?' · <span class=\"badge badge-info\" style=\"font-size:10px;padding:1px 7px\">Airbnb</span>':(b.locataire?' · '+b.locataire:'')}</div>
  </div>
  <div class="bien-row-right">
- ${loyer+charges>0?`<span style="font-size:12px;font-weight:600;color:var(--green)">${euro(loyer+charges)}/mois</span>`:''}
- <span style="font-size:10px;color:var(--text3)">${b.dateFinBail?fdate(b.dateFinBail):'—'}</span>
+ ${isAirbnb
+ ?`<span style="font-size:12px;font-weight:600;color:var(--blue)">~${euro(caEstime)}/mois</span><span style="font-size:10px;color:var(--text3)">CA estimé</span>`
+ :`${loyer+charges>0?`<span style="font-size:12px;font-weight:600;color:var(--green)">${euro(loyer+charges)}/mois</span>`:''}
+ <span style="font-size:10px;color:var(--text3)">${b.dateFinBail?fdate(b.dateFinBail):'—'}</span>`}
  </div>
  <span style="color:var(--text3);font-size:16px">›</span>
  </div>`;
@@ -3215,11 +3392,13 @@ function renderLocataires(){
  <div class="kpi"><div class="kpi-label">Biens loués</div><div class="kpi-val kpi-pos">${loues.length}</div></div>
  <div class="kpi"><div class="kpi-label">Bail signé / attente</div><div class="kpi-val">${attente.length}</div></div>
  <div class="kpi"><div class="kpi-label">Non loués</div><div class="kpi-val kpi-neg">${nonLoues.length}</div></div>
- <div class="kpi"><div class="kpi-label">Total encaissable</div><div class="kpi-val kpi-pos">${euro(totalLoyersHC+totalCharges)}<span class="unit">/mois</span></div></div>
+ <div class="kpi"><div class="kpi-label">Airbnb</div><div class="kpi-val" style="color:var(--blue)">${airbnbs.length}</div></div>
+ <div class="kpi"><div class="kpi-label">Total encaissable</div><div class="kpi-val kpi-pos">${euro(totalLoyersHC+totalCharges+totalCaAirbnb)}<span class="unit">/mois</span></div></div>
  </div>
  ${biens.length===0?`<div class="empty-state">Aucun bien enregistré.</div>`:''}
  ${section('Loués',loues)}
  ${section('Bail signé — en attente',attente)}
+ ${section('Airbnb',airbnbs)}
  ${section('Non loués',nonLoues)}
  `;
 }
