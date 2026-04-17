@@ -4850,6 +4850,7 @@ function renderBpTresorerieMensuelle() {
  <span style="font-size:12px;color:var(--blue)">CA : <strong>${euro(Math.round(caAn))}</strong></span>
  ${ccaAn > 0 ? `<span style="font-size:12px;color:var(--blue)">Apport CCA : <strong>${euro(Math.round(ccaAn))}</strong></span>` : ''}
  ${isAn > 0 ? `<span style="font-size:12px;color:var(--amber)">IS payé : <strong>−${euro(Math.round(isAn))}</strong></span>` : ''}
+ ${isAn > 0 && caAn > 0 ? `<span style="font-size:12px;color:var(--amber);background:var(--amber-light);padding:2px 7px;border-radius:99px;font-weight:600">IS/CA : ${(isAn/caAn*100).toFixed(1)} %</span>` : ''}
  ${taxesAn > 0 ? `<span style="font-size:12px;color:var(--amber)">Taxes : <strong>−${euro(Math.round(taxesAn))}</strong></span>` : ''}
  <span style="font-size:12px;font-weight:600;color:${cfColor}">CF annuel : ${cfAn>=0?'+':''}${euro(Math.round(cfAn))}</span>
  <span style="font-size:12px;color:var(--text3)">Cumul : ${euro(Math.round(cumulFin))}</span>
