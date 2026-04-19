@@ -1018,12 +1018,13 @@ canvas{max-width:100%;display:block}
 <div class="modal-bg" id="modal-add-bien">
  <div class="modal">
  <div class="modal-title">Ajouter un bien</div>
+ <div class="fg"><label>Nom du bien <span style="color:var(--text3);font-weight:400">(identifiant affiché partout)</span></label><input id="nb-nom" type="text" placeholder="ex: Studio Isoard, T2 Noailles…"></div>
  <div class="two-col">
  <div class="fg"><label>Adresse</label><input id="nb-adresse" type="text" placeholder="1 rue de l'Isoard"></div>
  <div class="fg"><label>Ville / CP</label><input id="nb-ville" type="text" placeholder="Marseille 13001"></div>
  </div>
  <div class="two-col">
- <div class="fg"><label>Type</label><select id="nb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option></select></div>
+ <div class="fg"><label>Type</label><select id="nb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option><option>Parking</option></select></div>
  <div class="fg"><label>Surface (m²)</label><input id="nb-surface" type="number" placeholder="20"></div>
  </div>
  <div class="two-col">
@@ -1097,7 +1098,7 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Ville / CP</label><input id="pb-ville" type="text" placeholder="Marseille 13001"></div>
  </div>
  <div class="two-col">
- <div class="fg"><label>Type</label><select id="pb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option></select></div>
+ <div class="fg"><label>Type</label><select id="pb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option><option>Parking</option></select></div>
  <div class="fg"><label>Surface (m²)</label><input id="pb-surface" type="number" placeholder="30"></div>
  </div>
  <div class="two-col">
@@ -1152,12 +1153,13 @@ canvas{max-width:100%;display:block}
  <div class="modal-title">Modifier le bien</div>
  <input type="hidden" id="eb-id">
  <div class="sl" style="margin-top:0">Identification</div>
+ <div class="fg"><label>Nom du bien <span style="color:var(--text3);font-weight:400">(identifiant affiché partout)</span></label><input id="eb-nom" type="text" placeholder="ex: Studio Isoard, T2 Noailles…"></div>
  <div class="two-col">
  <div class="fg"><label>Adresse</label><input id="eb-adresse" type="text"></div>
  <div class="fg"><label>Ville / CP</label><input id="eb-ville" type="text"></div>
  </div>
  <div class="two-col">
- <div class="fg"><label>Type</label><select id="eb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option></select></div>
+ <div class="fg"><label>Type</label><select id="eb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option><option>Parking</option></select></div>
  <div class="fg"><label>Surface (m²)</label><input id="eb-surface" type="number"></div>
  </div>
  <div class="sl">Acquisition</div>
@@ -1864,7 +1866,7 @@ function renderDashboard(){
   new Chart(cvValeur,{
    type:'doughnut',
    data:{
-    labels: biens.map(b=>b.adresse.split(' ').slice(0,3).join(' ')),
+    labels: biens.map(b=>(b.nom||b.adresse).split(' ').slice(0,3).join(' ')),
     datasets:[{
      data: biens.map(b=>valeurBien(b)),
      backgroundColor: biens.map((_,i)=>palette[i%palette.length]),
@@ -1915,7 +1917,7 @@ function renderDashboard(){
   const loyer=Number(b.loyer||0)+Number(b.charges||0);
   const mens=bienMensualite(b);
   const charges=bienChargesMois(b);
-  return{label:b.adresse.split(' ').slice(0,3).join(' '), cf: loyer-mens-charges};
+  return{label:(b.nom||b.adresse).split(' ').slice(0,3).join(' '), cf: loyer-mens-charges};
  });
  const cvCF = document.getElementById('chart-cashflow');
  if(biensCF.length>0){
@@ -1946,7 +1948,7 @@ function renderDashboard(){
   const cap=Number(b.capital);
   const crd=Number(b.capitalRestant||cap);
   const pct=Math.max(0,Math.min(100,(cap-crd)/cap*100));
-  return{label:b.adresse.split(' ').slice(0,3).join(' '), pct: Math.round(pct*10)/10};
+  return{label:(b.nom||b.adresse).split(' ').slice(0,3).join(' '), pct: Math.round(pct*10)/10};
  });
  const cvAmort = document.getElementById('chart-amort');
  if(biensAmort.length>0){
@@ -1980,13 +1982,13 @@ function renderDashboard(){
  const alertes=[];
  biens.forEach(b=>{
   const isAirbnb=(b.modeLocation==='B');
- if(!isAirbnb && !b.locataire && b.statut!=='Vacant') alertes.push({type:'warn', msg:`<strong>${b.adresse}</strong> — statut locatif à vérifier`});
+ if(!isAirbnb && !b.locataire && (b.statut==='Bail signé - loué' || b.statut==='Bail signé - attente locataire')) alertes.push({type:'warn', msg:`<strong>${b.nom||b.adresse}</strong> — bail signé mais aucun locataire renseigné`});
   const pct=Number(b.capital)>0?(Number(b.capital)-Number(b.capitalRestant||b.capital))/Number(b.capital)*100:0;
-  if(pct>=95) alertes.push({type:'ok', msg:`<strong>${b.adresse}</strong> — crédit presque soldé (${pct.toFixed(0)}%)`});
+  if(pct>=95) alertes.push({type:'ok', msg:`<strong>${b.nom||b.adresse}</strong> — crédit presque soldé (${pct.toFixed(0)}%)`});
   const mens=bienMensualite(b);
   const loyer=Number(b.loyer||0)+Number(b.charges||0);
   const cf=loyer-mens-bienChargesMois(b);
-  if(mens>0 && cf<0) alertes.push({type:'red', msg:`<strong>${b.adresse}</strong> — cash-flow négatif : ${euro(cf,0)}/mois`});
+  if(mens>0 && cf<0) alertes.push({type:'red', msg:`<strong>${b.nom||b.adresse}</strong> — cash-flow négatif : ${euro(cf,0)}/mois`});
  });
  if(tresorerie<0) alertes.push({type:'red',msg:`<strong>Trésorerie négative</strong> : ${euro(tresorerie,2)}`});
  const alertesEl = document.getElementById('dash-alertes');
@@ -2107,8 +2109,8 @@ function bienDrawerContent(b){
 
 function openDrawerBien(id){
  const b=DATA.biens[id];if(!b)return;
- document.getElementById('drw-titre').textContent=b.adresse;
- document.getElementById('drw-sous-titre').textContent=`${b.ville} · ${b.type} ${b.surface}m²`;
+ document.getElementById('drw-titre').textContent=b.nom||b.adresse;
+ document.getElementById('drw-sous-titre').textContent=`${b.adresse}${b.ville?' · '+b.ville:''} · ${b.type} ${b.surface}m²`;
  document.getElementById('drw-body').innerHTML=bienDrawerContent(b);
  document.getElementById('drw-modifier-btn').onclick=()=>{closeDrawer();openEditBien(id);};
  document.getElementById('drw-supprimer-btn').onclick=()=>deleteBienDrawer(id);
@@ -2135,12 +2137,12 @@ function renderBiens(){
  const loyer=Number(b.loyer||0);
  const charges=Number(b.charges||0);
  const cashflow=(loyer+charges)-mens-bienChargesMois(b);
- const typeIcon={Studio:'',T2:'',T3:'',T4:'',Maison:''}[b.type]||'';
+ const typeIcon={Studio:'🏠',T2:'🏠',T3:'🏠',T4:'🏠',Maison:'🏡',Parking:'🅿️'}[b.type]||'';
  return`<div class="bien-row" onclick="openDrawerBien('${b.id}')">
  <div class="bien-row-icon">${typeIcon}</div>
  <div class="bien-row-info">
- <div class="bien-row-addr">${b.adresse}</div>
- <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.ville.split('·')[0].trim()} · <span style="color:${({A:'var(--blue)',B:'var(--green)',C:'var(--accent)'})[b.modeLocation||'C']}">Mode ${b.modeLocation||'C'}</span> · ${(b.modeLocation||'C')==='C'?'Encaissé :':'CA ~'} ${(b.modeLocation||'C')==='C'?euro(Number(b.loyer||0)+Number(b.charges||0),0):euro(Math.round(bienCaAnnuel(b)/12),0)}/mois${bienChargesMois(b)>0?` · <span style="color:var(--red)">−${euro(Math.round(bienChargesMois(b)),0)}/mois charges</span>`:''}${mens>0?` · <span style="color:var(--text2)">crédit ${euro(Math.round(mens),0)}/mois</span>`:''}</div>
+ <div class="bien-row-addr">${b.nom||b.adresse}</div>
+ <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.adresse}${b.ville?' · '+b.ville.split('·')[0].trim():''} · <span style="color:${({A:'var(--blue)',B:'var(--green)',C:'var(--accent)'})[b.modeLocation||'C']}">Mode ${b.modeLocation||'C'}</span> · ${(b.modeLocation||'C')==='C'?'Encaissé :':'CA ~'} ${(b.modeLocation||'C')==='C'?euro(Number(b.loyer||0)+Number(b.charges||0),0):euro(Math.round(bienCaAnnuel(b)/12),0)}/mois${bienChargesMois(b)>0?` · <span style="color:var(--red)">−${euro(Math.round(bienChargesMois(b)),0)}/mois charges</span>`:''}${mens>0?` · <span style="color:var(--text2)">crédit ${euro(Math.round(mens),0)}/mois</span>`:''}</div>
  </div>
  <div class="bien-row-right">
  ${b.modeLocation==='B'?`<span class="badge badge-info">Airbnb</span>`:locBadge(b.statut)}
@@ -2404,8 +2406,8 @@ function empruntDrawerContent(b){
 
 function openDrawerEmprunt(id){
  const b=DATA.biens[id];if(!b)return;
- document.getElementById('drw-titre').textContent=b.adresse;
- document.getElementById('drw-sous-titre').textContent=`${b.banque||'—'} · ${b.taux}% · ${b.duree} mois`;
+ document.getElementById('drw-titre').textContent=b.nom||b.adresse;
+ document.getElementById('drw-sous-titre').textContent=`${b.adresse}${b.banque?' · '+b.banque:'—'} · ${b.taux}% · ${b.duree} mois`;
  document.getElementById('drw-body').innerHTML=empruntDrawerContent(b);
  document.getElementById('drw-modifier-btn').onclick=()=>{closeDrawer();openEditBien(id);};
  document.getElementById('drw-supprimer-btn').style.display='none';
@@ -2425,8 +2427,8 @@ function renderEmprunt(){
  return`<div class="bien-row" onclick="openDrawerEmprunt('${b.id}')">
  <div class="bien-row-icon" style="background:var(--amber-light);color:var(--amber)"></div>
  <div class="bien-row-info">
- <div class="bien-row-addr">${b.adresse}</div>
- <div class="bien-row-sub">${b.banque||'—'} · ${b.taux}% · ${euro(mens,0)}/mois</div>
+ <div class="bien-row-addr">${b.nom||b.adresse}</div>
+ <div class="bien-row-sub">${b.adresse}${b.banque?' · '+b.banque:'—'} · ${b.taux}% · ${euro(mens,0)}/mois</div>
  </div>
  <div class="bien-row-right">
  <span style="font-size:12px;font-weight:600;color:var(--text)">${euro(b.capitalRestant||b.capital)}</span>
@@ -2852,7 +2854,7 @@ function renderProjTresorerie() {
  const hasFictif=r.acquisitions.some(b=>b._fictif);
  const hasReel=r.acquisitions.some(b=>!b._fictif);
  const rowBg=r.isAcquisition?(hasFictif?'background:var(--amber-light)':'background:var(--blue-light)'):'';
- const acqLabel=r.isAcquisition?` ${r.acquisitions.map(b=>b.adresse.substring(0,15)).join(', ')}`:'';
+ const acqLabel=r.isAcquisition?` ${r.acquisitions.map(b=>(b.nom||b.adresse).substring(0,15)).join(', ')}`:'';
  return`<tr style="${rowBg}">
  <td style="white-space:nowrap;font-weight:${r.isAcquisition?'600':'400'}">${mois_fr[r.m-1]} ${r.an}${acqLabel}</td>
  <td style="color:var(--text3)">${r.biensActifs}</td>
@@ -2992,7 +2994,7 @@ function renderProjResultat(){
  <th>Bien</th><th>CA</th><th>Intérêts</th><th>Charges</th><th>Amort.</th><th>Résultat</th><th>IS</th>
  </tr></thead>
  <tbody>${biensActifs.map(r=>`<tr style="${r.b._fictif?'border-left:3px solid var(--amber)':''}">
- <td>${r.b.adresse.substring(0,22)}${r.b._fictif?' ':''}</td>
+ <td>${(r.b.nom||r.b.adresse).substring(0,22)}${r.b._fictif?' ':''}</td>
  <td style="color:var(--green)">${euro(Math.round(r.ca))}</td>
  <td style="color:var(--red)">−${euro(Math.round(r.interets))}</td>
  <td style="color:var(--red)">−${euro(Math.round(r.charges))}</td>
@@ -3189,8 +3191,8 @@ function renderProjDashboard(){
  return`<div class="card" style="${b._fictif?'border-color:var(--amber);border-width:1px':''}">
  <div class="card-header">
  <div>
- <div style="font-weight:500;font-size:14px">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700;vertical-align:middle">FICTIF</span>':''}</div>
- <div style="font-size:12px;color:var(--text3);margin-top:2px">${b.ville}</div>
+ <div style="font-weight:500;font-size:14px">${b.nom||b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700;vertical-align:middle">FICTIF</span>':''}</div>
+ <div style="font-size:12px;color:var(--text3);margin-top:2px">${b.adresse}${b.ville?' · '+b.ville:''}</div>
  </div>
  ${locBadge(b.statut)}
  </div>
@@ -3214,10 +3216,10 @@ function renderProjBiens(){
  const cf=loyer-mens-bienChargesMois(b);
  return`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
  <div class="bien-row-icon" style="${b._fictif?'background:var(--amber-light);color:var(--amber)':''}">
- ${b._fictif?'':({Studio:'',T2:'',T3:'',T4:'',Maison:''}[b.type]||'')}
+ ${b._fictif?'':({Studio:'🏠',T2:'🏠',T3:'🏠',T4:'🏠',Maison:'🏡',Parking:'🅿️'}[b.type]||'')}
  </div>
  <div class="bien-row-info">
- <div class="bien-row-addr">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
+ <div class="bien-row-addr">${b.nom||b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
  <div class="bien-row-sub">${b.type} ${b.surface}m² · ${(b.ville||'').split('·')[0].trim()} · ${euro(loyer)}/mois · CF ${cf>=0?'+':''}${euro(cf,0)}</div>
  </div>
  <div class="bien-row-right">
@@ -3240,7 +3242,7 @@ function renderProjEmprunt(){
  return`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
  <div class="bien-row-icon" style="background:var(--amber-light);color:var(--amber)"></div>
  <div class="bien-row-info">
- <div class="bien-row-addr">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
+ <div class="bien-row-addr">${b.nom||b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
  <div class="bien-row-sub">${b.banque||'—'} · ${b.taux}% · ${euro(mens,0)}/mois · ${pct.toFixed(1)}% remboursé</div>
  </div>
  <div class="bien-row-right">
@@ -3270,7 +3272,7 @@ function renderProjLocataires(){
  loues.map(b=>`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
  <div class="bien-row-icon av-teal" style="background:var(--green-light);color:var(--green)"></div>
  <div class="bien-row-info">
- <div class="bien-row-addr">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
+ <div class="bien-row-addr">${b.nom||b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
  <div class="bien-row-sub">${b.locataire||'(fictif)'} · ${euro(Number(b.loyer||0)+Number(b.charges||0))}/mois</div>
  </div>
  <div class="bien-row-right">
@@ -3282,7 +3284,7 @@ function renderProjLocataires(){
  nonLoues.map(b=>`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
  <div class="bien-row-icon" style="background:var(--red-light);color:var(--red)"></div>
  <div class="bien-row-info">
- <div class="bien-row-addr">${b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
+ <div class="bien-row-addr">${b.nom||b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
  <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.statut}</div>
  </div>
  ${locBadge(b.statut)}
@@ -3338,8 +3340,8 @@ function locataireDrawerContent(b){
 
 function openDrawerLocataire(id){
  const b=DATA.biens[id];if(!b)return;
- document.getElementById('drw-titre').textContent=b.locataire||b.adresse;
- document.getElementById('drw-sous-titre').textContent=`${b.adresse} · ${b.type} ${b.surface}m²`;
+ document.getElementById('drw-titre').textContent=b.locataire||(b.nom||b.adresse);
+ document.getElementById('drw-sous-titre').textContent=`${b.nom||b.adresse} · ${b.adresse} · ${b.type} ${b.surface}m²`;
  document.getElementById('drw-body').innerHTML=locataireDrawerContent(b);
  document.getElementById('drw-modifier-btn').onclick=()=>{closeDrawer();openEditBien(id);};
  document.getElementById('drw-supprimer-btn').style.display='none';
@@ -3371,8 +3373,8 @@ function renderLocataires(){
  return`<div class="bien-row" onclick="openDrawerLocataire('${b.id}')">
  <div class="bien-row-icon" style="background:${bgIcon};color:${statusColor}">${statusIcon}</div>
  <div class="bien-row-info">
- <div class="bien-row-addr">${b.adresse}</div>
- <div class="bien-row-sub">${b.type} ${b.surface}m²${isAirbnb?' · <span class=\"badge badge-info\" style=\"font-size:10px;padding:1px 7px\">Airbnb</span>':(b.locataire?' · '+b.locataire:'')}</div>
+ <div class="bien-row-addr">${b.nom||b.adresse}</div>
+ <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.adresse}${isAirbnb?' · <span class=\"badge badge-info\" style=\"font-size:10px;padding:1px 7px\">Airbnb</span>':(b.locataire?' · '+b.locataire:'')}</div>
  </div>
  <div class="bien-row-right">
  ${isAirbnb
@@ -3515,6 +3517,8 @@ function openAddBienModal() {
  });
  const el = document.getElementById('nb-cca-excluded');
  if (el) el.textContent = '';
+ const nomEl = document.getElementById('nb-nom');
+ if (nomEl) nomEl.value = '';
  openModal('modal-add-bien');
 }
 
@@ -3522,6 +3526,7 @@ async function saveBien(){
  const id='bien_'+uid();
  const b={
  id,
+ nom:document.getElementById('nb-nom').value.trim(),
  adresse:document.getElementById('nb-adresse').value.trim(),
  ville:document.getElementById('nb-ville').value.trim(),
  type:document.getElementById('nb-type').value,
@@ -3553,6 +3558,7 @@ async function saveBien(){
  {nom:'Banque',statut:'À faire'},{nom:'Déclaration mairie',statut:'À faire'}
  ]
  };
+ if(!b.nom){showToast('Nom du bien requis');return;}
  if(!b.adresse){showToast('Adresse requise');return;}
  DATA.biens[id]=b;
 
@@ -3584,6 +3590,7 @@ async function saveBien(){
 function openEditBien(id){
  const b=DATA.biens[id];if(!b)return;
  document.getElementById('eb-id').value=id;
+ document.getElementById('eb-nom').value=b.nom||'';
  document.getElementById('eb-adresse').value=b.adresse||'';
  document.getElementById('eb-ville').value=b.ville||'';
  document.getElementById('eb-type').value=b.type||'Studio';
@@ -3654,6 +3661,7 @@ async function updateBien(){
  const g=id=>document.getElementById(id);
  const gn=id=>{const v=g(id).value;return v===''?null:Number(v);}
  const ancienneAdresse = b.adresse;
+ b.nom=g('eb-nom').value.trim()||b.nom;
  b.adresse=g('eb-adresse').value.trim()||b.adresse;
  b.ville=g('eb-ville').value.trim();
  b.type=g('eb-type').value;
@@ -3814,7 +3822,7 @@ async function deleteBien(){
  m.libelle && m.libelle.includes(b.adresse)
  );
 
- let msg = `Supprimer le bien "${b.adresse}" définitivement ?`;
+ let msg = `Supprimer le bien "${b.nom||b.adresse}" définitivement ?`;
  if(ccaLies.length) msg += `\n• ${ccaLies.length} apport(s) CCA lié(s)`;
  if(mvtsLies.length) msg += `\n• ${mvtsLies.length} mouvement(s) de trésorerie lié(s)`;
  msg += '\n\nCette action est irréversible.';
@@ -3853,7 +3861,7 @@ async function deleteBienDrawer(id){
  m.libelle && m.libelle.includes(b.adresse)
  );
 
- let msg = `Supprimer le bien "${b.adresse}" définitivement ?`;
+ let msg = `Supprimer le bien "${b.nom||b.adresse}" définitivement ?`;
  if(ccaLies.length) msg += `\n• ${ccaLies.length} apport(s) CCA lié(s)`;
  if(mvtsLies.length) msg += `\n• ${mvtsLies.length} mouvement(s) de trésorerie lié(s)`;
  msg += '\n\nCette action est irréversible.';
@@ -4585,7 +4593,7 @@ function addBpBien(){
 function deleteBpBien(i){
  const b = BP_BIENS[i];
  if(!b) return;
- if(!confirm(`Supprimer « ${b.adresse} » du Business Plan ?\nCette action est irréversible.`)) return;
+ if(!confirm(`Supprimer « ${b.nom||b.adresse} » du Business Plan ?\nCette action est irréversible.`)) return;
  BP_BIENS.splice(i, 1);
  // Renuméroter
  BP_BIENS.forEach((b, idx) => { b.n = idx + 1; });
@@ -4871,7 +4879,7 @@ function renderBpTresorerieMensuelle() {
  ${rows.map(r => {
  const cfCol = r.cfNet >= 0 ? 'var(--green)' : 'var(--red)';
  const rowBg = r.isAcquisition ? 'background:var(--blue-light)' : '';
- const acqLabel = r.isAcquisition ? ` ${r.acquisitions.map(b=>b.adresse.split(',')[0].split('/')[0].trim().substring(0,15)).join(', ')}` : '';
+ const acqLabel = r.isAcquisition ? ` ${r.acquisitions.map(b=>(b.nom||b.adresse).split(',')[0].split('/')[0].trim().substring(0,15)).join(', ')}` : '';
  return `<tr style="${rowBg}">
  <td style="white-space:nowrap;font-weight:${r.isAcquisition?'600':'400'}">${mois_fr[r.m-1]} ${r.an}${acqLabel}</td>
  <td style="color:var(--text3)">${r.biensActifs}</td>
@@ -5158,7 +5166,7 @@ function renderBpFiscalite(){
  const biensActifs = d.rows.filter(r => parseInt(r.b.date.split('/')[2]) <= d.an);
  if(!biensActifs.length) return '';
  const rowsBiens = biensActifs.map(r => `<tr>
- <td><div style="font-weight:500;font-size:12px">${r.b.n}. ${r.b.adresse}</div></td>
+ <td><div style="font-weight:500;font-size:12px">${r.b.n}. ${r.b.nom||r.b.adresse}</div></td>
  <td><span class="badge badge-info" style="font-size:10px">Mode ${r.b.mode}</span></td>
  <td style="color:var(--green)">${r.ca>0?euro(Math.round(r.ca)):'—'}</td>
  <td style="color:var(--red)">${r.interets>0?'−'+euro(Math.round(r.interets)):'—'}</td>
@@ -5438,7 +5446,7 @@ function renderBpCCA(){
 
     return `<tr style="${dejaSaisi?'background:var(--blue-light)':''}">
       <td style="color:var(--text3)">${b.n}</td>
-      <td style="font-weight:500">${b.adresse}</td>
+      <td style="font-weight:500">${b.nom||b.adresse}</td>
       <td style="color:var(--text3)">${b.date}</td>
       <td>${euro(b.prix)}</td>
       <td style="color:var(--text3)">${euro(frais)}</td>
@@ -5563,7 +5571,7 @@ function renderBpRevente(){
  const pvAssoc = pvNette / 3;
  totalPrix+=b.prix; totalVal+=valeur; totalCRD+=crd; totalIS+=is; totalPV+=pvNette;
  return `<tr>
- <td><div style="font-weight:500;font-size:12px">${b.n}. ${b.adresse}</div></td>
+ <td><div style="font-weight:500;font-size:12px">${b.n}. ${b.nom||b.adresse}</div></td>
  <td style="font-size:12px">${b.date}</td>
  <td>${euro(b.prix)}</td>
  <td style="color:var(--green)">${achat<=2035?euro(Math.round(valeur)):'—'}</td>
