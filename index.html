@@ -367,6 +367,7 @@ canvas{max-width:100%;display:block}
  <a id="odoo-link" class="btn-odoo odoo-link" href="https://www.odoo.com/fr_FR/web/login" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2" opacity=".75"/><rect x="3" y="13" width="8" height="8" rx="2" opacity=".75"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>Accéder à Odoo <span style="opacity:.8">↗</span></a>
  </div>
  </div>
+ <div id="auto-mvt-alert"></div>
  <div class="kpi-grid" id="tres-kpis"></div>
  <div class="card">
  <div class="card-title" style="margin-bottom:12px">Journal détaillé</div>
@@ -1328,7 +1329,7 @@ canvas{max-width:100%;display:block}
 <div class="modal-bg" id="modal-assoc">
  <div class="modal">
  <div class="modal-title">Gérer les associés</div>
- <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px">Modifiez un nom pour renommer un associé : ses apports et mouvements existants sont mis à jour automatiquement. Un nouvel associé démarre avec un compte courant à zéro. Dans le business plan, les résultats sont répartis à parts égales entre tous les associés.</div>
+ <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px">Modifiez un nom pour renommer un associé : ses apports CCA existants sont mis à jour automatiquement (la Comptabilité n'est pas modifiée). Un nouvel associé démarre avec un compte courant à zéro. Dans le business plan, les résultats sont répartis à parts égales entre tous les associés.</div>
  <div id="assoc-rows"></div>
  <button class="btn btn-sm" style="margin-top:4px" onclick="addAssocDraft()">+ Ajouter un associé</button>
  <div id="assoc-msg" style="color:var(--red);font-size:12px;min-height:18px;margin-top:10px;line-height:1.5"></div>
@@ -1798,6 +1799,32 @@ function buildAssocUI(){
  fill('bpb-add-cca-rows',a=>`<div class="fg" style="margin-bottom:0"><label>${esc(a.n)} (€)</label><input id="bpb-add-cca-${a.k}" type="number" min="0" placeholder="0"></div>`);
 }
 buildAssocUI();
+
+// ---- Lignes de la Comptabilité créées automatiquement par d'anciennes versions (liens biens/CCA -> journal) ----
+function autoMvtIds(){
+ const fromCca=new Set(Object.values(DATA.cca).map(c=>c.mvtId).filter(Boolean));
+ return Object.values(DATA.mouvements).filter(m=>m.src!=='odoo'&&(m.bienId||fromCca.has(m.id))).map(m=>m.id);
+}
+function renderAutoMvtAlert(){
+ const el=document.getElementById('auto-mvt-alert');
+ if(!el)return;
+ const n=autoMvtIds().length;
+ el.innerHTML=n?`<div class="card" style="border-left:3px solid var(--amber);display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+  <div style="flex:1;min-width:230px;font-size:12px;line-height:1.55;color:var(--text2)"><strong style="color:var(--text);font-size:13px">${n} ligne${n>1?'s':''} créée${n>1?'s':''} automatiquement par vos biens</strong><br>Ces lignes (apports CCA) ont été générées à l'ajout d'un bien. Si vous importez votre comptabilité depuis Odoo, elles feront doublon. Vos apports restent enregistrés dans l'onglet Associés.</div>
+  <button class="btn" onclick="purgeAutoMvts()">Supprimer ces ${n} ligne${n>1?'s':''}</button></div>`:'';
+}
+async function purgeAutoMvts(){
+ const ids=autoMvtIds();
+ if(!ids.length)return;
+ if(!confirm('Supprimer '+ids.length+' ligne(s) de la Comptabilité créée(s) automatiquement par vos biens ?\n\nLes apports CCA de l\'onglet Associés ne sont pas modifiés. Les lignes importées d\'Odoo et saisies à la main sont conservées.'))return;
+ const idSet=new Set(ids),ccaPatch={};
+ ids.forEach(id=>{delete DATA.mouvements[id];});
+ Object.entries(DATA.cca).forEach(([cid,c])=>{if(c.mvtId&&idSet.has(c.mvtId)){const u={...c};delete u.mvtId;DATA.cca[cid]=u;ccaPatch[cid]=u;}});
+ await Promise.all(ids.map(id=>fbRemove('mouvements/'+id)));
+ if(Object.keys(ccaPatch).length)await fbSave('cca',ccaPatch);
+ renderAll();
+ showToast(ids.length+' ligne(s) supprimée(s)');
+}
 
 // ---- Lien vers Odoo (Comptabilité) ----
 const ODOO_URL_DEFAULT='https://www.odoo.com/fr_FR/web/login';
@@ -2310,28 +2337,16 @@ async function saveAssocies(){
  const renames=list.filter(a=>!a.isNew&&a.n!==a.orig);
  const added=list.filter(a=>a.isNew);
  if(!renames.length&&!added.length){closeModal('modal-assoc');return;}
- if(renames.length&&!confirm('Renommer '+renames.map(a=>a.orig+' → '+a.n).join(', ')+' ?\nSes apports et mouvements existants seront mis à jour.'))return;
+ if(renames.length&&!confirm('Renommer '+renames.map(a=>a.orig+' → '+a.n).join(', ')+' ?\nSes apports CCA existants seront mis à jour.'))return;
  btn.disabled=true;
  try{
   let ok=true;
-  // 1. mise à jour de l'historique (apports CCA et mouvements) pour les associés renommés
+  // 1. mise à jour des apports CCA des associés renommés
   if(renames.length){
    const map=Object.fromEntries(renames.map(a=>[a.orig,a.n]));
-   const ccaPatch={},mvPatch={};
+   const ccaPatch={};
    Object.entries(DATA.cca).forEach(([id,c])=>{if(map[c.assoc])ccaPatch[id]={...c,assoc:map[c.assoc]};});
-   Object.entries(DATA.mouvements).forEach(([id,m])=>{
-    let u=null;
-    if(map[m.assoc])u={...m,assoc:map[m.assoc]};
-    if(m.libelle){
-     for(const [o,nn] of Object.entries(map)){
-      const pre='Apport CCA '+o;
-      if(m.libelle===pre||m.libelle.startsWith(pre+' ')){u={...(u||m),libelle:'Apport CCA '+nn+m.libelle.slice(pre.length)};break;}
-     }
-    }
-    if(u)mvPatch[id]=u;
-   });
    if(Object.keys(ccaPatch).length)ok=(await fbSave('cca',ccaPatch))&&ok;
-   if(Object.keys(mvPatch).length)ok=(await fbSave('mouvements',mvPatch))&&ok;
   }
   // 2. nouvelle liste des associés
   const payload={};
@@ -2412,45 +2427,12 @@ async function migrateData(){
  }
  });
 
- // Pour chaque mouvement apport sans bienId, chercher le CCA correspondant (même assoc, même montant, même date)
- Object.values(DATA.mouvements).forEach(m => {
- if(m.cat !== 'apport' || m.bienId) return;
- const cca = Object.values(DATA.cca).find(c =>
- c.assoc === m.assoc && Number(c.apport) === Number(m.montant) && c.date === m.date
- );
- if(cca){
- m.bienId = cca.bienId || null;
- m.assoc = cca.assoc;
- if(!patches.mouvements) patches.mouvements = {};
- patches.mouvements[m.id] = m;
- // Lier le CCA vers ce mouvement s'il n'a pas encore de mvtId
- if(!cca.mvtId){
- cca.mvtId = m.id;
- if(!patches.cca) patches.cca = {};
- patches.cca[cca.id] = cca;
- }
- }
- // Cas spécial données par défaut : libellé "Apport CCA <associé>"
- if(!m.bienId){
- const assocFromLib = ASSOC_NAMES.find(a => m.libelle && m.libelle.includes(a));
- if(assocFromLib){
- m.assoc = assocFromLib;
- const ccaMatch = Object.values(DATA.cca).find(c => c.assoc === assocFromLib && Number(c.apport) === Number(m.montant) && c.bienId);
- if(ccaMatch){
- m.bienId = ccaMatch.bienId;
- if(!ccaMatch.mvtId){ ccaMatch.mvtId = m.id; if(!patches.cca) patches.cca={}; patches.cca[ccaMatch.id]=ccaMatch; }
- if(!patches.mouvements) patches.mouvements = {};
- patches.mouvements[m.id] = m;
- }
- }
- }
- });
+ // (Aucun lien entre la Comptabilité et les autres feuilles : les mouvements ne sont jamais rattachés ni modifiés.)
 
  // Sauvegarder les corrections sur Firebase si nécessaire
  if(isFirebaseReady){
  const saves = [];
  if(patches.cca) saves.push(fbSave('cca', patches.cca));
- if(patches.mouvements) saves.push(fbSave('mouvements', patches.mouvements));
  if(saves.length) await Promise.all(saves);
  }
 }
@@ -3135,6 +3117,7 @@ function renderBiens(){
 // ============================================================
 function renderTresorerie(){
  refreshOdooLink();
+ renderAutoMvtAlert();
  const soldes=computeSoldes();
  const tresorerie=soldes.length?soldes[soldes.length-1].solde:0;
  const apports=mvtsList().filter(m=>m.cat==='apport').reduce((s,m)=>s+Number(m.montant),0);
@@ -4571,28 +4554,23 @@ async function saveBien(){
  if(!b.adresse){showToast('Adresse requise');return;}
  DATA.biens[id]=b;
 
- // Créer les mouvements CCA pour chaque associé si apport > 0
+ // Apports CCA de chaque associé : enregistrés dans la feuille Associés uniquement.
+ // Rien n'est écrit dans la Comptabilité (alimentée par Odoo) : aucun doublon possible.
  const dateApport=b.dateAchat||new Date().toISOString().split('T')[0];
  const apports=Object.fromEntries(ASSOCIES.map(a=>[a.n,Number(document.getElementById('nb-cca-'+a.k).value)||0]));
  const ccaToSave={};
- const mvtToSave={};
  for(const [assoc,montant] of Object.entries(apports)){
  if(montant>0){
  const cid='c_'+uid();
- const mid='m_'+uid();
- const mvt={id:mid,date:dateApport,libelle:`Apport CCA ${assoc} — ${b.adresse}`,cat:'apport',montant,bienId:id,assoc};
- const entry={id:cid,date:dateApport,libelle:`Apport CCA — acquisition ${b.adresse}`,assoc,apport:montant,remb:0,bienId:id,mvtId:mid};
+ const entry={id:cid,date:dateApport,libelle:`Apport CCA — acquisition ${b.adresse}`,assoc,apport:montant,remb:0,bienId:id};
  DATA.cca[cid]=entry;
- DATA.mouvements[mid]=mvt;
  ccaToSave[cid]=entry;
- mvtToSave[mid]=mvt;
  }
  }
 
  closeModal('modal-add-bien');
  await fbSave('biens',{[id]:b});
  if(Object.keys(ccaToSave).length>0) await fbSave('cca',ccaToSave);
- if(Object.keys(mvtToSave).length>0) await fbSave('mouvements',mvtToSave);
  renderAll();
 }
 
@@ -4710,24 +4688,11 @@ async function updateBien(){
  b.dateEntree=g('eb-dateentree').value;
  b.dateFinBail=g('eb-datefinbail').value;
  b.depot=gn('eb-depot')??0;
- // Mettre à jour les libellés des mouvements et CCA si l'adresse a changé
+ // Mettre à jour les libellés des apports CCA si l'adresse a changé (la Comptabilité n'est jamais modifiée)
  const nouvelleAdresse = b.adresse;
- const libellesToUpdate_mvt = {};
  const libellesToUpdate_cca = {};
  if(ancienneAdresse !== nouvelleAdresse){
- // Mouvements liés au bien : remplacer l'ancienne adresse si présente, sinon reconstruire le libellé
- Object.values(DATA.mouvements).forEach(m => {
- if(m.bienId === id && m.libelle){
- if(m.libelle.includes(ancienneAdresse)){
- m.libelle = m.libelle.replaceAll(ancienneAdresse, nouvelleAdresse);
- } else {
- // Libellé sans adresse (ex: "Apport CCA <associé>") => on ajoute la nouvelle adresse
- m.libelle = m.libelle + ' — ' + nouvelleAdresse;
- }
- libellesToUpdate_mvt[m.id] = m;
- }
- });
- // CCA liés au bien : même logique
+ // CCA liés au bien
  Object.values(DATA.cca).forEach(c => {
  if(c.bienId === id && c.libelle){
  if(c.libelle.includes(ancienneAdresse)){
@@ -4755,8 +4720,6 @@ async function updateBien(){
 
  const ccaToSave = {};
  const ccaToDelete = [];
- const mvtToSave = {};
- const mvtToDelete = [];
 
  for(const [assoc, montant] of Object.entries(nouvMontants)){
  const existing = entreeParAssoc[assoc];
@@ -4766,55 +4729,32 @@ async function updateBien(){
 
  if(existing){
  if(montant === 0){
- // Supprimer CCA et mouvement lié
+ // Supprimer l'apport CCA (la Comptabilité n'est pas touchée)
  delete DATA.cca[existing.id];
  ccaToDelete.push(existing.id);
- if(existing.mvtId && DATA.mouvements[existing.mvtId]){
- delete DATA.mouvements[existing.mvtId];
- mvtToDelete.push(existing.mvtId);
- }
  } else {
- // Mettre à jour CCA
+ // Mettre à jour l'apport CCA
  existing.apport = montant;
  existing.remb = 0;
  existing.bienId = id;
  ccaToSave[existing.id] = existing;
- // Mettre à jour le mouvement comptable lié
- if(existing.mvtId && DATA.mouvements[existing.mvtId]){
- DATA.mouvements[existing.mvtId].montant = montant;
- mvtToSave[existing.mvtId] = DATA.mouvements[existing.mvtId];
- } else {
- // Créer un mouvement s'il n'existe pas encore
- const mid = 'm_' + uid();
- const mvt = {id:mid, date:dateApport, libelle:`Apport CCA ${assoc} — ${b.adresse}`, cat:'apport', montant, bienId:id, assoc};
- DATA.mouvements[mid] = mvt;
- existing.mvtId = mid;
- mvtToSave[mid] = mvt;
- ccaToSave[existing.id] = existing;
- }
  }
  } else if(montant > 0){
- // Créer CCA + mouvement comptable
+ // Créer l'apport CCA (aucune ligne créée dans la Comptabilité)
  const cid = 'c_' + uid();
- const mid = 'm_' + uid();
- const mvt = {id:mid, date:dateApport, libelle:`Apport CCA ${assoc} — ${b.adresse}`, cat:'apport', montant, bienId:id, assoc};
- const entry = {id:cid, date:dateApport, libelle:`Apport CCA — ${b.adresse}`, assoc, apport:montant, remb:0, bienId:id, mvtId:mid};
+ const entry = {id:cid, date:dateApport, libelle:`Apport CCA — ${b.adresse}`, assoc, apport:montant, remb:0, bienId:id};
  DATA.cca[cid] = entry;
- DATA.mouvements[mid] = mvt;
  ccaToSave[cid] = entry;
- mvtToSave[mid] = mvt;
  }
  }
 
  // Fusionner les libellés mis à jour dans les objets à sauvegarder (évite les écrasements)
  Object.assign(ccaToSave, libellesToUpdate_cca);
- Object.assign(mvtToSave, libellesToUpdate_mvt);
 
  closeModal('modal-edit-bien');
  await fbSave('biens',{[id]:b});
  if(Object.keys(ccaToSave).length > 0) await fbSave('cca', ccaToSave);
- if(Object.keys(mvtToSave).length > 0) await fbSave('mouvements', mvtToSave);
- await Promise.all([...ccaToDelete.map(cid => fbRemove(`cca/${cid}`)), ...mvtToDelete.map(mid => fbRemove(`mouvements/${mid}`))]);
+ await Promise.all(ccaToDelete.map(cid => fbRemove(`cca/${cid}`)));
  renderAll();
  showToast(' Bien mis à jour');
 }
@@ -4828,14 +4768,10 @@ async function deleteBien(){
  const ccaLies = Object.values(DATA.cca).filter(c =>
  c.bienId===id || (!c.bienId && c.libelle && c.libelle.includes(b.adresse))
  );
- const mvtsLies = Object.values(DATA.mouvements).filter(m =>
- m.libelle && m.libelle.includes(b.adresse)
- );
-
  let msg = `Supprimer le bien "${b.nom||b.adresse}" définitivement ?`;
  if(ccaLies.length) msg += `\n• ${ccaLies.length} apport(s) CCA lié(s)`;
- if(mvtsLies.length) msg += `\n• ${mvtsLies.length} mouvement(s) comptable(s) lié(s)`;
- msg += '\n\nCette action est irréversible.';
+ msg += '\n\nLa Comptabilité (importée d\'Odoo) n\'est pas modifiée.';
+ msg += '\nCette action est irréversible.';
 
  if(!confirm(msg))return;
 
@@ -4845,19 +4781,13 @@ async function deleteBien(){
  return fbRemove(`cca/${c.id}`);
  });
 
- // Supprimer les mouvements comptables liés
- const mvtDeletes = mvtsLies.map(m => {
- delete DATA.mouvements[m.id];
- return fbRemove(`mouvements/${m.id}`);
- });
-
  // Supprimer le bien
  delete DATA.biens[id];
 
  closeModal('modal-edit-bien');
- await Promise.all([fbRemove(`biens/${id}`), ...ccaDeletes, ...mvtDeletes]);
+ await Promise.all([fbRemove(`biens/${id}`), ...ccaDeletes]);
  renderAll();
- showToast(` Bien et ${ccaLies.length + mvtsLies.length} élément(s) lié(s) supprimés`);
+ showToast(` Bien et ${ccaLies.length} apport(s) lié(s) supprimés`);
 }
 
 async function deleteBienDrawer(id){
@@ -4867,25 +4797,20 @@ async function deleteBienDrawer(id){
  const ccaLies = Object.values(DATA.cca).filter(c =>
  c.bienId===id || (!c.bienId && c.libelle && c.libelle.includes(b.adresse))
  );
- const mvtsLies = Object.values(DATA.mouvements).filter(m =>
- m.libelle && m.libelle.includes(b.adresse)
- );
-
  let msg = `Supprimer le bien "${b.nom||b.adresse}" définitivement ?`;
  if(ccaLies.length) msg += `\n• ${ccaLies.length} apport(s) CCA lié(s)`;
- if(mvtsLies.length) msg += `\n• ${mvtsLies.length} mouvement(s) comptable(s) lié(s)`;
- msg += '\n\nCette action est irréversible.';
+ msg += '\n\nLa Comptabilité (importée d\'Odoo) n\'est pas modifiée.';
+ msg += '\nCette action est irréversible.';
 
  if(!confirm(msg))return;
 
  const ccaDeletes = ccaLies.map(c => { delete DATA.cca[c.id]; return fbRemove(`cca/${c.id}`); });
- const mvtDeletes = mvtsLies.map(m => { delete DATA.mouvements[m.id]; return fbRemove(`mouvements/${m.id}`); });
  delete DATA.biens[id];
 
  closeDrawer();
- await Promise.all([fbRemove(`biens/${id}`), ...ccaDeletes, ...mvtDeletes]);
+ await Promise.all([fbRemove(`biens/${id}`), ...ccaDeletes]);
  renderAll();
- showToast(` Bien et ${ccaLies.length + mvtsLies.length} élément(s) lié(s) supprimés`);
+ showToast(` Bien et ${ccaLies.length} apport(s) lié(s) supprimés`);
 }
 
 
