@@ -317,6 +317,7 @@ canvas{max-width:100%;display:block}
  SCI <span>PERIPE</span>
  </div>
  <div class="topbar-right">
+ <button class="btn-accueil" id="btn-logout" style="display:none" onclick="logout()">Déconnexion</button>
  <div class="sync-wrap">
  <div class="sync-dot" id="sync-dot"></div>
  <span id="sync-label">Connexion…</span>
@@ -1453,6 +1454,16 @@ canvas{max-width:100%;display:block}
  <div class="drawer-body" id="drw-body"></div>
 </div>
 
+<div id="login-overlay" style="display:none;position:fixed;inset:0;z-index:10000;background:linear-gradient(160deg,#141210 0%,#1f1a14 55%,#2a2115 100%);align-items:center;justify-content:center;padding:20px">
+ <div style="background:var(--surface);color:var(--text);border-radius:var(--radius-lg);padding:28px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.45)">
+  <div style="font-size:18px;font-weight:700;margin-bottom:4px">SCI <span style="color:#C9A84C">PERIPE</span></div>
+  <div style="font-size:13px;color:var(--text2);margin-bottom:18px">Accès réservé aux associés. Connectez-vous pour continuer.</div>
+  <div class="fg"><label for="login-email">Email</label><input type="email" id="login-email" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pwd').focus()"></div>
+  <div class="fg"><label for="login-pwd">Mot de passe</label><input type="password" id="login-pwd" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+  <div id="login-error" style="color:var(--red);font-size:12px;min-height:18px;margin-bottom:10px"></div>
+  <button class="btn btn-primary" id="login-btn" style="width:100%" onclick="doLogin()">Se connecter</button>
+ </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <!-- MODAL EDITION CCA -->
@@ -1521,10 +1532,137 @@ let isFirebaseReady = false;
 // ============================================================
 // FIREBASE REST API (pas de SDK, fonctionne en HTML pur)
 // ============================================================
-async function fbReq(method,path,data){
+// ============================================================
+// AUTHENTIFICATION (Firebase Auth, e-mail + mot de passe)
+// Aucun secret dans ce fichier : la "Web API Key" est publique par conception,
+// la protection vient des comptes Firebase + des règles de la base.
+// ============================================================
+const FIREBASE_API_KEY='REMPLACER_PAR_LA_WEB_API_KEY';   // Console Firebase > Paramètres du projet > Général > Clé API Web
+const SESSION_KEY='sci_auth';
+let authSession=null;   // {idToken, refreshToken, expiresAt, email, uid}
+let refreshPromise=null;
+
+function loadSession(){
+ try{authSession=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');}catch(e){authSession=null;}
+ if(authSession&&!authSession.refreshToken)authSession=null;
+}
+function saveSession(){
+ try{
+  if(authSession)_lsSetRaw.call(localStorage,SESSION_KEY,JSON.stringify(authSession));
+  else _lsRemoveRaw.call(localStorage,SESSION_KEY);
+ }catch(e){}
+}
+const _lsSetRaw=Storage.prototype.setItem;
+const _lsRemoveRaw=Storage.prototype.removeItem;
+
+function authErr(code,kind){const e=new Error(code);e.kind=kind||'auth';e.code=code;return e;}
+function authErrorMessage(e){
+ const c=(e&&e.code)||'';
+ if(/INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND|INVALID_EMAIL/.test(c))return 'Email ou mot de passe incorrect.';
+ if(/TOO_MANY_ATTEMPTS/.test(c))return 'Trop de tentatives. Réessayez dans quelques minutes.';
+ if(/USER_DISABLED/.test(c))return 'Ce compte a été désactivé.';
+ if(/API_KEY|API key/i.test(c))return 'Clé API Firebase invalide : vérifiez FIREBASE_API_KEY dans le code.';
+ if(/OPERATION_NOT_ALLOWED/.test(c))return 'La connexion par email/mot de passe n\'est pas activée dans Firebase (Authentication > Méthode de connexion).';
+ if(e&&e.kind==='network')return 'Réseau injoignable.';
+ return 'Connexion impossible ('+(c||'erreur inconnue')+').';
+}
+function applyTokenResponse(idToken,refreshToken,expiresIn,uid,email){
+ authSession={idToken,refreshToken,expiresAt:Date.now()+Number(expiresIn||3600)*1000,uid,email:email||(authSession&&authSession.email)||''};
+ saveSession();
+}
+async function authSignIn(email,password){
+ if(!FIREBASE_API_KEY||FIREBASE_API_KEY.startsWith('REMPLACER'))throw authErr('API_KEY_MISSING');
  let r;
  try{
-  r=await fetch(`${FIREBASE_URL}${path}.json`,{
+  r=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key='+encodeURIComponent(FIREBASE_API_KEY),{
+   method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({email,password,returnSecureToken:true})
+  });
+ }catch(e){throw authErr('network','network');}
+ const j=await r.json().catch(()=>({}));
+ if(!r.ok)throw authErr((j.error&&j.error.message)||('HTTP '+r.status));
+ applyTokenResponse(j.idToken,j.refreshToken,j.expiresIn,j.localId,j.email);
+}
+function authRefresh(){
+ if(refreshPromise)return refreshPromise;
+ refreshPromise=(async()=>{
+  try{
+   let r;
+   try{
+    r=await fetch('https://securetoken.googleapis.com/v1/token?key='+encodeURIComponent(FIREBASE_API_KEY),{
+     method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+     body:'grant_type=refresh_token&refresh_token='+encodeURIComponent(authSession.refreshToken)
+    });
+   }catch(e){throw authErr('network','network');}   // pas de déconnexion si simple coupure réseau
+   const j=await r.json().catch(()=>({}));
+   if(!r.ok){
+    authSession=null;saveSession();               // session révoquée ou expirée
+    throw authErr((j.error&&j.error.message)||'SESSION_EXPIREE');
+   }
+   applyTokenResponse(j.id_token,j.refresh_token,j.expires_in,j.user_id);
+  }finally{refreshPromise=null;}
+ })();
+ return refreshPromise;
+}
+function tokenStillValid(){return !!(authSession&&Date.now()<authSession.expiresAt-60000);}
+async function getToken(){
+ if(!authSession)loadSession();
+ if(!authSession){showLogin();throw authErr('NON_CONNECTE');}
+ if(!tokenStillValid()){
+  try{await authRefresh();}
+  catch(e){if(e.kind==='auth')showLogin();throw e;}
+ }
+ return authSession.idToken;
+}
+
+// ---- Écran de connexion ----
+function showLogin(msg){
+ const o=document.getElementById('login-overlay');
+ if(!o)return;
+ o.style.display='flex';
+ document.getElementById('btn-logout').style.display='none';
+ const err=document.getElementById('login-error');
+ if(msg)err.textContent=msg;
+ else if(!FIREBASE_API_KEY||FIREBASE_API_KEY.startsWith('REMPLACER'))err.textContent='Configuration incomplète : renseignez FIREBASE_API_KEY dans le code.';
+ setTimeout(()=>{const em=document.getElementById('login-email');if(em&&!em.value)em.focus();else document.getElementById('login-pwd').focus();},50);
+}
+function hideLogin(){
+ document.getElementById('login-overlay').style.display='none';
+ document.getElementById('login-error').textContent='';
+ document.getElementById('btn-logout').style.display='';
+ document.getElementById('btn-logout').title=(authSession&&authSession.email)||'';
+}
+async function doLogin(){
+ const email=document.getElementById('login-email').value.trim();
+ const pwd=document.getElementById('login-pwd').value;
+ const err=document.getElementById('login-error');
+ const btn=document.getElementById('login-btn');
+ err.textContent='';
+ if(!email||!pwd){err.textContent='Email et mot de passe requis.';return;}
+ btn.disabled=true;
+ try{
+  await authSignIn(email,pwd);
+  document.getElementById('login-pwd').value='';
+  hideLogin();
+  initApp();
+ }catch(e){
+  err.textContent=authErrorMessage(e);
+ }finally{btn.disabled=false;}
+}
+function logout(){
+ if(typeof pendingOps!=='undefined'&&pendingOps.length){
+  if(!confirm(pendingOps.length+' modification(s) non synchronisée(s) seront perdues. Se déconnecter quand même ?'))return;
+  pendingOps=[];persistQueue();
+ }
+ authSession=null;saveSession();
+ location.reload();
+}
+
+async function fbReq(method,path,data){
+ const token=await getToken();
+ let r;
+ try{
+  r=await fetch(`${FIREBASE_URL}${path}.json?auth=${encodeURIComponent(token)}`,{
    method,
    headers:data!==undefined?{'Content-Type':'application/json'}:undefined,
    body:data!==undefined?JSON.stringify(data):undefined
@@ -1551,6 +1689,8 @@ const fbDelete=path=>fbReq('DELETE',path);
 
 // Traduit une erreur technique en message compréhensible
 function describeError(e){
+ if(e&&e.kind==='auth')return 'Session expirée ou non connecté : reconnectez-vous.';
+ if(e&&(e.status===401||e.status===403)&&authSession)return 'Votre compte ('+(authSession.email||'?')+') n\'est pas autorisé par les règles de la base (erreur '+e.status+'). Ajoutez son identifiant (UID) dans les règles Firebase.';
  if(e&&e.kind==='network') return 'Réseau injoignable (connexion internet ou URL Firebase incorrecte).';
  if(e&&(e.status===401||e.status===403)) return 'Accès refusé par Firebase (erreur '+e.status+') : les règles de sécurité de la base bloquent la lecture/écriture. Les règles "mode test" expirent après 30 jours — vérifiez l\'onglet Règles dans la console Firebase.';
  if(e&&e.status===404) return 'Base Firebase introuvable (erreur 404) : vérifiez l\'URL de la base.';
@@ -1737,15 +1877,18 @@ const _lsSet=Storage.prototype.setItem;
 const _lsRemove=Storage.prototype.removeItem;
 const dirtySettings=new Set();
 function settingTs(key){return Number(localStorage.getItem('__sync_t_'+key))||0;}
-function pushSetting(key,val,t){
+async function pushSetting(key,val,t){
  const body=JSON.stringify({v:val,t});
- return fetch(`${FIREBASE_URL}${DB_PATH}/settings/${key}.json`,{
-  method:'PUT',headers:{'Content-Type':'application/json'},body,
-  keepalive:body.length<60000   // survit à un location.reload() juste après
- }).then(r=>{
+ try{
+  // jeton en cache utilisé tel quel (synchrone) pour survivre à un location.reload() immédiat
+  const token=tokenStillValid()?authSession.idToken:await getToken();
+  const r=await fetch(`${FIREBASE_URL}${DB_PATH}/settings/${key}.json?auth=${encodeURIComponent(token)}`,{
+   method:'PUT',headers:{'Content-Type':'application/json'},body,
+   keepalive:body.length<60000
+  });
   if(!r.ok)throw new Error('settings '+r.status);
   dirtySettings.delete(key);
- }).catch(e=>{dirtySettings.add(key);});
+ }catch(e){dirtySettings.add(key);}
 }
 Storage.prototype.setItem=function(k,v){
  _lsSet.call(this,k,v);
@@ -1820,6 +1963,14 @@ async function initApp(){
   renderAll();
   return;
  }
+ loadSession();
+ if(!authSession){
+  setSyncing('syncing');
+  document.getElementById('sync-label').textContent='Non connecté';
+  showLogin();
+  return;
+ }
+ hideLogin();
  setSyncing('syncing');
  try{
   let remote=await fbGet(DB_PATH);
@@ -1842,6 +1993,7 @@ async function initApp(){
   renderAll();
  }catch(e){
   console.error(e);
+  if(e&&e.kind==='auth'){setSyncing('error',describeError(e));return;}
   const msg=describeError(e);
   setSyncing('error',msg);
   DATA=JSON.parse(JSON.stringify(DEFAULT_DATA));   // affichage seulement, rien n'est sauvegardé
