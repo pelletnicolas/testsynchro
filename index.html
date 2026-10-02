@@ -324,6 +324,8 @@ canvas{max-width:100%;display:block}
  </div>
  </div>
 
+ <div id="sync-alert" style="display:none;background:#C0392B;color:#fff;padding:10px 20px;font-size:13px;line-height:1.5"></div>
+
  <div class="nav-bar">
  <button class="nav-btn active" id="nav-gestion" onclick="showMainTab('gestion')">Gestion</button>
  <button class="nav-btn" id="nav-projection" onclick="showMainTab('projection')"> Projection</button>
@@ -1519,24 +1521,41 @@ let isFirebaseReady = false;
 // ============================================================
 // FIREBASE REST API (pas de SDK, fonctionne en HTML pur)
 // ============================================================
-async function fbGet(path){
- const r=await fetch(`${FIREBASE_URL}${path}.json`);
- if(!r.ok) throw new Error('Firebase GET error '+r.status);
- return r.json();
+async function fbReq(method,path,data){
+ let r;
+ try{
+  r=await fetch(`${FIREBASE_URL}${path}.json`,{
+   method,
+   headers:data!==undefined?{'Content-Type':'application/json'}:undefined,
+   body:data!==undefined?JSON.stringify(data):undefined
+  });
+ }catch(e){
+  const err=new Error('Réseau injoignable');
+  err.kind='network';
+  throw err;
+ }
+ if(!r.ok){
+  let body='';
+  try{body=await r.text();}catch(_){}
+  const err=new Error('Firebase '+method+' '+r.status);
+  err.status=r.status;
+  err.body=body;
+  throw err;
+ }
+ try{return await r.json();}catch(_){return null;}
 }
-async function fbSet(path,data){
- const r=await fetch(`${FIREBASE_URL}${path}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
- if(!r.ok) throw new Error('Firebase SET error '+r.status);
- return r.json();
-}
-async function fbPatch(path,data){
- const r=await fetch(`${FIREBASE_URL}${path}.json`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
- if(!r.ok) throw new Error('Firebase PATCH error '+r.status);
- return r.json();
-}
-async function fbDelete(path){
- const r=await fetch(`${FIREBASE_URL}${path}.json`,{method:'DELETE'});
- if(!r.ok) throw new Error('Firebase DELETE error '+r.status);
+const fbGet=path=>fbReq('GET',path);
+const fbSet=(path,data)=>fbReq('PUT',path,data);
+const fbPatch=(path,data)=>fbReq('PATCH',path,data);
+const fbDelete=path=>fbReq('DELETE',path);
+
+// Traduit une erreur technique en message compréhensible
+function describeError(e){
+ if(e&&e.kind==='network') return 'Réseau injoignable (connexion internet ou URL Firebase incorrecte).';
+ if(e&&(e.status===401||e.status===403)) return 'Accès refusé par Firebase (erreur '+e.status+') : les règles de sécurité de la base bloquent la lecture/écriture. Les règles "mode test" expirent après 30 jours — vérifiez l\'onglet Règles dans la console Firebase.';
+ if(e&&e.status===404) return 'Base Firebase introuvable (erreur 404) : vérifiez l\'URL de la base.';
+ if(e&&e.status) return 'Erreur Firebase '+e.status+(e.body?' — '+String(e.body).slice(0,120):'');
+ return (e&&e.message)||'Erreur inconnue';
 }
 
 // ============================================================
@@ -1544,17 +1563,28 @@ async function fbDelete(path){
 // ============================================================
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 
-function setSyncing(state){
+let syncState='ok';
+function setSyncing(state,detail){
+ syncState=state;
  const dot=document.getElementById('sync-dot');
  const lbl=document.getElementById('sync-label');
+ const alertBox=document.getElementById('sync-alert');
  dot.className='sync-dot'+(state==='syncing'?' syncing':state==='error'?' error':'');
- lbl.textContent=state==='syncing'?'Synchronisation…':state==='error'?'Erreur réseau':'Synchronisé';
+ lbl.textContent=state==='syncing'?'Synchronisation…':state==='error'?'Non synchronisé':'Synchronisé';
+ if(state==='error'){
+  const n=pendingOps.length;
+  alertBox.textContent='⚠ '+(detail||'Erreur de synchronisation')+(n?' — '+n+' modification(s) en attente, elle(s) sera/seront envoyée(s) dès que la connexion fonctionne.':' — les modifications faites maintenant ne seront PAS enregistrées.');
+  alertBox.style.display='block';
+ }else{
+  alertBox.style.display='none';
+ }
 }
 
-function showToast(msg){
+function showToast(msg,ms){
  const t=document.getElementById('toast');
  t.textContent=msg;t.classList.add('show');
- setTimeout(()=>t.classList.remove('show'),2800);
+ clearTimeout(showToast._t);
+ showToast._t=setTimeout(()=>t.classList.remove('show'),ms||2800);
 }
 
 function saveFirebaseUrl(){
@@ -1632,78 +1662,218 @@ async function migrateData(){
  }
 }
 
-async function initApp(){
- if(!FIREBASE_URL){
- // Mode local sans Firebase
- DATA=JSON.parse(JSON.stringify(DEFAULT_DATA));
- await migrateData();
- setSyncing('ok');
- document.getElementById('sync-label').textContent='Mode local';
- renderAll();
- return;
- }
- setSyncing('syncing');
- try{
- let remote=await fbGet(DB_PATH);
- if(!remote||Object.keys(remote).length===0){
- await fbSet(DB_PATH,DEFAULT_DATA);
- remote=DEFAULT_DATA;
- }
- DATA={
- biens:remote.biens||{},
- mouvements:remote.mouvements||{},
- cca:remote.cca||{}
- };
- isFirebaseReady=true;
- await migrateData();
- setSyncing('ok');
- startPolling();
- renderAll();
- }catch(e){
- console.error(e);
- setSyncing('error');
- DATA=JSON.parse(JSON.stringify(DEFAULT_DATA));
- renderAll();
- showToast('Erreur Firebase — vérifiez l\'URL et les règles de sécurité');
- }
+// ---- File d'attente des écritures (jamais de perte silencieuse) ----
+const QUEUE_KEY='sci_pending_ops';
+let pendingOps=[];
+let flushing=null;
+function loadQueue(){
+ try{pendingOps=JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');}catch(e){pendingOps=[];}
+ if(!Array.isArray(pendingOps))pendingOps=[];
 }
-
-// Polling toutes les 15 secondes pour voir les modifs des autres
-let lastFetch=Date.now();
-function startPolling(){
- setInterval(async()=>{
+function persistQueue(){
  try{
- const remote=await fbGet(DB_PATH);
- if(remote){
- DATA={biens:remote.biens||{},mouvements:remote.mouvements||{},cca:remote.cca||{}};
- renderAll();
- }
+  if(pendingOps.length)localStorage.setItem(QUEUE_KEY,JSON.stringify(pendingOps));
+  else localStorage.removeItem(QUEUE_KEY);
  }catch(e){}
- },15000);
+}
+// Rejoue les écritures en attente sur les données locales (après rechargement)
+function applyPendingToData(){
+ pendingOps.forEach(op=>{
+  const parts=op.subPath.split('/');
+  if(op.type==='patch'&&parts.length===1&&DATA[parts[0]]){
+   Object.assign(DATA[parts[0]],op.data);
+  }else if(op.type==='delete'&&parts.length===2&&DATA[parts[0]]){
+   delete DATA[parts[0]][parts[1]];
+  }
+ });
+}
+function flushQueue(){
+ if(flushing)return flushing;
+ flushing=(async()=>{
+  try{
+   while(pendingOps.length){
+    const op=pendingOps[0];
+    if(op.type==='patch')await fbPatch(`${DB_PATH}/${op.subPath}`,op.data);
+    else await fbDelete(`${DB_PATH}/${op.subPath}`);
+    pendingOps.shift();
+    persistQueue();
+   }
+   return true;
+  }catch(e){
+   console.error('Sync error',e);
+   setSyncing('error',describeError(e));
+   return false;
+  }finally{
+   flushing=null;
+  }
+ })();
+ return flushing;
+}
+async function enqueueOp(op,okMsg){
+ if(!isFirebaseReady){
+  // Les données affichées ne viennent pas de Firebase : on refuse plutôt que de faire croire que c'est sauvegardé
+  showToast('⚠ NON enregistré : connexion à Firebase impossible (voir le bandeau rouge)',6000);
+  return false;
+ }
+ pendingOps.push(op);
+ persistQueue();
+ setSyncing('syncing');
+ const ok=await flushQueue();
+ if(ok){
+  setSyncing('ok');
+  showToast(okMsg);
+  syncDirtySettings();
+ }else{
+  showToast('⚠ Modification en attente : Firebase injoignable ou refuse l\'écriture',6000);
+ }
+ return ok;
+}
+function fbSave(subPath,data){return enqueueOp({type:'patch',subPath,data},' Modifications synchronisées');}
+function fbRemove(subPath){return enqueueOp({type:'delete',subPath},' Supprimé');}
+
+// ---- Réglages stockés en localStorage (BP, marché, projection) synchronisés via Firebase ----
+const SYNC_KEYS=['sci_bp_biens','sci_bp_params','sci_market_overrides','sci_marche_params','sci_proj_biens'];
+const _lsSet=Storage.prototype.setItem;
+const _lsRemove=Storage.prototype.removeItem;
+const dirtySettings=new Set();
+function settingTs(key){return Number(localStorage.getItem('__sync_t_'+key))||0;}
+function pushSetting(key,val,t){
+ const body=JSON.stringify({v:val,t});
+ return fetch(`${FIREBASE_URL}${DB_PATH}/settings/${key}.json`,{
+  method:'PUT',headers:{'Content-Type':'application/json'},body,
+  keepalive:body.length<60000   // survit à un location.reload() juste après
+ }).then(r=>{
+  if(!r.ok)throw new Error('settings '+r.status);
+  dirtySettings.delete(key);
+ }).catch(e=>{dirtySettings.add(key);});
+}
+Storage.prototype.setItem=function(k,v){
+ _lsSet.call(this,k,v);
+ if(this===localStorage&&SYNC_KEYS.includes(k)){
+  const t=Date.now();_lsSet.call(localStorage,'__sync_t_'+k,String(t));
+  if(isFirebaseReady)pushSetting(k,String(v),t);else dirtySettings.add(k);
+ }
+};
+Storage.prototype.removeItem=function(k){
+ _lsRemove.call(this,k);
+ if(this===localStorage&&SYNC_KEYS.includes(k)){
+  const t=Date.now();_lsSet.call(localStorage,'__sync_t_'+k,String(t));
+  if(isFirebaseReady)pushSetting(k,null,t);else dirtySettings.add(k);
+ }
+};
+function syncDirtySettings(){
+ dirtySettings.forEach(k=>{
+  const v=localStorage.getItem(k);
+  pushSetting(k,v,settingTs(k)||Date.now());
+ });
+}
+// Au chargement : la version la plus récente (locale ou distante) gagne
+function syncSettings(remoteSettings){
+ let needReload=false;
+ SYNC_KEYS.forEach(k=>{
+  const r=remoteSettings[k];
+  const lv=localStorage.getItem(k);
+  const lt=settingTs(k);
+  if(lt&&(!r||lt>(r.t||0))){
+   pushSetting(k,lv,lt);                       // le local est plus récent
+  }else if(r&&(r.t||0)>lt){
+   const rv=(r.v===undefined||r.v===null)?null:r.v;   // le distant est plus récent
+   if(rv!==lv){
+    if(rv===null)_lsRemove.call(localStorage,k);else _lsSet.call(localStorage,k,rv);
+    needReload=true;
+   }
+   _lsSet.call(localStorage,'__sync_t_'+k,String(r.t||0));
+  }else if(!r&&lv!==null&&!lt){
+   pushSetting(k,lv,Date.now());               // première migration vers Firebase
+   _lsSet.call(localStorage,'__sync_t_'+k,String(Date.now()));
+  }
+ });
+ return needReload;
 }
 
-async function fbSave(subPath,data){
- if(!isFirebaseReady){showToast(' Sauvegardé localement');return;}
+// ---- Initialisation ----
+let retryTimer=null;
+function stable(o){
+ if(Array.isArray(o))return '['+o.map(stable).join(',')+']';
+ if(o&&typeof o==='object')return '{'+Object.keys(o).sort().map(k=>JSON.stringify(k)+':'+stable(o[k])).join(',')+'}';
+ return JSON.stringify(o===undefined?null:o);
+}
+function startRetry(){
+ if(retryTimer)return;
+ retryTimer=setInterval(async()=>{
+  try{
+   await fbGet(DB_PATH);          // la connexion marche de nouveau ?
+   clearInterval(retryTimer);retryTimer=null;
+   initApp();
+  }catch(e){}
+ },30000);
+}
+
+async function initApp(){
+ loadQueue();
+ if(!FIREBASE_URL){
+  // Mode local sans Firebase
+  DATA=JSON.parse(JSON.stringify(DEFAULT_DATA));
+  await migrateData();
+  setSyncing('ok');
+  document.getElementById('sync-label').textContent='Mode local';
+  renderAll();
+  return;
+ }
  setSyncing('syncing');
  try{
- await fbPatch(`${DB_PATH}/${subPath}`,data);
- setSyncing('ok');
- showToast(' Modifications synchronisées');
+  let remote=await fbGet(DB_PATH);
+  if(!remote||Object.keys(remote).length===0){
+   await fbSet(DB_PATH,DEFAULT_DATA);
+   remote=DEFAULT_DATA;
+  }
+  DATA={
+   biens:remote.biens||{},
+   mouvements:remote.mouvements||{},
+   cca:remote.cca||{}
+  };
+  isFirebaseReady=true;
+  applyPendingToData();
+  if(pendingOps.length)await flushQueue();
+  if(syncSettings(remote.settings||{})){location.reload();return;}
+  await migrateData();
+  if(pendingOps.length===0)setSyncing('ok');
+  startPolling();
+  renderAll();
  }catch(e){
- setSyncing('error');
- showToast('Erreur de sauvegarde');
+  console.error(e);
+  const msg=describeError(e);
+  setSyncing('error',msg);
+  DATA=JSON.parse(JSON.stringify(DEFAULT_DATA));   // affichage seulement, rien n'est sauvegardé
+  renderAll();
+  showToast('⚠ '+msg,8000);
+  startRetry();
  }
 }
-async function fbRemove(subPath){
- if(!isFirebaseReady)return;
- setSyncing('syncing');
- try{
- await fbDelete(`${DB_PATH}/${subPath}`);
- setSyncing('ok');
- showToast(' Supprimé');
- }catch(e){
- setSyncing('error');
- }
+
+// Rafraîchissement toutes les 15 secondes (modifs des autres + réessai des écritures en attente)
+let pollingTimer=null;
+function startPolling(){
+ if(pollingTimer)return;
+ pollingTimer=setInterval(async()=>{
+  if(flushing)return;
+  if(pendingOps.length){
+   const ok=await flushQueue();
+   if(!ok)return;                  // ne jamais écraser les données locales tant que des écritures sont en attente
+   setSyncing('ok');
+  }
+  syncDirtySettings();
+  try{
+   const remote=await fbGet(DB_PATH);
+   if(remote){
+    const nd={biens:remote.biens||{},mouvements:remote.mouvements||{},cca:remote.cca||{}};
+    if(stable(nd)!==stable(DATA)){DATA=nd;renderAll();}
+    if(syncState==='error')setSyncing('ok');
+   }
+  }catch(e){
+   setSyncing('error',describeError(e));
+  }
+ },15000);
 }
 
 // ============================================================
