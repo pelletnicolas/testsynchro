@@ -370,11 +370,24 @@ canvas{max-width:100%;display:block}
  <div id="auto-mvt-alert"></div>
  <div class="kpi-grid" id="tres-kpis"></div>
  <div class="card">
- <div class="card-title" style="margin-bottom:12px">Journal détaillé</div>
+ <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+ <div class="card-title">Journal détaillé</div>
+ <select id="tres-filter" onchange="tresSelected.clear();renderTresorerie()" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)">
+ <option value="">Toutes les lignes</option>
+ <option value="odoo">Importées d'Odoo</option>
+ <option value="auto">Créées automatiquement par les biens</option>
+ <option value="manuel">Saisies à la main</option>
+ </select>
+ </div>
+ <div id="tres-selbar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--red-light);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;font-size:12px">
+ <span id="tres-seltxt" style="flex:1;min-width:140px;color:var(--text)"></span>
+ <button class="btn btn-sm" onclick="tresToggleAll(false)">Désélectionner</button>
+ <button class="btn btn-sm btn-danger" style="border-color:var(--red)" onclick="deleteSelectedMvts()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"/></svg> Supprimer la sélection</button>
+ </div>
  <div id="tres-loading" class="loading-overlay"><div class="spinner"></div></div>
  <div style="overflow-x:auto">
  <table class="jtable" id="tres-table" style="display:none">
- <thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Montant</th><th>Solde</th><th></th></tr></thead>
+ <thead><tr><th style="width:30px"><input type="checkbox" id="tres-all" onchange="tresToggleAll(this.checked)" title="Tout cocher / décocher les lignes affichées"></th><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Montant</th><th>Solde</th><th></th></tr></thead>
  <tbody id="tres-body"></tbody>
  </table>
  </div>
@@ -1483,7 +1496,7 @@ canvas{max-width:100%;display:block}
  <div style="font-size:11px;color:var(--text3);margin-top:2px" id="drw-sous-titre">—</div>
  </div>
  <div style="display:flex;gap:8px;align-items:center">
- <button class="btn btn-danger btn-sm" id="drw-supprimer-btn" title="Supprimer ce bien"></button>
+ <button class="btn btn-danger btn-sm" id="drw-supprimer-btn" title="Supprimer ce bien"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"/></svg></button>
  <button class="btn btn-primary btn-sm" id="drw-modifier-btn">Modifier</button>
  <button class="btn btn-sm" onclick="closeDrawer()" style="padding:4px 10px;font-size:16px;line-height:1">×</button>
  </div>
@@ -2370,6 +2383,8 @@ let isFirebaseReady = false;
 // INITIALISATION
 // ============================================================
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function escH(t){return String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const ICON_TRASH='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"/></svg>';
 
 let syncState='ok';
 function setSyncing(state,detail){
@@ -2456,7 +2471,7 @@ function applyPendingToData(){
  pendingOps.forEach(op=>{
   const parts=op.subPath.split('/');
   if(op.type==='patch'&&parts.length===1&&DATA[parts[0]]){
-   Object.assign(DATA[parts[0]],op.data);
+   Object.entries(op.data).forEach(([k,v])=>{if(v===null)delete DATA[parts[0]][k];else DATA[parts[0]][k]=v;});
   }else if(op.type==='delete'&&parts.length===2&&DATA[parts[0]]){
    delete DATA[parts[0]][parts[1]];
   }
@@ -2967,7 +2982,7 @@ function renderDashboard(){
  <div style="overflow-x:auto"><table class="jtable">
  <thead><tr><th>Date</th><th>Libellé</th><th>Montant</th><th>Solde</th></tr></thead>
  <tbody>${recent.map(m=>`<tr>
- <td>${fdate(m.date)}</td><td>${m.libelle}</td>
+ <td>${fdate(m.date)}</td><td>${escH(m.libelle)}</td>
  <td class="${m.montant>=0?'amount-pos':'amount-neg'}">${m.montant>=0?'+':''}${euro(m.montant,2)}</td>
  <td style="font-weight:500">${euro(m.solde,2)}</td>
  </tr>`).join('')}</tbody>
@@ -3046,6 +3061,7 @@ function bienDrawerContent(b){
  return `<div class="status-row"><span>Loyer HC</span><span>${euro(loyer)}/mois</span></div>
  <div class="status-row"><span>Charges locataire</span><span>${euro(charges)}/mois</span></div>
  <div class="status-row"><span>Total encaissé</span><span style="font-weight:500">${euro(loyer+charges)}/mois</span></div>
+ ${mode==='A'?`<div class="status-row"><span>Airbnb été (Juin–Août)</span><span style="font-weight:500;color:var(--blue)">${euro(Math.round(airbnbCaMois(b.airbnb_nuit,7)))}/mois en haute saison</span></div>`:''}
  <div class="status-row"><span>Locataire</span><span>${b.locataire||'—'}</span></div>`;
  })()}
  <div class="sl">Apports associés (CCA)</div>
@@ -3131,16 +3147,24 @@ function renderTresorerie(){
  <div class="kpi"><div class="kpi-label">Loyers encaissés</div><div class="kpi-val">${euro(loyers)}</div></div>
  `;
 
- document.getElementById('tres-body').innerHTML=soldes.reverse().map(m=>`
- <tr>
+ const autoSet=new Set(autoMvtIds());
+ const kind=m=>m.src==='odoo'?'odoo':(autoSet.has(m.id)?'auto':'manuel');
+ const filt=(document.getElementById('tres-filter')||{}).value||'';
+ tresSelected.forEach(id=>{if(!DATA.mouvements[id])tresSelected.delete(id);});
+ const badge={odoo:'<span class="badge" style="background:#EFE3EB;color:#714B67;font-size:9px;margin-left:6px;padding:2px 7px">Odoo</span>',auto:'<span class="badge badge-warn" style="font-size:9px;margin-left:6px;padding:2px 7px">Auto</span>',manuel:''};
+ const rows=soldes.reverse().filter(m=>!filt||kind(m)===filt);
+ document.getElementById('tres-body').innerHTML=rows.length?rows.map(m=>`
+ <tr${tresSelected.has(m.id)?' style="background:var(--surface2)"':''}>
+ <td><input type="checkbox" class="tres-cb" data-id="${m.id}" ${tresSelected.has(m.id)?'checked':''} onchange="tresToggle('${m.id}',this.checked)"></td>
  <td>${fdate(m.date)}</td>
- <td>${m.libelle}</td>
+ <td>${escH(m.libelle)}${badge[kind(m)]}</td>
  <td><span class="badge badge-info" style="font-size:10px">${catLabel(m.cat)}</span></td>
  <td class="${m.montant>=0?'amount-pos':'amount-neg'}">${m.montant>=0?'+':''}${euro(m.montant,2)}</td>
  <td style="font-weight:500">${euro(m.solde,2)}</td>
- <td><button class="btn btn-danger btn-sm" onclick="deleteMouvement('${m.id}')"></button></td>
+ <td><button class="btn btn-danger btn-sm" title="Supprimer cette ligne" onclick="deleteMouvement('${m.id}')">${ICON_TRASH}</button></td>
  </tr>
- `).join('');
+ `).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">Aucune ligne${filt?' pour ce filtre':''}.</td></tr>`;
+ tresUpdateBar();
 
  document.getElementById('tres-loading').style.display='none';
  document.getElementById('tres-table').style.display='table';
@@ -3198,13 +3222,13 @@ function renderAssocies(){
  :liste.map(c=>`
  <tr>
  <td>${fdate(c.date)}</td>
- <td>${c.libelle}</td>
+ <td>${escH(c.libelle)}</td>
  <td>${c.assoc}</td>
  <td>${c.apport>0?`<span class="amount-pos">+${euro(c.apport)}</span>`:'—'}</td>
  <td>${c.remb>0?`<span class="amount-neg">−${euro(c.remb)}</span>`:'—'}</td>
  <td style="display:flex;gap:4px">
  <button class="btn btn-sm" onclick="openEditCCA('${c.id}')" style="padding:3px 7px;font-size:12px"></button>
- <button class="btn btn-danger btn-sm" onclick="deleteCCA('${c.id}')"></button>
+ <button class="btn btn-danger btn-sm" title="Supprimer" onclick="deleteCCA('${c.id}')">${ICON_TRASH}</button>
  </td>
  </tr>
  `).join('');
@@ -3264,11 +3288,11 @@ function bienCaAnnuel(b) {
  for(let m=1;m<=12;m++)t+=bienCaMensuel(b,0,m);
  return t;
 }
-// Revenu mensuel moyen d'un bien (loyer + charges en mode C, CA annuel ÷ 12 en modes A et B)
+// Revenu mensuel affiché : loyer + charges (modes A et C). Pas de lissage avec l'Airbnb d'été en mode A.
+// Seul le mode B (full Airbnb, sans loyer) utilise la moyenne mensuelle du CA Airbnb annuel.
 function bienRevenuMensuel(b){
- const mode=b.modeLocation||'C';
- if(mode==='C')return Number(b.loyer||0)+Number(b.charges||0);
- return bienCaAnnuel(b)/12;
+ if((b.modeLocation||'C')==='B')return bienCaAnnuel(b)/12;
+ return Number(b.loyer||0)+Number(b.charges||0);
 }
 
 // Preview CA dans le modal edit bien
@@ -3475,7 +3499,7 @@ function updatePbPreview(){
  }
  const pbMode=(document.getElementById('pb-mode')||{}).value||'C';
  const pbAirbnb=Number((document.getElementById('pb-airbnb')||{}).value)||0;
- const revMois=pbMode==='C'?loyer:bienCaAnnuel({modeLocation:pbMode,loyer,charges:0,airbnb_nuit:pbAirbnb})/12;
+ const revMois=pbMode==='B'?bienCaAnnuel({modeLocation:pbMode,loyer,charges:0,airbnb_nuit:pbAirbnb})/12:loyer;
  const cf=revMois-mens-chargesMois;
 
  const mpEl=document.getElementById('pb-mens-preview');
@@ -4201,7 +4225,7 @@ function renderProjBiens(){
  </div>
  <div class="bien-row-right">
  ${locBadge(b.statut)}
- ${b._fictif?`<button class="btn btn-danger btn-sm" onclick="deleteProjBien('${b.id}');event.stopPropagation()"></button>`:''}
+ ${b._fictif?`<button class="btn btn-danger btn-sm" title="Supprimer" onclick="deleteProjBien('${b.id}');event.stopPropagation()">${ICON_TRASH}</button>`:''}
  </div>
  </div>`;
  }).join('')+`</div>`;
@@ -4831,15 +4855,63 @@ async function saveMouvement(){
 }
 
 async function deleteMouvement(id){
+ const m=DATA.mouvements[id];
+ if(!m)return;
+ if(!confirm('Supprimer cette ligne de la Comptabilité ?\n\n'+fdate(m.date)+' — '+m.libelle+'\n'+euro(m.montant,2)))return;
  delete DATA.mouvements[id];
+ tresSelected.delete(id);
  await fbRemove(`mouvements/${id}`);
  renderTresorerie();renderDashboard();
+}
+let tresSelected=new Set();
+function tresToggle(id,v){
+ if(v)tresSelected.add(id);else tresSelected.delete(id);
+ document.querySelectorAll('#tres-body .tres-cb').forEach(cb=>{
+  if(cb.dataset.id!==id)return;
+  cb.checked=!!v;
+  const tr=cb.closest('tr');if(tr)tr.style.background=v?'var(--surface2)':'';
+ });
+ tresUpdateBar();
+}
+function tresToggleAll(v){
+ document.querySelectorAll('#tres-body .tres-cb').forEach(cb=>{
+  cb.checked=v;
+  if(v)tresSelected.add(cb.dataset.id);else tresSelected.delete(cb.dataset.id);
+  const tr=cb.closest('tr');if(tr)tr.style.background=v?'var(--surface2)':'';
+ });
+ tresUpdateBar();
+}
+function tresUpdateBar(){
+ const bar=document.getElementById('tres-selbar');if(!bar)return;
+ const ids=[...tresSelected].filter(id=>DATA.mouvements[id]);
+ const total=ids.reduce((s,id)=>s+Number(DATA.mouvements[id].montant),0);
+ bar.style.display=ids.length?'flex':'none';
+ document.getElementById('tres-seltxt').innerHTML=`<strong>${ids.length}</strong> ligne${ids.length>1?'s':''} sélectionnée${ids.length>1?'s':''} · total ${euro(total,2)}`;
+ const cbs=[...document.querySelectorAll('#tres-body .tres-cb')];
+ const all=document.getElementById('tres-all');
+ if(all){all.checked=cbs.length>0&&cbs.every(c=>c.checked);all.indeterminate=cbs.some(c=>c.checked)&&!cbs.every(c=>c.checked);}
+}
+async function deleteSelectedMvts(){
+ const ids=[...tresSelected].filter(id=>DATA.mouvements[id]);
+ if(!ids.length)return;
+ const total=ids.reduce((s,id)=>s+Number(DATA.mouvements[id].montant),0);
+ if(!confirm('Supprimer '+ids.length+' ligne'+(ids.length>1?'s':'')+' de la Comptabilité (total '+euro(total,2)+') ?\n\nCette action est irréversible. Les lignes importées d\'Odoo pourront être réimportées si besoin.'))return;
+ ids.forEach(id=>{delete DATA.mouvements[id];});
+ tresSelected.clear();
+ let ok=true;
+ for(let i=0;i<ids.length;i+=200){
+  const nulls={};ids.slice(i,i+200).forEach(id=>{nulls[id]=null;});   // null = suppression côté Firebase
+  ok=(await fbSave('mouvements',nulls))&&ok;
+ }
+ renderAll();
+ showToast(ids.length+' ligne'+(ids.length>1?'s':'')+' supprimée'+(ids.length>1?'s':''));
 }
 
 function exportCSV(){
  const soldes=computeSoldes();
  let csv='\uFEFFDate,Libellé,Catégorie,Montant (€),Solde (€)\n';
- soldes.forEach(m=>{csv+=`${m.date},"${m.libelle}","${catLabel(m.cat)}",${m.montant.toFixed(2)},${m.solde.toFixed(2)}\n`;});
+ const cc=v=>{let t=String(v==null?'':v);if(/^[=+\-@\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};   // évite l'injection de formules dans Excel
+ soldes.forEach(m=>{csv+=`${m.date},${cc(m.libelle)},${cc(catLabel(m.cat))},${m.montant.toFixed(2)},${m.solde.toFixed(2)}\n`;});
  const a=document.createElement('a');
  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
  a.download='comptabilite_sci_perripe.csv';a.click();
@@ -5281,7 +5353,7 @@ function renderBpPortefeuille(){
  <td style="font-weight:500">${ca > 0 ? (rdt.toFixed(1) + '%') : '—'}</td>
  <td style="white-space:nowrap">
  <button class="btn btn-sm" onclick="openEditBpBien(${i})" title="Modifier">️</button>
- <button class="btn btn-sm btn-danger" onclick="deleteBpBien(${i})" title="Supprimer" style="margin-left:4px"></button>
+ <button class="btn btn-sm btn-danger" onclick="deleteBpBien(${i})" title="Supprimer" style="margin-left:4px">${ICON_TRASH}</button>
  </td>
  </tr>`;
  }).join('')}
