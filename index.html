@@ -1405,7 +1405,7 @@ const DB_PATH = '/sci_perripe';
 // Aucun secret dans ce fichier : la "Web API Key" est publique par conception,
 // la protection vient des comptes Firebase + des règles de la base.
 // ============================================================
-const FIREBASE_API_KEY='AIzaSyAltl-BAeoNjzxdinnsMqsaI4MpHHAQ8SU';   // Console Firebase > Paramètres du projet > Général > Clé API Web
+const FIREBASE_API_KEY='REMPLACER_PAR_LA_WEB_API_KEY';   // Console Firebase > Paramètres du projet > Général > Clé API Web
 const SESSION_KEY='sci_auth';
 let authSession=null;   // {idToken, refreshToken, expiresAt, email, uid}
 let refreshPromise=null;
@@ -1597,6 +1597,14 @@ async function bootApp(){
   bootMsg('Chargement…',false);
   const c=await fbReq('GET','/sci_config');
   if(!c||!c.market||!c.defaultData||!c.associes)throw Object.assign(new Error('config'),{kind:'config'});
+  // Nouvelle version de configuration (ex. remise à zéro) : on purge les copies locales périmées
+  // (réglages BP/projection, file d'attente) pour qu'elles ne soient pas renvoyées vers Firebase.
+  if(c.cfgVersion&&localStorage.getItem('sci_cfg_ver')!==c.cfgVersion){
+   ['sci_bp_biens','sci_bp_params','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_pending_ops'].forEach(k=>{
+    _lsRemoveRaw.call(localStorage,k);_lsRemoveRaw.call(localStorage,'__sync_t_'+k);
+   });
+   _lsSetRaw.call(localStorage,'sci_cfg_ver',c.cfgVersion);
+  }
   window.__BOOT={
    defaultData:JSON.parse(c.defaultData),
    market:JSON.parse(c.market),
@@ -1604,7 +1612,7 @@ async function bootApp(){
    bpParams:JSON.parse(c.bpParams),
    marcheParams:JSON.parse(c.marcheParams),
    bpFrise:JSON.parse(c.bpFrise),
-   associes:JSON.parse(c.associes),
+   associes:(typeof c.associes==='string'?JSON.parse(c.associes):Object.values(c.associes)),
    marcheDefaut:JSON.parse(c.marcheDefaut)
   };
   const host=document.getElementById('accueil-host');
