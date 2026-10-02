@@ -369,9 +369,6 @@ canvas{max-width:100%;display:block}
  <input type="text" id="cca-filter-libelle" placeholder="Rechercher libellé…" oninput="renderAssocies()" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text);width:160px">
  <select id="cca-filter-assoc" onchange="renderAssocies()" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)">
  <option value="">Tous les associés</option>
- <option value="Nicolas">Nicolas</option>
- <option value="Romain">Romain</option>
- <option value="Enzo">Enzo</option>
  </select>
  <select id="cca-filter-type" onchange="renderAssocies()" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)">
  <option value="">Apport &amp; Rembt</option>
@@ -780,7 +777,7 @@ canvas{max-width:100%;display:block}
  <div class="page" id="page-bp-portefeuille">
  <div class="page-header">
  <div>
- <div class="page-title" id="bp-portef-title">Business Plan · Portefeuille 20 biens</div>
+ <div class="page-title" id="bp-portef-title">Business Plan · Portefeuille</div>
  <div style="font-size:12px;color:var(--text3);margin-top:2px">Crédit · Apport CCA · Frais ~13%</div>
  </div>
  <button class="btn btn-primary btn-sm" onclick="openAddBpBienModal()">+ Ajouter un bien</button>
@@ -801,7 +798,7 @@ canvas{max-width:100%;display:block}
  <tr>
  <th>Année</th><th>Biens actifs</th><th>CA locatif</th>
  <th>Mensualités</th><th style="color:var(--amber)">Charges</th><th>Cash-flow net</th>
- <th>CF/mois/associé</th><th>Cumul tréso.</th><th>Objectif 1k€ </th>
+ <th>CF/mois/associé</th><th>Cumul tréso.</th><th>Objectif</th>
  </tr>
  </thead>
  <tbody id="bp-projection-body"></tbody>
@@ -832,7 +829,7 @@ canvas{max-width:100%;display:block}
  <div class="page" id="page-bp-frise">
  <div class="page-header">
  <div class="page-title">Business Plan · Frise chronologique</div>
- <div style="font-size:12px;color:var(--text3)">Plan d'acquisition 2026–2035 · 20 biens</div>
+ <div style="font-size:12px;color:var(--text3)">Plan d'acquisition 2026–2035</div>
  </div>
  <div id="bp-frise-content"></div>
  </div>
@@ -940,7 +937,7 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Nom du bien <span style="color:var(--text3);font-weight:400">(identifiant affiché partout)</span></label><input id="nb-nom" type="text" placeholder="ex: Studio Centre, T2 Nord"></div>
  <div class="two-col">
  <div class="fg"><label>Adresse</label><input id="nb-adresse" type="text" placeholder="ex: 12 rue de la République"></div>
- <div class="fg"><label>Ville / CP</label><input id="nb-ville" type="text" placeholder="Marseille 13001"></div>
+ <div class="fg"><label>Ville / CP</label><input id="nb-ville" type="text" placeholder="ex: Ville, code postal"></div>
  </div>
  <div class="two-col">
  <div class="fg"><label>Type</label><select id="nb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option><option>Parking</option></select></div>
@@ -951,7 +948,7 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Date d'achat</label><input id="nb-dateachat" type="date"></div>
  </div>
  <div class="two-col">
- <div class="fg"><label>Frais de notaire (€)</label><input id="nb-notaire" type="number" placeholder="10200"></div>
+ <div class="fg"><label>Frais de notaire (€)</label><input id="nb-notaire" type="number" placeholder="ex: 8000"></div>
  <div class="fg"><label>Frais de courtier (€)</label><input id="nb-courtier" type="number" value="0"></div>
  </div>
  <div class="two-col">
@@ -959,7 +956,7 @@ canvas{max-width:100%;display:block}
  <div></div>
  </div>
  <div class="two-col">
- <div class="fg"><label>Capital emprunté (€)</label><input id="nb-capital" type="number" placeholder="116000"></div>
+ <div class="fg"><label>Capital emprunté (€)</label><input id="nb-capital" type="number" placeholder="ex: 100000"></div>
  <div class="fg"><label>Taux annuel (%)</label><input id="nb-taux" type="number" step="0.01" placeholder="3.50"></div>
  </div>
  <div class="two-col">
@@ -968,7 +965,7 @@ canvas{max-width:100%;display:block}
  </div>
  <div class="two-col">
  <div class="fg"><label>Début remboursement</label><input id="nb-debut" type="date"></div>
- <div class="fg"><label>Loyer prévu HC (€/mois)</label><input id="nb-loyer" type="number" placeholder="650"></div>
+ <div class="fg"><label>Loyer prévu HC (€/mois)</label><input id="nb-loyer" type="number" placeholder="ex: 600"></div>
  </div>
  <div class="fg"><label>Statut location</label>
  <select id="nb-statut" onchange="if(this.value==='Airbnb'){document.getElementById('nb-mode-location')&&(document.getElementById('nb-mode-location').value='B')}"><option>Non loué</option><option>Bail signé - attente locataire</option><option>Bail signé - loué</option><option>Airbnb</option></select>
@@ -990,9 +987,6 @@ canvas{max-width:100%;display:block}
  <div class="sl" style="margin-top:4px">Apports associés (CCA)</div>
  <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Ces apports seront automatiquement enregistrés dans l'onglet Associés. Laissez 0 pour exclure un associé.</div>
  <div id="nb-cca-rows" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
- <div class="fg" id="nb-cca-row-nicolas"><label>Nicolas (€)</label><input id="nb-cca-nicolas" type="number" value="0" placeholder="0" oninput="toggleCcaRow(this,'nicolas')"></div>
- <div class="fg" id="nb-cca-row-romain"><label>Romain (€)</label><input id="nb-cca-romain" type="number" value="0" placeholder="0" oninput="toggleCcaRow(this,'romain')"></div>
- <div class="fg" id="nb-cca-row-enzo"><label>Enzo (€)</label><input id="nb-cca-enzo" type="number" value="0" placeholder="0" oninput="toggleCcaRow(this,'enzo')"></div>
  </div>
  <div id="nb-cca-excluded" style="font-size:11px;color:var(--text3);margin-top:6px;min-height:16px"></div>
  <div class="modal-footer">
@@ -1014,7 +1008,7 @@ canvas{max-width:100%;display:block}
  </div>
  <div class="two-col">
  <div class="fg"><label>Adresse / nom fictif</label><input id="pb-adresse" type="text" placeholder="Ex: 12 rue de la Paix"></div>
- <div class="fg"><label>Ville / CP</label><input id="pb-ville" type="text" placeholder="Marseille 13001"></div>
+ <div class="fg"><label>Ville / CP</label><input id="pb-ville" type="text" placeholder="ex: Ville, code postal"></div>
  </div>
  <div class="two-col">
  <div class="fg"><label>Type</label><select id="pb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option><option>Parking</option></select></div>
@@ -1175,10 +1169,7 @@ canvas{max-width:100%;display:block}
  </div>
  <div class="sl">Apports associés (CCA)</div>
  <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Modifiez directement le montant de chaque associé pour ce bien.</div>
- <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:4px">
- <div class="fg" style="margin-bottom:0"><label>Nicolas (€)</label><input id="eb-cca-nicolas" type="number" placeholder="0"></div>
- <div class="fg" style="margin-bottom:0"><label>Romain (€)</label><input id="eb-cca-romain" type="number" placeholder="0"></div>
- <div class="fg" style="margin-bottom:0"><label>Enzo (€)</label><input id="eb-cca-enzo" type="number" placeholder="0"></div>
+ <div id="eb-cca-rows" style="display:grid;gap:10px;margin-bottom:4px">
  </div>
  <div class="sl">Démarches</div>
  <div id="eb-demarches-list"></div>
@@ -1205,7 +1196,7 @@ canvas{max-width:100%;display:block}
  <option value="autres">Autres</option>
  </select>
  </div>
- <div class="fg"><label>Montant (€) — positif = entrée, négatif = sortie</label><input id="mv-montant" type="number" step="0.01" placeholder="ex: 4000 ou -676"></div>
+ <div class="fg"><label>Montant (€) — positif = entrée, négatif = sortie</label><input id="mv-montant" type="number" step="0.01" placeholder="ex: 1000 ou -250"></div>
  <div class="modal-footer">
  <button class="btn" onclick="closeModal('modal-add-mvt')">Annuler</button>
  <button class="btn btn-primary" onclick="saveMouvement()">Ajouter</button>
@@ -1219,7 +1210,7 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Date</label><input id="cca-date" type="date"></div>
  <div class="fg"><label>Libellé</label><input id="cca-libelle" type="text" placeholder="ex: Apport CCA acquisition Bien 2"></div>
  <div class="fg"><label>Associé</label>
- <select id="cca-assoc"><option>Nicolas</option><option>Romain</option><option>Enzo</option></select>
+ <select id="cca-assoc"></select>
  </div>
  <div class="two-col">
  <div class="fg"><label>Apport (€)</label><input id="cca-apport" type="number" value="0"></div>
@@ -1276,10 +1267,7 @@ canvas{max-width:100%;display:block}
  <div style="font-size:11px;color:var(--text3);margin-top:4px">Laissez vide pour utiliser les valeurs par défaut des paramètres BP</div>
  </div>
  <div class="sl" style="margin-top:4px">Apports CCA associés (€ par associé)</div>
- <div class="three-col">
- <div class="fg" style="margin-bottom:0"><label>Nicolas (€)</label><input id="bpb-cca-nicolas" type="number" min="0" placeholder="0" oninput="updateBpCcaTotal()"></div>
- <div class="fg" style="margin-bottom:0"><label>Romain (€)</label><input id="bpb-cca-romain" type="number" min="0" placeholder="0" oninput="updateBpCcaTotal()"></div>
- <div class="fg" style="margin-bottom:0"><label>Enzo (€)</label><input id="bpb-cca-enzo" type="number" min="0" placeholder="0" oninput="updateBpCcaTotal()"></div>
+ <div class="three-col" id="bpb-cca-rows">
  </div>
  <div id="bpb-cca-total" style="font-size:12px;color:var(--text3);margin:6px 0 10px"></div>
  <div style="background:var(--surface2);border-radius:var(--radius);padding:12px;font-size:12px;color:var(--text2);margin-bottom:4px">
@@ -1300,7 +1288,7 @@ canvas{max-width:100%;display:block}
  <div class="modal-title">Ajouter un bien — Business Plan</div>
  <div class="two-col">
  <div class="fg"><label>Adresse / Quartier</label><input id="bpb-add-adresse" type="text" placeholder="ex: Quartier"></div>
- <div class="fg"><label>Zone</label><input id="bpb-add-zone" type="text" placeholder="ex: Centre Historique"></div>
+ <div class="fg"><label>Zone</label><input id="bpb-add-zone" type="text" placeholder="ex: Centre-ville"></div>
  </div>
  <div class="two-col">
  <div class="fg"><label>Type de bien</label><input id="bpb-add-type" type="text" placeholder="ex: Studio 20m²" value="Studio 20m²"></div>
@@ -1337,10 +1325,7 @@ canvas{max-width:100%;display:block}
  <div style="font-size:11px;color:var(--text3);margin-top:4px">Laissez vide pour utiliser les valeurs par défaut des paramètres BP</div>
  </div>
  <div class="sl" style="margin-top:4px">Apports CCA associés (€ par associé)</div>
- <div class="three-col">
- <div class="fg" style="margin-bottom:0"><label>Nicolas (€)</label><input id="bpb-add-cca-nicolas" type="number" min="0" placeholder="0"></div>
- <div class="fg" style="margin-bottom:0"><label>Romain (€)</label><input id="bpb-add-cca-romain" type="number" min="0" placeholder="0"></div>
- <div class="fg" style="margin-bottom:0"><label>Enzo (€)</label><input id="bpb-add-cca-enzo" type="number" min="0" placeholder="0"></div>
+ <div class="three-col" id="bpb-add-cca-rows">
  </div>
  <div style="margin-top:10px;background:var(--surface2);border-radius:var(--radius);padding:12px;font-size:12px;color:var(--text2)">
  <strong>Rappel des modes :</strong><br>
@@ -1391,7 +1376,7 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Date</label><input id="ecca-date" type="date"></div>
  <div class="fg"><label>Libellé</label><input id="ecca-libelle" type="text"></div>
  <div class="fg"><label>Associé</label>
- <select id="ecca-assoc"><option>Nicolas</option><option>Romain</option><option>Enzo</option></select>
+ <select id="ecca-assoc"></select>
  </div>
  <div class="two-col">
  <div class="fg"><label>Apport (€)</label><input id="ecca-apport" type="number" value="0"></div>
@@ -1611,14 +1596,16 @@ async function bootApp(){
   if(appStarted){hideLogin();initApp();return;}   // reconnexion après expiration de session
   bootMsg('Chargement…',false);
   const c=await fbReq('GET','/sci_config');
-  if(!c||!c.market||!c.defaultData)throw Object.assign(new Error('config'),{kind:'config'});
+  if(!c||!c.market||!c.defaultData||!c.associes)throw Object.assign(new Error('config'),{kind:'config'});
   window.__BOOT={
    defaultData:JSON.parse(c.defaultData),
    market:JSON.parse(c.market),
    bpBiens:JSON.parse(c.bpBiens),
    bpParams:JSON.parse(c.bpParams),
    marcheParams:JSON.parse(c.marcheParams),
-   bpFrise:JSON.parse(c.bpFrise)
+   bpFrise:JSON.parse(c.bpFrise),
+   associes:JSON.parse(c.associes),
+   marcheDefaut:JSON.parse(c.marcheDefaut)
   };
   const host=document.getElementById('accueil-host');
   if(host&&c.accueilHtml)host.outerHTML=c.accueilHtml;
@@ -1641,6 +1628,27 @@ bootApp();
 <script type="text/plain" id="app-js">
 // Données par défaut (pré-remplies avec votre SCI)
 const DEFAULT_DATA = window.__BOOT.defaultData;
+
+// ---- Associés : fournis par Firebase (/sci_config), aucun prénom dans ce fichier ----
+const ASSOCIES = window.__BOOT.associes;                       // [{n:nom, k:clé, av:classe avatar, init:initiales}]
+const ASSOC_NAMES = ASSOCIES.map(a=>a.n);
+const assocColorsMap = Object.fromEntries(ASSOCIES.map(a=>[a.n,a.av]));
+const assocInitsMap = Object.fromEntries(ASSOCIES.map(a=>[a.n,a.init]));
+const assocZero = ()=>Object.fromEntries(ASSOC_NAMES.map(n=>[n,0]));
+const ccaOf = b => ASSOCIES.reduce((t,a)=>t+(b['cca_'+a.k]||0),0);   // apports CCA manuels d'un bien du BP
+function buildAssocUI(){
+ const $=id=>document.getElementById(id);
+ const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const addOpts=id=>{const el=$(id);if(el)ASSOCIES.forEach(a=>{const o=document.createElement('option');o.value=a.n;o.textContent=a.n;el.appendChild(o);});};
+ ['cca-filter-assoc','cca-assoc','ecca-assoc'].forEach(addOpts);
+ const cols='repeat('+ASSOCIES.length+',1fr)';
+ const fill=(id,html)=>{const el=$(id);if(!el)return;el.style.gridTemplateColumns=cols;el.innerHTML=ASSOCIES.map(html).join('');};
+ fill('nb-cca-rows',a=>`<div class="fg" id="nb-cca-row-${a.k}"><label>${esc(a.n)} (€)</label><input id="nb-cca-${a.k}" type="number" value="0" placeholder="0" oninput="toggleCcaRow(this,'${a.k}')"></div>`);
+ fill('eb-cca-rows',a=>`<div class="fg" style="margin-bottom:0"><label>${esc(a.n)} (€)</label><input id="eb-cca-${a.k}" type="number" placeholder="0"></div>`);
+ fill('bpb-cca-rows',a=>`<div class="fg" style="margin-bottom:0"><label>${esc(a.n)} (€)</label><input id="bpb-cca-${a.k}" type="number" min="0" placeholder="0" oninput="updateBpCcaTotal()"></div>`);
+ fill('bpb-add-cca-rows',a=>`<div class="fg" style="margin-bottom:0"><label>${esc(a.n)} (€)</label><input id="bpb-add-cca-${a.k}" type="number" min="0" placeholder="0"></div>`);
+}
+buildAssocUI();
 
 let DATA = {biens:{},mouvements:{},cca:{}};
 let isFirebaseReady = false;
@@ -1724,9 +1732,9 @@ async function migrateData(){
  patches.cca[cca.id] = cca;
  }
  }
- // Cas spécial données par défaut : libellé "Apport CCA Romain/Nicolas/Enzo"
+ // Cas spécial données par défaut : libellé "Apport CCA <associé>"
  if(!m.bienId){
- const assocFromLib = ['Romain','Nicolas','Enzo'].find(a => m.libelle && m.libelle.includes(a));
+ const assocFromLib = ASSOC_NAMES.find(a => m.libelle && m.libelle.includes(a));
  if(assocFromLib){
  m.assoc = assocFromLib;
  const ccaMatch = Object.values(DATA.cca).find(c => c.assoc === assocFromLib && Number(c.apport) === Number(m.montant) && c.bienId);
@@ -2294,10 +2302,10 @@ function renderDashboard(){
 // RENDER — BIENS
 // ============================================================
 function bienDrawerContent(b){
- const assocs=['Nicolas','Romain','Enzo'];
- const assocColors={Nicolas:'av-blue',Romain:'av-teal',Enzo:'av-amber'};
- const assocInits={Nicolas:'NI',Romain:'RO',Enzo:'EN'};
- const totalCCA={Nicolas:0,Romain:0,Enzo:0};
+ const assocs=ASSOC_NAMES;
+ const assocColors=assocColorsMap;
+ const assocInits=assocInitsMap;
+ const totalCCA=assocZero();
  ccaList().forEach(c=>{
  if(totalCCA[c.assoc]!==undefined && (c.bienId===b.id || (!c.bienId && c.libelle && c.libelle.includes(b.adresse))))
  totalCCA[c.assoc]+=(Number(c.apport)-Number(c.remb));
@@ -2460,8 +2468,8 @@ function renderTresorerie(){
 // RENDER — ASSOCIES
 // ============================================================
 function renderAssocies(){
- const assocs=[{n:'Nicolas',av:'av-blue',init:'NI'},{n:'Romain',av:'av-teal',init:'RO'},{n:'Enzo',av:'av-amber',init:'EN'}];
- const soldes={Nicolas:0,Romain:0,Enzo:0};
+ const assocs=ASSOCIES.map(a=>({n:a.n,av:a.av,init:a.init}));
+ const soldes=assocZero();
  ccaList().forEach(c=>{soldes[c.assoc]=(soldes[c.assoc]||0)+Number(c.apport)-Number(c.remb)});
  const totalCCA=Object.values(soldes).reduce((s,v)=>s+v,0);
 
@@ -3287,25 +3295,25 @@ function renderProjCCA(){
  const el=document.getElementById('proj-cca-content');
  if(!el) return;
 
- const assocs=['Nicolas','Romain','Enzo'];
- const assocColors={Nicolas:'av-blue',Romain:'av-teal',Enzo:'av-amber'};
- const assocInits={Nicolas:'NI',Romain:'RO',Enzo:'EN'};
+ const assocs=ASSOC_NAMES;
+ const assocColors=assocColorsMap;
+ const assocInits=assocInitsMap;
 
  // 1. CCA réels (depuis DATA.cca)
- const soldesReels={Nicolas:0,Romain:0,Enzo:0};
+ const soldesReels=assocZero();
  ccaList().forEach(c=>{soldesReels[c.assoc]=(soldesReels[c.assoc]||0)+Number(c.apport)-Number(c.remb);});
  const totalCCAReels=Object.values(soldesReels).reduce((s,v)=>s+v,0);
 
  // 2. Apports estimés pour les biens fictifs UNIQUEMENT
  // Pour les biens réels, les apports sont déjà dans DATA.cca (soldesReels)
  const fictifs=loadProjBiens();
- const apportsFictifs={Nicolas:0,Romain:0,Enzo:0};
+ const apportsFictifs=assocZero();
  const lignesFictifs=[];
  fictifs.forEach(b=>{
  const frais=Number(b.notaire||0)+Number(b.courtier||0)+Number(b.travaux||0);
  const credit=Number(b.capital)||0;
  const apportTotal=Math.max(0,(Number(b.prix)||0)+frais-credit);
- const parAssoc=Math.round(apportTotal/3);
+ const parAssoc=Math.round(apportTotal/ASSOCIES.length);
  assocs.forEach(a=>{apportsFictifs[a]+=parAssoc;});
  lignesFictifs.push({adresse:b.adresse,apportTotal,parAssoc,dateAchat:b.dateAchat});
  });
@@ -3764,13 +3772,13 @@ function toggleCcaRow(input, assoc) {
  row.style.pointerEvents = '';
  }
  // Afficher les associés exclus
- const excluded = ['nicolas','romain','enzo'].filter(a => {
+ const excluded = ASSOCIES.map(a=>a.k).filter(a => {
  const el = document.getElementById('nb-cca-' + a);
  return el && (Number(el.value) === 0);
  });
  const el = document.getElementById('nb-cca-excluded');
  if (el) {
- const names = {nicolas:'Nicolas',romain:'Romain',enzo:'Enzo'};
+ const names = Object.fromEntries(ASSOCIES.map(a=>[a.k,a.n]));
  el.textContent = excluded.length > 0
  ? 'Exclus (apport = 0) : ' + excluded.map(a => names[a]).join(', ')
  : '';
@@ -3779,7 +3787,7 @@ function toggleCcaRow(input, assoc) {
 
 // Réinitialiser les champs CCA quand on ouvre le modal
 function openAddBienModal() {
- ['nicolas','romain','enzo'].forEach(a => {
+ ASSOCIES.map(a=>a.k).forEach(a => {
  const row = document.getElementById('nb-cca-row-' + a);
  const input = document.getElementById('nb-cca-' + a);
  if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; }
@@ -3835,7 +3843,7 @@ async function saveBien(){
 
  // Créer les mouvements CCA pour chaque associé si apport > 0
  const dateApport=b.dateAchat||new Date().toISOString().split('T')[0];
- const apports={Nicolas:Number(document.getElementById('nb-cca-nicolas').value)||0,Romain:Number(document.getElementById('nb-cca-romain').value)||0,Enzo:Number(document.getElementById('nb-cca-enzo').value)||0};
+ const apports=Object.fromEntries(ASSOCIES.map(a=>[a.n,Number(document.getElementById('nb-cca-'+a.k).value)||0]));
  const ccaToSave={};
  const mvtToSave={};
  for(const [assoc,montant] of Object.entries(apports)){
@@ -3913,12 +3921,10 @@ function openEditBien(id){
  `).join('');
  // Pré-remplir les champs CCA avec les montants nets actuels par associé pour ce bien
  const bienCCA = ccaList().filter(c => c.bienId === id || (!c.bienId && c.libelle && c.libelle.includes(b.adresse)));
- const totaux = {Nicolas:0, Romain:0, Enzo:0};
+ const totaux = assocZero();
  bienCCA.forEach(c => { if(totaux[c.assoc]!==undefined) totaux[c.assoc]+=(Number(c.apport)-Number(c.remb)); });
 
- document.getElementById('eb-cca-nicolas').value = totaux.Nicolas || 0;
- document.getElementById('eb-cca-romain').value = totaux.Romain || 0;
- document.getElementById('eb-cca-enzo').value = totaux.Enzo || 0;
+ ASSOCIES.forEach(a=>{ document.getElementById('eb-cca-'+a.k).value = totaux[a.n] || 0; });
 
  openModal('modal-edit-bien');
 }
@@ -3985,7 +3991,7 @@ async function updateBien(){
  if(m.libelle.includes(ancienneAdresse)){
  m.libelle = m.libelle.replaceAll(ancienneAdresse, nouvelleAdresse);
  } else {
- // Libellé sans adresse (ex: "Apport CCA Romain") => on ajoute la nouvelle adresse
+ // Libellé sans adresse (ex: "Apport CCA <associé>") => on ajoute la nouvelle adresse
  m.libelle = m.libelle + ' — ' + nouvelleAdresse;
  }
  libellesToUpdate_mvt[m.id] = m;
@@ -4009,7 +4015,7 @@ async function updateBien(){
  }
  // Mettre à jour les apports CCA : modifier les entrées existantes, créer si absentes, supprimer si 0
  const g2 = key => Number((document.getElementById(key)||{}).value) || 0;
- const nouvMontants = { Nicolas: g2('eb-cca-nicolas'), Romain: g2('eb-cca-romain'), Enzo: g2('eb-cca-enzo') };
+ const nouvMontants = Object.fromEntries(ASSOCIES.map(a=>[a.n,g2('eb-cca-'+a.k)]));
  const dateApport = b.dateAchat || new Date().toISOString().split('T')[0];
 
  // Trouver les entrées CCA existantes pour ce bien (1 par associé, on prend la première)
@@ -4209,7 +4215,7 @@ function openEditCCA(id){
  document.getElementById('ecca-id').value=id;
  document.getElementById('ecca-date').value=c.date||'';
  document.getElementById('ecca-libelle').value=c.libelle||'';
- document.getElementById('ecca-assoc').value=c.assoc||'Nicolas';
+ document.getElementById('ecca-assoc').value=c.assoc||ASSOC_NAMES[0];
  document.getElementById('ecca-apport').value=c.apport||0;
  document.getElementById('ecca-remb').value=c.remb||0;
  openModal('modal-edit-cca');
@@ -4389,7 +4395,7 @@ function bienApport(b){
  const fr = b.frais !== undefined ? b.frais : BP_PARAMS.fraisAcq;
  const cr = b.credit && b.credit > 0 ? b.credit : b.prix + fr;
  const auto = Math.max(0, b.prix + fr - cr);
- const man = (b.cca_nicolas||0) + (b.cca_romain||0) + (b.cca_enzo||0);
+ const man = ccaOf(b);
  return man > 0 ? man : auto;
 }
 
@@ -4476,9 +4482,9 @@ function renderBpDashboard(){
 
   <!-- HERO -->
   <div class="bpd-hero">
-    <div class="bpd-hero-label">SCI PERIPE · Marseille · Dossier bancaire 2026</div>
+    <div class="bpd-hero-label">SCI PERIPE · Dossier bancaire</div>
     <div class="bpd-hero-title">Portefeuille immobilier 2026–2035</div>
-    <div class="bpd-hero-sub">Société Civile Immobilière · 3 associés · Fiscalité IS · Stratégie mixte locative</div>
+    <div class="bpd-hero-sub">Société Civile Immobilière · ${ASSOCIES.length} associés · Fiscalité IS · Stratégie mixte locative</div>
     <div class="bpd-metrics">
       <div class="bpd-metric">
         <div class="bpd-metric-label">Biens acquis</div>
@@ -4498,7 +4504,7 @@ function renderBpDashboard(){
       <div class="bpd-metric">
         <div class="bpd-metric-label">Patrimoine net 2035</div>
         <div class="bpd-metric-val gold">${eur(patrimoineNet2035)}</div>
-        <div class="bpd-metric-sub">${eur(Math.round(patrimoineNet2035/3))}/associé</div>
+        <div class="bpd-metric-sub">${eur(Math.round(patrimoineNet2035/ASSOCIES.length))}/associé</div>
       </div>
     </div>
   </div>
@@ -4551,7 +4557,7 @@ function renderBpDashboard(){
       <div class="bpd-stat-row"><span class="bpd-stat-label">Valeur du portefeuille</span><span class="bpd-stat-val">${eur(val2035)}</span></div>
       <div class="bpd-stat-row"><span class="bpd-stat-label">Capital restant dû</span><span class="bpd-stat-val" style="color:var(--red)">${eur(crd2035)}</span></div>
       <div class="bpd-stat-row"><span class="bpd-stat-label" style="font-weight:600">Patrimoine net</span><span class="bpd-stat-val" style="color:var(--green);font-weight:700">${eur(patrimoineNet2035)}</span></div>
-      <div class="bpd-stat-row"><span class="bpd-stat-label">Par associé (÷3)</span><span class="bpd-stat-val" style="color:var(--green)">${eur(Math.round(patrimoineNet2035/3))}</span></div>
+      <div class="bpd-stat-row"><span class="bpd-stat-label">Par associé (÷3)</span><span class="bpd-stat-val" style="color:var(--green)">${eur(Math.round(patrimoineNet2035/ASSOCIES.length))}</span></div>
       <div class="bpd-stat-row"><span class="bpd-stat-label">CA locatif annuel</span><span class="bpd-stat-val" style="color:var(--green)">${eur(ca2035)}</span></div>
       <div class="bpd-stat-row"><span class="bpd-stat-label">Cash-flow net annuel</span><span class="bpd-stat-val" style="color:${cfAnnuel2035>=0?'var(--green)':'var(--red)'}">${cfAnnuel2035>=0?'+':''}${eur(cfAnnuel2035)}</span></div>
     </div>
@@ -4720,9 +4726,7 @@ function openEditBpBien(i){
  document.getElementById('bpb-loyer').value = b.loyer || 0;
  document.getElementById('bpb-airbnb').value = b.airbnb_nuit || 0;
  document.getElementById('bpb-charges').value = b.charges_mensuelles !== undefined ? b.charges_mensuelles : '';
- document.getElementById('bpb-cca-nicolas').value = b.cca_nicolas !== undefined ? b.cca_nicolas : '';
- document.getElementById('bpb-cca-romain').value = b.cca_romain !== undefined ? b.cca_romain : '';
- document.getElementById('bpb-cca-enzo').value = b.cca_enzo !== undefined ? b.cca_enzo : '';
+ ASSOCIES.forEach(a=>{ document.getElementById('bpb-cca-'+a.k).value = b['cca_'+a.k] !== undefined ? b['cca_'+a.k] : ''; });
  updateBpCcaTotal();
  updateBpCreditPreview();
  openModal('modal-edit-bp-bien');
@@ -4742,10 +4746,7 @@ function updateBpCreditPreview(){
 }
 
 function updateBpCcaTotal(){
- const n = Number(document.getElementById('bpb-cca-nicolas').value) || 0;
- const r = Number(document.getElementById('bpb-cca-romain').value) || 0;
- const e = Number(document.getElementById('bpb-cca-enzo').value) || 0;
- const total = n + r + e;
+ const total = ASSOCIES.reduce((t,a)=>t+(Number(document.getElementById('bpb-cca-'+a.k).value)||0),0);
  const el = document.getElementById('bpb-cca-total');
  if(el) el.textContent = '';
 }
@@ -4764,9 +4765,7 @@ function openAddBpBienModal(){
  document.getElementById('bpb-add-duree').value = 240;
  document.getElementById('bpb-add-loyer').value = 0;
  document.getElementById('bpb-add-airbnb').value = 0;
- document.getElementById('bpb-add-cca-nicolas').value = '';
- document.getElementById('bpb-add-cca-romain').value = '';
- document.getElementById('bpb-add-cca-enzo').value = '';
+ ASSOCIES.forEach(a=>{ document.getElementById('bpb-add-cca-'+a.k).value = ''; });
  updateBpAddCreditPreview();
  openModal('modal-add-bp-bien');
 }
@@ -4810,12 +4809,7 @@ function addBpBien(){
  };
  const chargesAddVal = document.getElementById('bpb-add-charges').value;
  if(chargesAddVal !== '') newBien.charges_mensuelles = Number(chargesAddVal);
- const ccaN = document.getElementById('bpb-add-cca-nicolas').value;
- const ccaR = document.getElementById('bpb-add-cca-romain').value;
- const ccaE = document.getElementById('bpb-add-cca-enzo').value;
- if(ccaN !== '') newBien.cca_nicolas = Number(ccaN) || 0;
- if(ccaR !== '') newBien.cca_romain = Number(ccaR) || 0;
- if(ccaE !== '') newBien.cca_enzo = Number(ccaE) || 0;
+ ASSOCIES.forEach(a=>{ const v = document.getElementById('bpb-add-cca-'+a.k).value; if(v !== '') newBien['cca_'+a.k] = Number(v) || 0; });
 
  BP_BIENS.push(newBien);
  try{ localStorage.setItem('sci_bp_biens', JSON.stringify(BP_BIENS)); } catch(e){}
@@ -4876,12 +4870,7 @@ function saveBpBien(){
  const chargesVal = document.getElementById('bpb-charges').value;
  if(chargesVal !== '') BP_BIENS[i].charges_mensuelles = Number(chargesVal);
  else delete BP_BIENS[i].charges_mensuelles;
- const ccaNicolas = document.getElementById('bpb-cca-nicolas').value;
- const ccaRomain = document.getElementById('bpb-cca-romain').value;
- const ccaEnzo = document.getElementById('bpb-cca-enzo').value;
- if(ccaNicolas !== '') BP_BIENS[i].cca_nicolas = Number(ccaNicolas) || 0;
- if(ccaRomain !== '') BP_BIENS[i].cca_romain = Number(ccaRomain) || 0;
- if(ccaEnzo !== '') BP_BIENS[i].cca_enzo = Number(ccaEnzo) || 0;
+ ASSOCIES.forEach(a=>{ const v = document.getElementById('bpb-cca-'+a.k).value; if(v !== '') BP_BIENS[i]['cca_'+a.k] = Number(v) || 0; });
  try{ localStorage.setItem('sci_bp_biens', JSON.stringify(BP_BIENS)); } catch(e){}
  closeModal('modal-edit-bp-bien');
  showToast(' Bien mis à jour dans le Business Plan');
@@ -5011,7 +5000,7 @@ function renderBpTresorerieMensuelle() {
  let cca = 0; // apports mensuels supprimés
  // Apport CCA à l'acquisition : priorité aux champs saisis dans le portefeuille, sinon calcul auto
  const apportCcaAcq = acquisitions.reduce((s, b) => {
- const apportManuel = (b.cca_nicolas || 0) + (b.cca_romain || 0) + (b.cca_enzo || 0);
+ const apportManuel = ccaOf(b);
  if (apportManuel > 0) return s + apportManuel;
  const frais = b.frais !== undefined ? b.frais : BP_PARAMS.fraisAcq;
  const credit = b.credit && b.credit > 0 ? b.credit : b.prix + frais;
@@ -5194,7 +5183,7 @@ function renderBpProjection(){
  return s + bpChargesTotal(b) * mois;
  }, 0);
  const cf = ca - mens - chargesAnnuelles;
- const cfMois3 = cf / 12 / 3;
+ const cfMois3 = cf / 12 / ASSOCIES.length;
  cumul += cf;
  const ok = cfMois3 >= 1000;
  return `<tr>
@@ -5499,7 +5488,7 @@ function renderBpCCA(){
   const el = document.getElementById('bp-cca-content');
   if(!el) return;
 
-  const ASSOCS = ['Nicolas','Romain','Enzo'];
+  const ASSOCS = ASSOC_NAMES;
   const euro = (v) => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
 
   // --- Apports enregistrés depuis DATA.cca ---
@@ -5550,7 +5539,7 @@ function renderBpCCA(){
     <div class="kpi"><div class="kpi-label">CCA enregistrés</div><div class="kpi-val" style="color:var(--blue)">${euro(totalEnreg)}</div></div>
     <div class="kpi"><div class="kpi-label">CCA plan BP</div><div class="kpi-val" style="color:var(--amber)">${euro(totalBP)}</div></div>
     <div class="kpi"><div class="kpi-label">Total CCA 2026–2035</div><div class="kpi-val">${euro(totalEnreg + totalBP)}</div></div>
-    <div class="kpi"><div class="kpi-label">CCA par associé</div><div class="kpi-val" style="font-size:16px">${euro(Math.round((totalEnreg+totalBP)/3))}</div></div>
+    <div class="kpi"><div class="kpi-label">CCA par associé</div><div class="kpi-val" style="font-size:16px">${euro(Math.round((totalEnreg+totalBP)/ASSOCIES.length))}</div></div>
   </div>`;
 
   // --- Tableau synthèse par associé ---
@@ -5791,7 +5780,7 @@ function renderBpRevente(){
  const is = pvTaxable<=BP_PARAMS.isSeuil ? pvTaxable*(BP_PARAMS.isTaux1/100) : BP_PARAMS.isSeuil*(BP_PARAMS.isTaux1/100)+(pvTaxable-BP_PARAMS.isSeuil)*(BP_PARAMS.isTaux2/100);
  const fraisVente = valeur * (BP_PARAMS.fraisVente/100);
  const pvNette = valeur - crd - is - fraisVente;
- const pvAssoc = pvNette / 3;
+ const pvAssoc = pvNette / ASSOCIES.length;
  totalPrix+=b.prix; totalVal+=valeur; totalCRD+=crd; totalIS+=is; totalPV+=pvNette;
  return `<tr>
  <td><div style="font-weight:500;font-size:12px">${b.n}. ${b.nom||b.adresse}</div></td>
@@ -5812,7 +5801,7 @@ function renderBpRevente(){
  <td style="color:var(--red)">${euro(Math.round(totalCRD))}</td>
  <td style="color:var(--amber)">${euro(Math.round(totalIS))}</td>
  <td style="color:var(--green)">${euro(Math.round(totalPV))}</td>
- <td style="color:var(--green)">${euro(Math.round(totalPV/3))}</td>
+ <td style="color:var(--green)">${euro(Math.round(totalPV/ASSOCIES.length))}</td>
  </tr>`;
 }
 
@@ -5825,8 +5814,8 @@ function initMarcheSelects(){
  o.value = q; o.textContent = q;
  sel.appendChild(o);
  });
- // Pré-sélectionner Castellane (bien actuel)
- sel.value = 'Castellane';
+ // Pré-sélectionner le quartier par défaut (fourni par la config)
+ sel.value = window.__BOOT.marcheDefaut || (sel.options[0]&&sel.options[0].value) || '';
  renderMarche();
 }
 
