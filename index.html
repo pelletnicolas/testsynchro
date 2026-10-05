@@ -133,8 +133,18 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
 #dossier-print .tag{display:inline-block;border-radius:99px;padding:2px 11px;font-weight:700;font-size:11px;border:1px solid currentColor}
 #dossier-print .muted{color:#666}
 #dossier-print .note{font-size:10px;color:#666;margin-top:6px}
+#dossier-print .callout{border-left:3px solid #B8944F;background:#faf6ec;padding:6px 10px;margin:8px 0;font-size:11px}
+#dossier-print .callout.alert{border-left-color:#b3261e;background:#fdf1f0}
+#dossier-print .callout.info{border-left-color:#0A2A5A;background:#eef3fa}
+#dossier-print ol,#dossier-print ul{margin:4px 0 8px 20px;padding:0}
+#dossier-print li{margin:2px 0}
+#dossier-print b.ui{color:#0A2A5A;font-weight:700}
+#dossier-print .toc td{border:0;padding:2px 6px}
+#dossier-print .cover{text-align:center;padding-top:60px}
+#dossier-print .cover h1{font-size:30px;margin:26px 0 6px}
+#dossier-print .cover .sub{font-size:14px;color:#555}
 @page{size:A4;margin:14mm}
-@media print{body.printing-dossier>*:not(#dossier-print){display:none!important}body.printing-dossier #dossier-print{display:block!important}#dossier-print h2,#dossier-print h3,#dossier-print table,#dossier-print tr{page-break-inside:avoid}}
+@media print{#dossier-print .pg{page-break-before:always;break-before:page}body.printing-dossier>*:not(#dossier-print){display:none!important}body.printing-dossier #dossier-print{display:block!important}#dossier-print h2,#dossier-print h3,#dossier-print table,#dossier-print tr{page-break-inside:avoid}#dossier-print h2,#dossier-print h3{page-break-after:avoid;break-after:avoid}}
 .imp-dup td{opacity:.55}
 #imp-body td{padding:6px 10px;font-size:12px}
 #imp-body select{padding:3px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)}
@@ -4154,6 +4164,258 @@ function renderProjBanque(){
   <div style="font-size:11px;color:var(--text3);margin-top:8px">Marge restante = mensualité supplémentaire que l'associé pourrait encore porter avant d'atteindre ${crit.tauxEffort} % de taux d'effort.</div>`;
 }
 
+// ============================================================
+// GUIDE D'UTILISATION (PDF) — généré par l'application, donc toujours à jour
+// ============================================================
+function buildGuideHtml(){
+ const U=t=>`<b class="ui">${t}</b>`;
+ const logo=(document.querySelector('#login-overlay picture img')||{}).src||'';
+ const P=BP_PARAMS,cr=projCriteres(),bq=banqueCrit(),sz=(window.MARCHE_PARAMS_ACTIVE||MARCHE_PARAMS).saisons;
+ const n=ASSOCIES.length||1;
+ const fr=v=>String(v).replace('.',',');
+ const SAUT=[3,4,6,14];   // seules les grandes parties démarrent sur une nouvelle page
+ const sec=(num,titre,corps)=>`<h2${SAUT.includes(num)?' class="pg"':''}>${num}. ${titre}</h2>${corps}`;
+ const co=(t,type)=>`<div class="callout${type?' '+type:''}">${t}</div>`;
+ const tab=(head,rows)=>`<table><thead><tr>${head.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+ let h='';
+ // ---- Couverture + sommaire
+ h+=`<div class="cover">${logo?`<img src="${logo}" alt="SCI PERIPE" style="height:120px">`:''}
+  <h1>Guide d'utilisation</h1><div class="sub">Gestion, comptabilité, simulation d'achat et dossier banque</div>
+  <div class="sub" style="margin-top:40px">Version du ${new Date().toLocaleDateString('fr-FR')} — document à destination des associés</div></div>
+  <h2 class="pg" style="margin-top:0">Sommaire</h2>
+  <table class="toc"><tbody>
+  ${['À quoi sert l\'application','Se connecter et naviguer','Gestion : biens, emprunts, locataires','Comptabilité : import Odoo, catégories, comptes courants','Associés : comptes courants et noms','Projection : simuler un achat','Banque : viabilité et dossier PDF','Marché : prix et loyers par quartier','Business Plan','Parcours conseillé et bonnes pratiques','Sécurité, confidentialité et dépannage','Pour la personne qui administre','Glossaire','Annexe : valeurs actuelles des paramètres'].map((t,i)=>`<tr><td style="width:30px"><b>${i+1}</b></td><td>${t}</td></tr>`).join('')}
+  </tbody></table>`;
+ // ---- 1
+ h+=sec(1,'À quoi sert l\'application',`
+  <p>L'application réunit en un seul endroit tout ce dont la SCI a besoin : suivre le patrimoine réel, tenir la comptabilité à jour, répartir les comptes courants d'associés, <strong>simuler un achat</strong> et préparer un <strong>dossier pour la banque</strong>.</p>
+  ${tab(['Espace','Rôle'],[
+   [U('Gestion'),'Le réel : biens, emprunts, locataires, comptabilité (import Odoo), comptes courants des associés.'],
+   [U('Projection'),'Le simulateur d\'achat : on ajoute des biens fictifs pour savoir s\'ils sont intéressants et si le dossier est viable pour une banque. Les données réelles ne sont jamais modifiées.'],
+   [U('Marché'),'Prix, loyers et rendements par quartier, pour situer un bien par rapport au marché.'],
+   [U('Business Plan'),'Le plan d\'acquisition 2026–2035 : portefeuille cible, fiscalité, trésorerie, indicateurs.']])}
+  ${co('<strong>Données partagées :</strong> tous les associés connectés voient les mêmes données, enregistrées de façon sécurisée. Une modification faite par l\'un apparaît chez les autres (rafraîchissement automatique toutes les 15 secondes). Les réglages (critères, hypothèses Airbnb, lien Odoo…) sont partagés eux aussi.','info')}`);
+ // ---- 2
+ h+=sec(2,'Se connecter et naviguer',`
+  <h3>Connexion</h3>
+  <ol><li>Ouvrez le lien de l'application et saisissez votre <strong>email</strong> et votre <strong>mot de passe</strong>. Les comptes sont créés par la personne qui administre l'outil ; il n'est pas possible de s'inscrire soi-même.</li>
+  <li>La session reste ouverte sur l'appareil. Le bouton ${U('Déconnexion')} (en haut) la ferme : utilisez-le sur un ordinateur partagé.</li></ol>
+  <h3>L'écran d'accueil</h3>
+  <p>Après connexion, l'écran d'accueil présente la SCI, ses fonctionnalités et ses associés. Le bouton ${U('Accéder à la gestion →')} ouvre l'application. Vous y retrouvez aussi ce guide : ${U('Guide (PDF)')} dans le menu, ou le bouton ${U('Guide d\'utilisation (PDF)')} ; le bouton ${U('Guide')} reste disponible en haut de l'application.</p>
+  <h3>Navigation</h3>
+  <p>La barre principale propose ${U('Gestion')} · ${U('Projection')} · ${U('Marché')} · ${U('Business Plan')}. Chaque espace a ses sous-onglets juste en dessous. L'apparence suit le réglage clair / sombre de votre appareil.</p>
+  <h3>Le voyant de synchronisation</h3>
+  ${tab(['Indication','Signification'],[
+   ['<span class="ok">● Synchronisé</span>','Tout est enregistré et à jour.'],
+   ['<span class="wa">● Synchronisation…</span>','Un enregistrement est en cours.'],
+   ['<span class="ko">● Non synchronisé</span> + bandeau rouge','Le serveur est injoignable ou refuse l\'accès. Le bandeau en donne la cause. Les modifications faites pendant la coupure sont mises en attente et envoyées dès le retour : <strong>ne rechargez pas la page avant la synchronisation</strong>.']])}
+  ${co('Après une mise à jour de l\'application, rechargez la page avec <strong>Ctrl+Maj+R</strong> (Cmd+Maj+R sur Mac) pour être sûr d\'utiliser la dernière version.')}`);
+ // ---- 3
+ h+=sec(3,'Gestion : biens, emprunts, locataires',`
+  <h3>Dashboard</h3>
+  <p>Vue d'ensemble du patrimoine : nombre de biens, valeur estimée, capital restant dû, valeur nette de la SCI, trésorerie, mensualités et loyers encaissés. En dessous : alertes et statuts, derniers mouvements, et les graphiques (répartition de la valeur, par type de bien, cash-flow mensuel par bien, avancement des remboursements).</p>
+  <h3>Biens</h3>
+  <p>Le bouton ${U('+ Ajouter un bien')} ouvre le formulaire : identification, acquisition (prix, notaire, travaux), emprunt (capital, taux, durée, début), location, <strong>mode de gestion</strong>, charges annuelles (copropriété, taxe foncière, assurance PNO, entretien) et <strong>apports des associés</strong> en compte courant. Cliquez sur un bien pour ouvrir sa fiche, la modifier ou le supprimer.</p>
+  ${tab(['Mode de gestion','Principe','Revenu affiché'],[
+   ['<strong>C</strong> — Longue durée','Loyer × 12 mois','Loyer + charges'],
+   ['<strong>A</strong> — Bail meublé 9 mois + Airbnb été','Bail hors été, Airbnb en juin–août','Loyer + charges (l\'Airbnb d\'été est détaillé dans la fiche du bien)'],
+   ['<strong>B</strong> — Full Airbnb','Airbnb toute l\'année, selon la saisonnalité','Moyenne mensuelle du chiffre d\'affaires Airbnb']])}
+  ${co('<strong>Hypothèses Airbnb :</strong> le bouton '+U('⚙ Hypothèses Airbnb')+' (Gestion, Projection, Business Plan et formulaires) règle, par saison, le nombre de nuits louées, le taux d\'occupation et le multiplicateur de prix. Le prix saisi sur un bien est celui d\'une nuit en <em>saison moyenne</em>. Ces hypothèses s\'appliquent à tous les biens en mode A ou B, partout dans l\'application.','info')}
+  ${co('<strong>Supprimer un bien</strong> supprime ses apports en compte courant, mais jamais les lignes de la Comptabilité.')}
+  <h3>Emprunt</h3>
+  <p>Un tableau d'amortissement par bien : capital remboursé, intérêts et capital restant dû.</p>
+  <h3>Locataires</h3>
+  <p>Situation de chaque bien : loué, bail signé en attente, non loué ou Airbnb, avec le total encaissable.</p>`);
+ // ---- 4
+ h+=sec(4,'Comptabilité : import Odoo, catégories, comptes courants',`
+  <p>L'onglet ${U('Comptabilité')} (dans Gestion) est le journal de la SCI. La comptabilité est tenue dans <strong>Odoo</strong> ; l'application la récupère par <strong>import</strong>. <strong>Aucune ligne n'est créée automatiquement</strong> quand vous ajoutez un bien : il n'y a donc pas de doublon.</p>
+  <h3>Aller dans Odoo</h3>
+  <p>Le bouton ${U('Accéder à Odoo')} ouvre Odoo dans un nouvel onglet. Le lien est modifiable (${U('Modifier le lien')}) : saisissez l'adresse de votre base (par exemple <em>votre-sci.odoo.com</em>) ; il est partagé entre associés.</p>
+  <h3>Importer un export Odoo</h3>
+  <ol>
+   <li>Dans Odoo, ouvrez la liste des <strong>transactions bancaires</strong>, cochez les lignes, puis ${U('Actions')} → ${U('Exporter')} au format <strong>XLSX</strong> ou <strong>CSV</strong>. Cochez au minimum <strong>Date</strong>, <strong>Libellé</strong> et <strong>Montant</strong> (ou <strong>Débit</strong> et <strong>Crédit</strong>), et idéalement <strong>ID</strong>.</li>
+   <li>Dans l'application, cliquez sur ${U('Importer un export Odoo')} et choisissez le fichier. Les colonnes sont reconnues automatiquement (modifiables).</li>
+   <li>Vérifiez l'aperçu : chaque ligne a une <strong>catégorie proposée</strong> et un statut <em>Nouvelle</em> ou <em>Déjà présente</em> (décochée). Vous pouvez ignorer ce qui précède une date.</li>
+   <li>Cliquez sur ${U('Importer')}.</li></ol>
+  ${co('<strong>Réimporter sans risque :</strong> grâce à l\'identifiant Odoo (colonne ID), une ligne déjà importée n\'est jamais recréée, même si vous l\'avez renommée ou reclassée. Sans ID, l\'appli compare la date, le montant et le libellé.','info')}
+  <h3>Les catégories</h3>
+  ${tab(['Catégorie','Usage'],[
+   ['Loyers / Loyers Airbnb','Encaissements locatifs (les virements Airbnb sont reconnus à l\'import).'],
+   ['Autre produit','Autres recettes : indemnités d\'assurance, remboursements reçus, intérêts…'],
+   ['Remboursement emprunt','Échéances de prêt.'],
+   ['Dépense','Charges, frais, taxes, travaux.'],
+   ['Compte courant associé','Argent apporté ou retiré par un associé (voir ci-dessous).'],
+   ['Non classé','Lignes que l\'import n\'a pas su classer : à classer vous-même.']])}
+  <p><strong>Changer une catégorie :</strong> liste déroulante sur chaque ligne. <strong>Plusieurs lignes :</strong> utilisez la recherche (par exemple « airbnb »), les filtres par catégorie ou par origine (Odoo, créées automatiquement, saisies à la main), cochez les lignes, puis ${U('Changer la catégorie…')}.</p>
+  <h3>Compte courant associé : transfert automatique vers l'onglet Associés</h3>
+  <p>Quand vous classez une ligne en ${U('Compte courant associé')}, une fenêtre demande <strong>quel associé</strong>. La ligne est alors inscrite dans le compte courant de cet associé (étiquette <em>Compta</em> dans l'onglet Associés) : un montant reçu est un <strong>apport</strong>, un montant versé est un <strong>remboursement</strong>.</p>
+  <ul><li>Si un apport identique (même associé, même montant) a déjà été saisi, la ligne s'y <strong>rattache</strong> au lieu de créer un doublon ; un message le précise.</li>
+  <li>À l'import, si le libellé contient le nom d'un seul associé, la ligne est rattachée automatiquement.</li>
+  <li>Changer l'associé ou la catégorie met à jour l'onglet Associés ; supprimer la ligne supprime l'écriture qu'elle avait créée.</li></ul>
+  <h3>Autres actions</h3>
+  <ul><li><strong>Modifier le libellé</strong> : crayon sur la ligne (ou clic sur le texte), Entrée pour enregistrer, Échap pour annuler. Le libellé d'origine est mémorisé pour éviter les doublons au réimport.</li>
+  <li><strong>Supprimer</strong> : corbeille sur la ligne, ou cases à cocher puis ${U('Supprimer la sélection')}. Une confirmation est demandée.</li>
+  <li>${U('+ Mouvement')} : saisie manuelle d'une ligne. ${U('Export CSV')} : télécharge le journal.</li>
+  <li>Étiquettes : <em>Odoo</em> (importée), <em>Auto</em> (créée par une ancienne version de l'appli), aucune (saisie à la main). Si des lignes <em>Auto</em> existent, un bandeau propose de les supprimer.</li></ul>`);
+ // ---- 5
+ h+=sec(5,'Associés : comptes courants et noms',`
+  <p>L'onglet ${U('Associés')} (Gestion) affiche le solde du compte courant de chaque associé, sa part des apports, et le journal des mouvements. Les écritures viennent de la saisie des apports d'un bien, de ${U('+ Mouvement CCA')}, ou de la Comptabilité (étiquette <em>Compta</em>). Chaque écriture peut être modifiée ou supprimée.</p>
+  <h3>Renommer ou ajouter un associé</h3>
+  <p>Le bouton ${U('⚙ Gérer les associés')} permet de <strong>renommer</strong> un associé (son historique suit automatiquement) ou d'<strong>en ajouter</strong>. Les nouveaux associés apparaissent partout : listes, apports par bien, soldes. Contraintes : nom unique, 30 caractères maximum, sans les caractères <code>' " \ &lt; &gt; &amp; $</code>, et un nom ne doit pas être contenu dans un autre. Il n'est pas possible de supprimer un associé.</p>
+  ${co('Pour ajouter une personne qui doit aussi se <strong>connecter</strong>, il faut en plus créer son compte (voir la partie administration).','info')}`);
+ // ---- 6
+ h+=sec(6,'Projection : simuler un achat',`
+  <p>L'espace ${U('Projection')} sert à répondre à deux questions : <strong>le bien est-il intéressant ?</strong> puis <strong>le dossier est-il viable pour une banque ?</strong> (onglet Banque, partie suivante). Tout ce qui est saisi ici est fictif et n'altère pas les données réelles ; les biens fictifs sont partagés entre associés.</p>
+  <h3>Capacité d'achat</h3>
+  <p>En haut de l'onglet ${U('Analyse d\'achat')} : la trésorerie disponible (solde de la Comptabilité), l'apport à mobiliser pour vos achats envisagés (part payée par la trésorerie et part en comptes courants), et la trésorerie qui resterait. Le calculateur ${U('Que puis-je acheter ?')} donne le <strong>prix maximum</strong> selon l'apport disponible, les frais, la part financée, le taux et la durée, avec la mensualité et le <strong>loyer minimum pour s'autofinancer</strong>.</p>
+  <h3>Ajouter un bien fictif</h3>
+  <p>Bouton ${U('+ Bien fictif')}. Renseignez :</p>
+  <ul><li><strong>Quartier</strong>, <strong>état du bien</strong> (Ancien, Ancien à rénover, Récent, Neuf), type et <strong>surface</strong> : ils servent à comparer le bien au marché.</li>
+  <li>Prix, date d'achat, frais de notaire (estimés à 8 % si vides), travaux ; emprunt (capital, taux, durée) ; loyer et mode de gestion A / B / C ; charges annuelles.</li>
+  <li><strong>Financement de l'apport</strong> : par les <em>comptes courants des associés</em> (par défaut), par la <em>trésorerie de la SCI</em>, ou les deux. La part en comptes courants se répartit <strong>à parts égales</strong> entre les associés cochés, ou par <strong>montants personnalisés</strong> pour chaque associé (si le total saisi diffère, les montants sont ajustés proportionnellement ; un indicateur le signale).</li></ul>
+  <p>Un aperçu en direct affiche le coût total, l'apport, la mensualité, le cash-flow, les rendements, l'écart avec le marché et le verdict. Raccourci : dans l'onglet Marché, ${U('Simuler un achat ici →')} crée un bien fictif au prix du marché.</p>
+  <h3>Les critères et le verdict</h3>
+  <p>En haut de l'onglet, vous réglez ce qui rend un bien « intéressant » : <strong>rendement net minimum</strong>, <strong>cash-flow minimum</strong>, <strong>horizon</strong> du gain net, et le critère <strong>Marché</strong> (prix ≤ marché +x %, loyer prévu ≤ marché +y %). Verdict : <span class="ok">Intéressant</span> si tous les critères sont respectés, <span class="ko">Peu intéressant</span> si aucun, <span class="wa">À surveiller</span> sinon. Ces réglages sont partagés.</p>
+  <h3>La fiche d'un achat</h3>
+  <ul><li><strong>Tuiles</strong> : coût total, emprunt, apport (et sa source), mensualité, revenu, charges, cash-flow, rendement brut et net, rentabilité sur apport, prix vs marché, gain net, rentabilité annuelle.</li>
+  <li><strong>Positionnement par rapport au marché</strong> : prix et loyer comparés à ceux du quartier (étiquettes <em>Sous le marché</em>, <em>Dans le marché</em>, <em>Au-dessus du marché</em>). Un bien à rénover est comparé travaux compris.</li>
+  <li><strong>Tests de résistance</strong> : taux +1 point, loyers −10 %, un mois de vacance par an, charges +10 %, et les quatre combinés.</li>
+  <li><strong>Négociation</strong> : effet d'une baisse de prix de 5, 10 ou 15 %, et prix à viser pour atteindre vos critères.</li>
+  <li><strong>Ce que rapporte le bien si on le garde</strong> : <em>aucune revente n'est supposée</em> (en SCI à l'IS, la plus-value se calcule sur la valeur nette comptable et est lourdement taxée). Gain net = cash-flow cumulé après impôt + capital remboursé − frais d'acquisition. Seul le cash-flow est encaissé ; le capital remboursé réduit la dette.</li></ul>
+  <p>Dès deux achats, un <strong>comparateur</strong> les classe (colonnes triables, meilleure valeur en vert). Le crayon modifie un bien fictif ; ${U('↺ Réinitialiser')} les efface tous.</p>
+  <h3>Les autres onglets de la Projection</h3>
+  <ul><li>${U('Biens')} : liste du portefeuille projeté (réel + fictif). ${U('Emprunt')} : tableaux d'amortissement.</li>
+  <li>${U('Trésorerie')} : encaissements et décaissements mois par mois sur 10 ans. La colonne <em>Apport CCA</em> ne contient que la part payée en comptes courants.</li>
+  <li>${U('Résultat & IS')} : résultat fiscal simplifié (loyers − intérêts − charges − amortissement) et impôt sur les sociétés. ${U('CCA')} : apports estimés par associé pour les biens fictifs.</li></ul>`);
+ // ---- 7
+ h+=sec(7,'Banque : viabilité et dossier PDF',`
+  <p>L'onglet ${U('Banque')} (dans Projection) évalue si le projet tient devant un établissement de crédit.</p>
+  <ul><li><strong>Critères bancaires</strong> modifiables : part des loyers retenue par la banque (70 %), couverture minimale, apport minimum, réserve de trésorerie, durée maximale, part du prix finançable, taux d'effort maximal des associés. Ce sont des repères usuels : chaque banque a sa grille, ajustez-les selon ce qu'elle vous indique.</li>
+  <li><strong>La SCI avant / après vos achats</strong> : loyers, mensualités, cash-flow, couverture par les loyers retenus, endettement, point bas de trésorerie sur 10 ans, besoin de financement et <strong>capacité d'emprunt supplémentaire</strong>.</li>
+  <li><strong>Viabilité de chaque projet</strong> : une carte par bien (et une pour l'ensemble) avec le verdict <span class="ok">Prêt pour la banque</span> / <span class="wa">À consolider</span> / <span class="ko">Fragile</span>, la liste des contrôles (certains sont bloquants) et un encadré « Que faire avant de voir la banque ? ».</li>
+  <li><strong>Capacité d'endettement des associés</strong> (facultatif) : revenus nets et crédits en cours de chacun, taux d'effort actuel et avec leur quote-part de la dette de la SCI.</li></ul>
+  ${co('<strong>Confidentialité :</strong> les revenus et crédits personnels sont enregistrés dans l\'application et visibles par tous les associés connectés. Ne les renseignez que si vous en êtes d\'accord ; laissez vide sinon.','alert')}
+  <h3>Le dossier banque (PDF)</h3>
+  <p>Choisissez le projet (ou tous), cochez éventuellement <em>avec la situation des associés</em>, puis cliquez sur ${U('Dossier banque (PDF)')}. L'impression s'ouvre : choisissez <strong>Enregistrer au format PDF</strong>. Le dossier comprend : la présentation de la SCI et de son patrimoine, le plan de financement, les tests de résistance, la situation avant / après, le financement de l'apport, les points forts et d'attention, et les hypothèses. La situation personnelle des associés n'y figure que si vous l'avez cochée.</p>`);
+ // ---- 8
+ h+=sec(8,'Marché : prix et loyers par quartier',`
+  <p>L'espace ${U('Marché')} regroupe les données de prix et de loyers de ${MARKET.quartiers.length} quartiers.</p>
+  <ul><li>${U('Analyse quartier')} : choisissez un quartier, une surface et un type (Ancien, Récent, Neuf) pour obtenir le prix d'achat estimé, les loyers nu et meublé, l'Airbnb, les rendements bruts et un comparatif par type. ${U('Simuler un achat ici →')} en fait un bien fictif.</li>
+  <li>${U('Classement rentabilité')} : les quartiers classés par rendement.</li>
+  <li>${U('Base de données')} : les prix par quartier, modifiables si vous disposez de meilleures références.</li>
+  <li>${U('Paramètres')} : indices de marché (multiplicateurs par type de bien, coefficients de surface, ratio meublé / nu, coefficients Airbnb, saisonnalité). ${U('↺ Réinitialiser')} remet les valeurs d'origine.</li></ul>
+  ${co('Les valeurs modifiées dans le Marché alimentent <strong>toute l\'application</strong> : comparaison au marché des biens fictifs, Airbnb de la Gestion, de la Projection et du Business Plan.','info')}`);
+ // ---- 9
+ h+=sec(9,'Business Plan',`
+  <p>Le ${U('Business Plan')} est le plan global d'acquisition de la SCI sur 2026–2035 (à distinguer de la Projection, qui sert à tester un achat précis).</p>
+  ${tab(['Onglet','Contenu'],[
+   [U('Dashboard'),'Synthèse du plan.'],
+   [U('Portefeuille'),'Les biens du plan (adresse, type, mode, date, prix, crédit, apport en compte courant, rendement). ' + U('+ Ajouter un bien') + ' ajoute un bien au plan.'],
+   [U('Projection'),'Projection annuelle 2026–2035.'],
+   [U('Frise chronologique'),'Calendrier des acquisitions.'],
+   [U('Fiscalité IS'),'Calcul de l\'impôt sur les sociétés par bien et par année, valeur nette comptable.'],
+   [U('KPI'),'Encours de dette, endettement (LTV), couverture de la dette (DSCR), valeur du portefeuille.'],
+   [U('Simulation revente'),'Simulation d\'une revente en fin de période (le BP a ses propres hypothèses ; l\'analyse d\'achat de la Projection, elle, ne suppose aucune revente).'],
+   [U('Trésorerie mensuelle'),'Flux mensuels du plan.'],
+   [U('Paramètres'),'Hypothèses globales (taux, durée, indexation, charges, impôt, frais de vente, seuils d\'alerte). ' + U('↺ Réinitialiser') + ' remet les valeurs d\'origine.'],
+   [U('CCA Associés'),'Apports prévus par associé selon le plan.']])}`);
+ // ---- 10
+ h+=sec(10,'Parcours conseillé et bonnes pratiques',`
+  <h3>Au quotidien</h3>
+  <ol><li>Exporter les transactions bancaires depuis Odoo et les <strong>importer</strong> dans l'onglet Comptabilité.</li>
+  <li>Classer les lignes <em>Non classé</em> (recherche + sélection + changement groupé) et attribuer les <em>Comptes courants associés</em>.</li>
+  <li>Contrôler l'onglet Associés (soldes et parts) et le Dashboard.</li></ol>
+  <h3>Avant un achat</h3>
+  <ol><li>Dans <strong>Marché</strong>, repérer le quartier et cliquer sur <em>Simuler un achat ici</em>, ou ajouter directement un bien fictif.</li>
+  <li>Dans <strong>Analyse d'achat</strong> : ajuster le prix, le loyer, les charges, le financement et l'apport ; lire le verdict, les tests de résistance et la négociation.</li>
+  <li>Dans <strong>Banque</strong> : vérifier les contrôles, puis générer le <strong>dossier PDF</strong> pour la banque.</li></ol>
+  ${co('<strong>Éviter les doublons :</strong> un même apport ne doit venir que d\'une source. Soit saisi à l\'ajout d\'un bien, soit classé depuis une ligne bancaire (l\'appli rattache les deux quand elle reconnaît le même associé et le même montant).')}
+  ${co('<strong>Renommer un associé</strong> avant de saisir beaucoup de données reste le plus simple, même si l\'historique suit ensuite le nouveau nom.')}`);
+ // ---- 11
+ h+=sec(11,'Sécurité, confidentialité et dépannage',`
+  <h3>Sécurité</h3>
+  <ul><li>Chaque associé a son <strong>compte personnel</strong> (email + mot de passe). Ne partagez pas votre mot de passe ; déconnectez-vous sur un appareil partagé.</li>
+  <li>Seuls les comptes autorisés par l'administrateur peuvent lire ou écrire les données. Un compte non autorisé voit un message d'erreur (erreur 401).</li>
+  <li>Les revenus et crédits personnels des associés (onglet Banque) sont facultatifs et visibles de tous les associés connectés.</li></ul>
+  <h3>Dépannage</h3>
+  ${tab(['Constat','Que faire'],[
+   ['Bandeau rouge « accès refusé (401) »','Votre compte n\'est pas encore autorisé : contactez l\'administrateur (voir partie suivante).'],
+   ['« Configuration absente ou incomplète »','Les données de configuration n\'ont pas été chargées côté serveur : contactez l\'administrateur.'],
+   ['Rien ne change après une mise à jour','Rechargez avec Ctrl+Maj+R, ou ouvrez le lien en navigation privée.'],
+   ['Un fichier XLSX est illisible à l\'import','Réexportez depuis Odoo au format CSV, et utilisez un navigateur à jour.'],
+   ['Des modifications semblent « en attente »','La connexion a coupé : laissez la page ouverte, elles seront envoyées au retour du réseau.'],
+   ['Le PDF n\'est pas proposé','Dans la fenêtre d\'impression, choisissez « Enregistrer au format PDF » comme destination.']])}`);
+ // ---- 12
+ h+=sec(12,'Pour la personne qui administre',`
+  <ul><li><strong>Ajouter un associé qui doit se connecter</strong> : dans la console Firebase, créer son compte (Authentication → Utilisateurs), copier son identifiant (UID) et l'ajouter aux règles de la base de données ; puis, dans l'application, ${U('⚙ Gérer les associés')} pour qu'il apparaisse dans les listes.</li>
+  <li><strong>Retirer l'accès</strong> : supprimer le compte (ou son UID des règles).</li>
+  <li><strong>Sauvegarde</strong> : dans Realtime Database, menu ⋮ → exporter au format JSON, à conserver hors du dépôt de code.</li>
+  <li><strong>Données de configuration</strong> (marché, plan du BP, accueil) : elles se trouvent dans la base, pas dans le fichier de l'application. Le fichier d'import ne doit pas être publié sur git.</li>
+  <li><strong>Mettre à jour l'application</strong> : remplacer le fichier <code>index.html</code> (en conservant la clé API) et recharger avec Ctrl+Maj+R.</li></ul>`);
+ // ---- 13
+ h+=sec(13,'Glossaire',tab(['Terme','Définition'],[
+  ['CCA (compte courant d\'associé)','Somme prêtée à la SCI par un associé (apport) ou qui lui est remboursée.'],
+  ['IS','Impôt sur les sociétés : la SCI y est soumise ; taux réduit puis taux normal selon le résultat.'],
+  ['VNC','Valeur nette comptable : prix d\'acquisition diminué des amortissements. En SCI à l\'IS, la plus-value de revente se calcule par rapport à elle.'],
+  ['Cash-flow','Loyers moins mensualités et charges (avant impôt dans les fiches d\'achat).'],
+  ['Rendement brut / net','Brut : revenu annuel ÷ prix. Net : (revenu − charges) annuels ÷ coût total.'],
+  ['Apport','Part du coût total (prix + frais) non financée par l\'emprunt.'],
+  ['Loyers retenus','Part des loyers que la banque accepte de prendre en compte (souvent 70 à 80 %).'],
+  ['Couverture','Loyers retenus ÷ mensualités. Elle doit atteindre le seuil fixé dans les critères bancaires.'],
+  ['Endettement (LTV)','Capital restant dû ÷ valeur du patrimoine.'],
+  ['DSCR','Rapport entre les revenus disponibles et le service de la dette (indicateur du Business Plan).'],
+  ['Taux d\'effort','Part des revenus d\'un associé consacrée à ses crédits ; les banques retiennent souvent 35 %.'],
+  ['HCSF','Haut Conseil de stabilité financière : fixe le cadre du crédit aux ménages (35 % d\'effort, 25 ans).']]));
+ // ---- Annexe (valeurs actuelles)
+ h+=sec(14,'Annexe : valeurs actuelles des paramètres',`
+  <p class="muted">Ces valeurs sont lues dans l'application au moment de la génération du guide.</p>
+  <h3>Hypothèses du Business Plan (onglet Paramètres)</h3>
+  ${tab(['Paramètre','Valeur'],[
+   ['Taux d\'intérêt / durée du crédit',fr(P.taux)+' % sur '+Math.round(P.duree/12)+' ans'],
+   ['Frais d\'acquisition par défaut',euro(P.fraisAcq)],
+   ['Revalorisation de l\'immobilier / des loyers (IRL)',fr(P.immoHausse)+' %/an · '+fr(P.irl)+' %/an'],
+   ['Charges par défaut : copropriété · taxe foncière · assurance PNO',euro(P.coproAn)+' · '+euro(P.fonciereAn)+' · '+euro(P.assurAn)+' par an'],
+   ['Provision d\'entretien',fr(P.entretienCoeff)+' % du prix par an'],
+   ['IS : taux réduit jusqu\'au seuil, puis taux normal',fr(P.isTaux1)+' % jusqu\'à '+euro(P.isSeuil)+', puis '+fr(P.isTaux2)+' %'],
+   ['CFE annuelle de la SCI',euro(P.cfeAn)],
+   ['Frais de vente (simulation de revente du BP)',fr(P.fraisVente)+' %'],
+   ['Seuils d\'alerte : cash-flow mensuel · cumul de trésorerie',euro(P.cfAlerte)+' · '+euro(P.cumulAlerte)]])}
+  <h3>Hypothèses Airbnb par saison</h3>
+  ${tab(['Saison','Mois','Nuits louées / mois','Taux d\'occupation','Multiplicateur de prix'],sz.map(z=>[escH(z.label),escH(z.mois),fr(z.nuits),Math.round(z.nuits/JOURS_MOIS*100)+' %','× '+Number(z.multi).toFixed(2).replace('.',',')]))}
+  <h3>Critères d'intérêt d'un achat (Projection)</h3>
+  ${tab(['Critère','Valeur'],[
+   ['Rendement net minimum',fr(cr.rdtNet)+' %'],['Cash-flow minimum',euro(cr.cf)+' par mois'],['Horizon du gain net',cr.horizon+' ans'],
+   ['Critère marché',cr.marche?('actif : prix ≤ marché '+(cr.prixMarche>=0?'+':'−')+Math.abs(cr.prixMarche)+' %, loyer ≤ marché +'+cr.loyerMarche+' %'):'désactivé']])}
+  <h3>Critères bancaires (onglet Banque)</h3>
+  ${tab(['Critère','Valeur'],[
+   ['Part des loyers retenue',bq.loyersPct+' %'],['Couverture minimale (loyers retenus ÷ mensualités)',Math.round(bq.couvMin*100)+' %'],['Apport minimum',bq.apportMin+' % du coût total'],
+   ['Réserve de trésorerie après apport',bq.reserveMois+' mois de mensualités'],['Durée maximale du prêt',bq.dureeMax+' ans'],['Part du prix finançable',bq.financeMax+' %'],['Taux d\'effort maximal des associés',bq.tauxEffort+' %']])}
+  <div class="note" style="margin-top:14px;border-top:0.5px solid #ccc;padding-top:6px">Associés actuellement déclarés : ${ASSOCIES.map(a=>escH(a.n)).join(', ')}. Les simulations de l'application sont indicatives : elles ne constituent ni une offre de prêt ni un conseil financier.</div>`);
+ return h;
+}
+// Impression d'un document dans la zone dédiée, avec un nom de fichier PDF lisible
+let docTitleBackup=null;
+function printDocument(html,titre){
+ document.getElementById('dossier-print').innerHTML=html;
+ document.body.classList.add('printing-dossier');
+ clearTimeout(dossierTimer);dossierTimer=setTimeout(()=>{document.body.classList.remove('printing-dossier');restoreDocTitle();},120000);
+ if(docTitleBackup===null)docTitleBackup=document.title;
+ document.title=titre;                                   // nom proposé pour le fichier PDF
+ setTimeout(()=>{try{window.print();}catch(e){showToast('Impression indisponible dans ce navigateur');restoreDocTitle();}},60);
+}
+function restoreDocTitle(){if(docTitleBackup!==null){document.title=docTitleBackup;docTitleBackup=null;}}
+function openGuidePdf(){printDocument(buildGuideHtml(),'Guide utilisation SCI PERIPE');}
+// Boutons du guide : écran d'accueil (menu + bouton principal) et barre du haut
+function injectGuideButtons(){
+ const links=document.querySelector('#screen-accueil .ac-nav-links');
+ if(links&&!document.getElementById('ac-guide-link')){const a=document.createElement('a');a.id='ac-guide-link';a.textContent='Guide (PDF)';a.onclick=openGuidePdf;links.appendChild(a);}
+ const cta=document.querySelector('#screen-accueil .ac-cta');
+ if(cta&&!document.getElementById('ac-guide-btn')){const b=document.createElement('button');b.id='ac-guide-btn';b.className='ac-btn-outline';b.textContent='Guide d\'utilisation (PDF)';b.onclick=openGuidePdf;cta.appendChild(b);}
+ const lo=document.getElementById('btn-logout');
+ if(lo&&!document.getElementById('btn-guide')){const g=document.createElement('button');g.id='btn-guide';g.className=lo.className;g.textContent='Guide';g.title='Guide d\'utilisation (PDF)';g.onclick=openGuidePdf;lo.parentNode.insertBefore(g,lo);}
+}
+injectGuideButtons();
+
 // ---- Dossier banque : document A4 prêt à imprimer / enregistrer en PDF ----
 function buildDossierHtml(selId,inclAssoc){
  const crit=banqueCrit(),fictAll=loadProjBiens();
@@ -4227,12 +4489,9 @@ let dossierTimer=null;
 function openDossierBanque(){
  if(!loadProjBiens().length){showToast('Ajoutez d\'abord un achat envisagé (onglet Analyse d\'achat)');return;}
  const selId=document.getElementById('banque-sel').value||'all',incl=document.getElementById('banque-assoc').checked;
- document.getElementById('dossier-print').innerHTML=buildDossierHtml(selId,incl);
- document.body.classList.add('printing-dossier');
- clearTimeout(dossierTimer);dossierTimer=setTimeout(()=>document.body.classList.remove('printing-dossier'),120000);
- setTimeout(()=>{try{window.print();}catch(e){showToast('Impression indisponible dans ce navigateur');}},60);
+ printDocument(buildDossierHtml(selId,incl),'Dossier banque SCI PERIPE');
 }
-window.addEventListener('afterprint',()=>document.body.classList.remove('printing-dossier'));
+window.addEventListener('afterprint',()=>{document.body.classList.remove('printing-dossier');restoreDocTitle();});
 
 // ---- Capacité d'achat : trésorerie disponible, apport nécessaire, prix maximum ----
 let projCap={apport:null,taux:null,ans:null,frais:8,fin:100};
