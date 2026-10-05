@@ -1128,6 +1128,18 @@ canvas{max-width:100%;display:block}
  <div id="pb-mens-preview" style="font-size:12px;color:var(--text3);background:var(--surface2);border-radius:var(--radius);padding:8px 12px;margin-bottom:4px">
  Mensualité estimée : <strong>—</strong>
  </div>
+ <div class="sl" style="margin-top:4px">Financement de l'apport</div>
+ <div class="two-col">
+ <div class="fg"><label>L'apport est payé par</label>
+ <select id="pb-apport-mode" onchange="pbApportModeChanged()">
+ <option value="cca">Comptes courants des associés</option>
+ <option value="treso">Trésorerie de la SCI</option>
+ <option value="mixte">Les deux (à répartir)</option>
+ </select></div>
+ <div class="fg" id="pb-apport-treso-wrap" style="display:none"><label>dont payé par la trésorerie (€)</label><input id="pb-apport-treso" type="number" placeholder="0" oninput="updatePbPreview()"></div>
+ </div>
+ <div id="pb-apport-assocs" style="display:none;font-size:12px;color:var(--text2);margin-bottom:6px"></div>
+ <div id="pb-apport-resume" style="font-size:12px;color:var(--text3);margin-bottom:4px"></div>
  <div class="sl" style="margin-top:4px">Revenu locatif</div>
  <div class="two-col">
  <div class="fg"><label>Loyer prévu HC (€/mois)</label><input id="pb-loyer" type="number" placeholder="700" oninput="updatePbPreview()"></div>
@@ -3592,7 +3604,20 @@ function projAnalyse(b){
   okCf=cf>=cr.cf;okRdt=rdtNet>=cr.rdtNet;
   verdict=okCf&&okRdt?'bon':(okCf||okRdt?'moyen':'faible');
  }
- return {prix,frais,coutTotal,credit,apport,mens,rev,charges,chargesSaisies,cf,rdtBrut,rdtNet,coc,verdict,okCf,okRdt,crit:cr};
+ const sp=projApportSplit(b,apport);
+ return {prix,frais,coutTotal,credit,apport,apportTreso:sp.treso,apportCca:sp.cca,apportSplit:sp,mens,rev,charges,chargesSaisies,cf,rdtBrut,rdtNet,coc,verdict,okCf,okRdt,crit:cr};
+}
+// Répartition de l'apport d'un achat fictif : part payée par la trésorerie de la SCI, part apportée en compte courant par les associés
+function projApportSplit(b,total){
+ total=Math.max(0,Number(total)||0);
+ const mode=b.apportMode||'cca';
+ let treso=0;
+ if(mode==='treso')treso=total;
+ else if(mode==='mixte')treso=Math.min(total,Math.max(0,Number(b.apportTreso)||0));
+ const cca=Math.max(0,total-treso);
+ const ks=(Array.isArray(b.apportAssocs)?b.apportAssocs:[]).filter(k=>assocByK(k));
+ const assocs=ks.length?ks:ASSOCIES.map(a=>a.k);
+ return {mode,total,treso,cca,assocs,perAssoc:assocs.length?cca/assocs.length:0};
 }
 function projVerdictBadge(v){
  const t={bon:['badge-ok','Intéressant'],moyen:['badge-warn','À surveiller'],faible:['badge-red','Peu intéressant'],nodata:['badge-info','Loyer à renseigner']}[v]||['badge-info','—'];
@@ -3699,7 +3724,7 @@ function projHorizon(b,years,o){
 }
 
 // Trésorerie des 10 prochaines années, à partir du solde réel de la Comptabilité
-// (l'apport de chaque achat fictif sort de la trésorerie le mois de l'achat)
+// (la part d'apport payée par la trésorerie sort de la caisse le mois de l'achat ; la part en compte courant d'associé est neutre)
 function projForward(opts){
  opts=opts||{};
  const years=opts.years||10,inclF=opts.fictif||(()=>true);
@@ -3711,7 +3736,7 @@ function projForward(opts){
  const items=biens.map(b=>{
   const pb=bienToProj(b),p=pb.date.split('/');
   const achat=parseInt(p[2])*12+parseInt(p[1]);
-  return {b,pb,an:parseInt(p[2]),achat,idx:b._fictif?Math.max(achat,startIdx):achat,mens:bienMensualite(b),charges:projChargesMois(pb),apport:b._fictif?projAnalyse(b).apport:0};
+  return {b,pb,an:parseInt(p[2]),achat,idx:b._fictif?Math.max(achat,startIdx):achat,mens:bienMensualite(b),charges:projChargesMois(pb),apport:b._fictif?projAnalyse(b).apportTreso:0};
  });
  let min=cumul,minAt={an:y0,m:m0};const months=[];
  for(let i=0;i<years*12;i++){
@@ -3739,9 +3764,10 @@ function projSci(fictifFn,crit){
  const sum=f=>biens.reduce((s,b)=>s+f(b),0);
  const rev=sum(b=>bienRevenuMensuel(b)),mens=sum(b=>bienMensualite(b)),charges=sum(b=>projChargesMois(bienToProj(b)));
  const crd=sum(b=>Number(b.capitalRestant||b.capital)||0),valeur=sum(b=>valeurBien(b));
- const apportF=biens.filter(b=>b._fictif).reduce((s,b)=>s+projAnalyse(b).apport,0);
+ const fa=biens.filter(b=>b._fictif).map(projAnalyse);
+ const apportF=fa.reduce((s,a)=>s+a.apport,0),apportTresoF=fa.reduce((s,a)=>s+a.apportTreso,0),apportCcaF=fa.reduce((s,a)=>s+a.apportCca,0);
  crit=crit||banqueCrit();
- return {n:biens.length,rev,mens,charges,cf:rev-mens-charges,crd,valeur,apportF,
+ return {n:biens.length,rev,mens,charges,cf:rev-mens-charges,crd,valeur,apportF,apportTresoF,apportCcaF,
   ltv:valeur>0?crd/valeur*100:null,couv:mens>0?rev*crit.loyersPct/100/mens:null};
 }
 // Capacité d'emprunt supplémentaire : mensualités maximales pour que les loyers retenus couvrent la dette
@@ -3785,8 +3811,8 @@ function projViabiliteCore(m,crit){
  add('duree',m.dureeMois/12<=crit.dureeMax,'warn','Durée du prêt',Math.round(m.dureeMois/12)+' ans · plafond '+crit.dureeMax+' ans');
  const cf=m.rev-m.mens-m.charges;
  add('cf',cf>=0,'warn','Autofinancement (cash-flow ≥ 0)',cf>=0?'+'+euro(cf,0)+'/mois':euro(cf,0)+'/mois à compléter par les associés');
- const res=m.fwd.start-m.apport;
- add('reserve',res>=crit.reserveMois*m.sciApres.mens,'warn','Réserve de trésorerie après apport',euro(res,0)+' · '+(m.sciApres.mens>0?(res/m.sciApres.mens).toFixed(1):'—')+' mois de mensualités (objectif '+crit.reserveMois+')');
+ const res=m.fwd.start-(m.apportTreso==null?m.apport:m.apportTreso);
+ add('reserve',res>=crit.reserveMois*m.sciApres.mens,'warn','Réserve de trésorerie après apport',euro(res,0)+(m.apportTreso>0?' (après '+euro(m.apportTreso,0)+' payés par la trésorerie)':' (apport financé par les comptes courants)')+' · '+(m.sciApres.mens>0?(res/m.sciApres.mens).toFixed(1):'—')+' mois de mensualités (objectif '+crit.reserveMois+')');
  add('creux',m.fwd.min>=0,'crit','Trésorerie sur 10 ans',m.fwd.min>=0?'toujours positive (point bas '+euro(m.fwd.min,0)+')':'négative dès '+moisLong(m.fwd.minAt.an,m.fwd.minAt.m)+' · besoin ≈ '+euro(m.fwd.besoin,0));
  const ef=projEffortAssocies(m.sciApres,crit).filter(e=>e.has);
  if(ef.length){
@@ -3799,7 +3825,7 @@ function projViabiliteCore(m,crit){
 function projViabiliteProjet(b,crit){
  crit=crit||banqueCrit();
  const a=projAnalyse(b);
- const m={rev:a.rev,mens:a.mens,charges:a.charges,apport:a.apport,coutTotal:a.coutTotal,credit:a.credit,prix:a.prix,dureeMois:Number(b.duree)||240,
+ const m={rev:a.rev,mens:a.mens,charges:a.charges,apport:a.apport,apportTreso:a.apportTreso,coutTotal:a.coutTotal,credit:a.credit,prix:a.prix,dureeMois:Number(b.duree)||240,
   sciApres:projSci(x=>x.id===b.id,crit),fwd:projForward({fictif:x=>x.id===b.id})};
  return {a,m,...projViabiliteCore(m,crit)};
 }
@@ -3809,7 +3835,7 @@ function projViabiliteGlobale(crit){
  if(!fict.length)return null;
  const as=fict.map(projAnalyse);
  const sum=k=>as.reduce((s,a)=>s+a[k],0);
- const m={rev:sum('rev'),mens:sum('mens'),charges:sum('charges'),apport:sum('apport'),coutTotal:sum('coutTotal'),credit:sum('credit'),prix:sum('prix'),
+ const m={rev:sum('rev'),mens:sum('mens'),charges:sum('charges'),apport:sum('apport'),apportTreso:sum('apportTreso'),coutTotal:sum('coutTotal'),credit:sum('credit'),prix:sum('prix'),
   dureeMois:Math.max(...fict.map(b=>Number(b.duree)||240)),sciApres:projSci(()=>true,crit),fwd:projForward()};
  return {m,...projViabiliteCore(m,crit)};
 }
@@ -3875,7 +3901,8 @@ function projAnalyseCard(b){
   ${a.verdict!=='nodata'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 14px">${chip(a.okRdt,'Rendement net '+pct1(a.rdtNet)+' (objectif ≥ '+String(a.crit.rdtNet).replace('.',',')+' %)')}${chip(a.okCf,'Cash-flow '+(a.cf>=0?'+':'')+euro(a.cf,0)+'/mois (objectif ≥ '+euro(a.crit.cf,0)+')')}</div>`:`<div style="font-size:12px;color:var(--text3);margin:-4px 0 12px">Renseignez un loyer (ou un prix Airbnb) pour obtenir l'analyse.</div>`}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
    ${m('Coût total',euro(a.coutTotal),'prix '+euro(a.prix)+' + frais '+euro(a.frais))}
-   ${m('Apport à mobiliser',euro(a.apport),'emprunt '+euro(a.credit))}
+   ${m('Emprunt',euro(a.credit),a.coutTotal>0?pct1(a.credit/a.coutTotal*100)+' du coût total':'')}
+   ${m('Apport à mobiliser',euro(a.apport),a.apport>0?(a.apportTreso>0?'trésorerie '+euro(a.apportTreso,0):'')+(a.apportTreso>0&&a.apportCca>0?' · ':'')+(a.apportCca>0?'comptes courants '+euro(a.apportCca,0):''):'')}
    ${m('Mensualité',euro(a.mens,0),'par mois')}
    ${m('Revenu / mois',euro(a.rev,0),modeTxt)}
    ${m('Charges / mois',euro(a.charges,0),a.chargesSaisies?'charges saisies':'estimation par défaut')}
@@ -3943,7 +3970,7 @@ const BANQUE_HINTS={
  fin:'Réduisez la part empruntée en apportant davantage.',
  duree:'Raccourcissez la durée du prêt.',
  cf:'Les associés devront compléter ce cash-flow chaque mois : prévoyez-le dans leurs comptes courants.',
- reserve:'Constituez une réserve de trésorerie avant l\'achat, ou étalez les acquisitions.',
+ reserve:'Constituez une réserve de trésorerie avant l\'achat, financez davantage l\'apport par les comptes courants des associés, ou étalez les acquisitions.',
  creux:'Prévoyez un apport complémentaire des associés, ou décalez l\'achat.',
  effort:'Réduisez la part empruntée, allongez la durée dans la limite autorisée ou renforcez les loyers retenus.'
 };
@@ -4015,7 +4042,7 @@ function renderProjBanque(){
   ${row('Capital restant dû',euro(sciB.crd),cell(c=>euro(c.crd)))}
   ${row('Valeur du patrimoine',euro(sciB.valeur),cell(c=>euro(c.valeur)))}
   ${row('Endettement <span style="color:var(--text3);font-size:11px">(capital dû ÷ valeur)</span>',pct1(sciB.ltv),cell(c=>pct1(c.ltv)))}
-  ${row('Apport à mobiliser','—',cell(c=>euro(c.apportF)))}
+  ${row('Apport à mobiliser','—',cell(c=>euro(c.apportF)+(c.apportF>0?' <span style="color:var(--text3);font-size:11px">(trésorerie '+euro(c.apportTresoF,0)+' · comptes courants '+euro(c.apportCcaF,0)+')</span>':'')))}
   ${row('Trésorerie : point bas sur 10 ans',pointBas(fwB),has?pointBas(fwA):'—')}
   ${row('Besoin de financement (comptes courants)',fwB.besoin>0?'<span style="color:var(--red);font-weight:600">'+euro(fwB.besoin,0)+'</span>':'aucun',has?(fwA.besoin>0?'<span style="color:var(--red);font-weight:600">'+euro(fwA.besoin,0)+'</span>':'aucun'):'—')}
   ${row('Capacité d\'emprunt supplémentaire <span style="color:var(--text3);font-size:11px">(à '+String(taux).replace('.',',')+' % sur '+ans+' ans)</span>',capT(cB),has?capT(cA):'—')}
@@ -4091,8 +4118,13 @@ function buildDossierHtml(selId,inclAssoc){
    ['Trésorerie : point bas sur 10 ans',euro(fwB.min,0),euro(fwA.min,0)+' ('+moisLong(fwA.minAt.an,fwA.minAt.m)+')']],1);
   h+=`<div class="note">Loyers retenus à ${crit.loyersPct} %. Trésorerie projetée sur 10 ans à partir du solde réel (${euro(fwA.start,0)}), loyers indexés de ${String(BP_PARAMS.irl).replace('.',',')} %/an, impôt sur les sociétés et CFE inclus.</div>`;
   // 4. apport
-  const ap=sciA.apportF;
-  h+=`<h2>4. Financement de l'apport</h2>`+kv([['Apport total à mobiliser',euro(ap,0)],['Soit par associé ('+n+')',euro(ap/n,0)],['Trésorerie disponible de la SCI',euro(fwA.start,0)],[fwA.besoin>0?'Besoin complémentaire (comptes courants des associés)':'Trésorerie après apport',fwA.besoin>0?'<span class="ko">'+euro(fwA.besoin,0)+'</span>':euro(fwA.start-ap,0)]]);
+  const ap=sciA.apportF,apT=sciA.apportTresoF,apC=sciA.apportCcaF;
+  const parAs={};sel.forEach(b=>{const sp=projAnalyse(b).apportSplit;sp.assocs.forEach(k=>{parAs[k]=(parAs[k]||0)+sp.perAssoc;});});
+  const rowsAp=[['Apport total à mobiliser',euro(ap,0)],['dont payé par la trésorerie de la SCI',euro(apT,0)],['dont apporté en compte courant par les associés',euro(apC,0)]];
+  if(apC>0)rowsAp.push(['Répartition entre associés',ASSOCIES.filter(a=>parAs[a.k]>0).map(a=>E(a.n)+' '+euro(parAs[a.k],0)).join(' · ')]);
+  rowsAp.push(['Trésorerie disponible de la SCI',euro(fwA.start,0)]);
+  rowsAp.push([fwA.besoin>0?'Besoin complémentaire (trésorerie insuffisante dans les 10 ans)':'Trésorerie après la part d\'apport payée par la SCI',fwA.besoin>0?'<span class="ko">'+euro(fwA.besoin,0)+'</span>':euro(fwA.start-apT,0)]);
+  h+=`<h2>4. Financement de l'apport</h2>`+kv(rowsAp);
  }
  // 5. associés (facultatif)
  if(inclAssoc){
@@ -4126,8 +4158,10 @@ function renderProjCapacite(){
  const sol=computeSoldes();
  const solde=sol.length?sol[sol.length-1].solde:0;
  const fict=loadProjBiens();
- const req=fict.reduce((s,b)=>s+projAnalyse(b).apport,0);
- const reste=solde-req;
+ const fa=fict.map(projAnalyse);
+ const req=fa.reduce((s,a)=>s+a.apport,0),reqT=fa.reduce((s,a)=>s+a.apportTreso,0),reqC=fa.reduce((s,a)=>s+a.apportCca,0);
+ const reste=solde-reqT;
+ const parAs={};fa.forEach(a=>{a.apportSplit.assocs.forEach(k=>{parAs[k]=(parAs[k]||0)+a.apportSplit.perAssoc;});});
  if(projCap.taux==null)projCap.taux=Number(BP_PARAMS.taux)||3.5;
  if(projCap.ans==null)projCap.ans=Math.round((Number(BP_PARAMS.duree)||240)/12);
  if(projCap.apport==null)projCap.apport=Math.max(0,Math.round(solde));
@@ -4136,9 +4170,10 @@ function renderProjCapacite(){
  el.innerHTML=`
   <div class="three-col" style="margin-bottom:14px">
    ${k('Trésorerie disponible',euro(solde),'solde de la Comptabilité')}
-   ${k('Apport à mobiliser',euro(req),fict.length?fict.length+' achat'+(fict.length>1?'s':'')+' envisagé'+(fict.length>1?'s':'')+(ASSOCIES.length?' · '+euro(req/ASSOCIES.length)+' par associé':''):'aucun achat envisagé')}
-   ${k('Reste après achats',(reste>=0?'':'−')+euro(Math.abs(reste)),reste>=0?'la trésorerie couvre les apports':'manque à financer (comptes courants associés)',reste>=0?'var(--green)':'var(--red)')}
+   ${k('Apport à mobiliser',euro(req),fict.length?(reqT>0?'trésorerie '+euro(reqT,0):'')+(reqT>0&&reqC>0?' · ':'')+(reqC>0?'comptes courants '+euro(reqC,0):'')||'aucun apport':'aucun achat envisagé')}
+   ${k('Trésorerie après achats',(reste>=0?'':'−')+euro(Math.abs(reste)),fict.length?(reste>=0?'couvre la part payée par la trésorerie':'manque : à financer par les comptes courants'):'solde de la Comptabilité',fict.length?(reste>=0?'var(--green)':'var(--red)'):'')}
   </div>
+  ${reqC>0?`<div style="font-size:12px;color:var(--text2);margin:-4px 0 14px;background:var(--surface2);border-radius:var(--radius);padding:8px 12px">Comptes courants à apporter par les associés : ${ASSOCIES.filter(a=>parAs[a.k]>0).map(a=>'<strong>'+escH(a.n)+'</strong> '+euro(parAs[a.k],0)).join(' · ')}</div>`:''}
   <div style="border-top:0.5px solid var(--border);padding-top:12px">
    <div style="font-size:13px;font-weight:600;margin-bottom:8px">Que puis-je acheter ?</div>
    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text2);margin-bottom:10px">
@@ -4175,6 +4210,15 @@ function projCapCompute(){
 
 // ---- Modal ajout / modification d'un bien fictif ----
 function pbVal(id){const el=document.getElementById(id);return el?el.value:'';}
+function pbApportModeChanged(){
+ document.getElementById('pb-apport-treso-wrap').style.display=pbVal('pb-apport-mode')==='mixte'?'block':'none';
+ updatePbPreview();
+}
+function pbRenderAssocBoxes(selected){
+ const sel=(selected&&selected.length)?selected:ASSOCIES.map(a=>a.k);
+ document.getElementById('pb-apport-assocs').innerHTML='<span style="margin-right:6px">Associés qui apportent <span style="color:var(--text3)">(à parts égales)</span> :</span>'+ASSOCIES.map(a=>`<label style="margin-right:12px;white-space:nowrap"><input type="checkbox" id="pb-as-${a.k}" ${sel.includes(a.k)?'checked':''} onchange="updatePbPreview()"> ${escH(a.n)}</label>`).join('');
+}
+function pbCheckedAssocs(){return ASSOCIES.filter(a=>{const el=document.getElementById('pb-as-'+a.k);return el&&el.checked;}).map(a=>a.k);}
 function pbFormBien(){
  const prix=Number(pbVal('pb-prix'))||0;
  const notRaw=pbVal('pb-notaire');
@@ -4207,6 +4251,9 @@ function pbFormBien(){
    entretien:Number(pbVal('pb-entretien'))||0,
    autres:0
   },
+  apportMode:pbVal('pb-apport-mode')||'cca',
+  apportTreso:pbVal('pb-apport-mode')==='mixte'?(Number(pbVal('pb-apport-treso'))||0):0,
+  apportAssocs:pbCheckedAssocs(),
   valeurEstimee:prix,
   _fictif:true
  };
@@ -4215,6 +4262,10 @@ function openAddProjBienModal(){
  ['pb-adresse','pb-ville','pb-banque','pb-prix','pb-notaire','pb-capital','pb-taux','pb-loyer','pb-copro','pb-fonciere','pb-assurpno','pb-entretien','pb-surface','pb-airbnb','pb-edit-id'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
  document.getElementById('pb-travaux').value=0;
  document.getElementById('pb-duree').value=240;
+ document.getElementById('pb-apport-mode').value='cca';
+ document.getElementById('pb-apport-treso').value='';
+ document.getElementById('pb-apport-treso-wrap').style.display='none';
+ pbRenderAssocBoxes(null);
  document.getElementById('pb-mode').value='C';
  document.getElementById('pb-type').selectedIndex=0;
  const today=new Date().toISOString().split('T')[0];
@@ -4234,6 +4285,10 @@ function openEditProjBien(id){
  set('pb-loyer',b.loyer);set('pb-mode',b.modeLocation||'C');set('pb-airbnb',b.airbnb_nuit);
  const ca=b.chargesAnnuelles||{};
  set('pb-copro',ca.copro);set('pb-fonciere',ca.fonciere);set('pb-assurpno',ca.assurpno);set('pb-entretien',ca.entretien);
+ document.getElementById('pb-apport-mode').value=b.apportMode||'cca';
+ document.getElementById('pb-apport-treso').value=b.apportTreso||'';
+ document.getElementById('pb-apport-treso-wrap').style.display=(b.apportMode==='mixte')?'block':'none';
+ pbRenderAssocBoxes(b.apportAssocs);
  document.getElementById('pb-modal-title').textContent='Modifier le bien fictif · Projection';
  document.getElementById('pb-save-btn').textContent='Enregistrer les modifications';
  updatePbPreview();
@@ -4248,6 +4303,23 @@ function updatePbPreview(){
  if(cfEl){
   if(a.rev>0||a.mens>0){cfEl.textContent=(a.cf>=0?'+':'')+euro(a.cf,0)+'/mois';cfEl.style.color=a.cf>=0?'var(--green)':'var(--red)';}
   else{cfEl.textContent='—';cfEl.style.color='var(--text)';}
+ }
+ const sp=a.apportSplit;
+ const showCca=sp.cca>0||b.apportMode==='cca'||b.apportMode==='mixte';
+ const boxes=document.getElementById('pb-apport-assocs');if(boxes)boxes.style.display=(a.apport>0&&sp.cca>0)?'block':'none';
+ const rs=document.getElementById('pb-apport-resume');
+ if(rs){
+  if(!(a.apport>0))rs.innerHTML='';
+  else{
+   const sol=computeSoldes(),solde=sol.length?sol[sol.length-1].solde:0;
+   let t='Apport de <strong>'+euro(a.apport,0)+'</strong> : ';
+   t+=sp.treso>0?'<strong>'+euro(sp.treso,0)+'</strong> par la trésorerie':'';
+   t+=(sp.treso>0&&sp.cca>0)?' + ':'';
+   t+=sp.cca>0?'<strong>'+euro(sp.cca,0)+'</strong> en comptes courants ('+euro(sp.perAssoc,0)+' × '+sp.assocs.length+' associé'+(sp.assocs.length>1?'s':'')+')':'';
+   if(b.apportMode==='mixte'&&(Number(pbVal('pb-apport-treso'))||0)>a.apport)t+=' <span style="color:var(--amber)">· la part trésorerie dépasse l\'apport, elle est ramenée à '+euro(a.apport,0)+'</span>';
+   if(sp.treso>solde)t+='<br><span style="color:var(--red)">Trésorerie actuelle de '+euro(solde,0)+' : insuffisante pour cette part, prévoyez un apport des associés.</span>';
+   rs.innerHTML=t;
+  }
  }
  const an=document.getElementById('pb-analyse');
  if(!an)return;
@@ -4325,6 +4397,7 @@ function bienToProj(b) {
  mode: b.modeLocation || 'C', // mode de gestion A/B/C du bien
  airbnb_nuit: Number(b.airbnb_nuit)||0, // prix Airbnb / nuit (modes A et B)
  chargesMult: Number(b._chargesMult)||1, // multiplicateur de charges (tests de résistance)
+ apportMode: b.apportMode, apportTreso: b.apportTreso, apportAssocs: b.apportAssocs, // financement de l'apport (bien fictif)
  irl: 0, // pas d'indexation pour la projection simple
  };
 }
@@ -4461,8 +4534,9 @@ function renderProjTresorerie() {
  .reduce((t,c)=>t+Number(c.apport||0),0);
  return s+apportsReels;
  } else {
- // Bien fictif : estimation
- return s+Math.max(0,(b.prix+(b.frais||0))-b.credit);
+ // Bien fictif : seule la part financée par les comptes courants des associés est un apport CCA ;
+ // la part payée par la trésorerie de la SCI reste dans les décaissements
+ return s+projApportSplit(b,Math.max(0,(b.prix+(b.frais||0))-b.credit)).cca;
  }
  },0);
 
@@ -4756,9 +4830,9 @@ function renderProjCCA(){
  const frais=Number(b.notaire||0)+Number(b.courtier||0)+Number(b.travaux||0);
  const credit=Number(b.capital)||0;
  const apportTotal=Math.max(0,(Number(b.prix)||0)+frais-credit);
- const parAssoc=Math.round(apportTotal/ASSOCIES.length);
- assocs.forEach(a=>{apportsFictifs[a]+=parAssoc;});
- lignesFictifs.push({adresse:b.adresse,apportTotal,parAssoc,dateAchat:b.dateAchat});
+ const sp=projApportSplit(b,apportTotal);
+ sp.assocs.forEach(k=>{const a=assocByK(k);if(a)apportsFictifs[a.n]=(apportsFictifs[a.n]||0)+Math.round(sp.perAssoc);});
+ lignesFictifs.push({adresse:b.adresse,apportTotal,treso:sp.treso,cca:sp.cca,nbAssoc:sp.assocs.length,parAssoc:sp.perAssoc,dateAchat:b.dateAchat});
  });
 
  // 3. Soldes projetés = réels + fictifs
@@ -4830,13 +4904,15 @@ function renderProjCCA(){
  <div class="card" style="padding:0;overflow:hidden">
  <div style="overflow-x:auto">
  <table class="jtable">
- <thead><tr><th>Bien fictif</th><th>Date achat</th><th>Apport total estimé</th><th>Par associé (÷3)</th></tr></thead>
+ <thead><tr><th>Bien fictif</th><th>Date achat</th><th>Apport total estimé</th><th>Payé par la trésorerie</th><th>En compte courant</th><th>Par associé</th></tr></thead>
  <tbody>
  ${lignesFictifs.map(l=>`<tr>
  <td> ${l.adresse}</td>
  <td style="color:var(--text3)">${l.dateAchat?fdate(l.dateAchat):'—'}</td>
  <td style="font-weight:600;color:var(--amber)">${euro(l.apportTotal)}</td>
- <td>${euro(l.parAssoc)}</td>
+ <td>${l.treso>0?euro(l.treso):'—'}</td>
+ <td>${l.cca>0?euro(l.cca):'—'}</td>
+ <td>${l.cca>0?euro(l.parAssoc)+' <span style="color:var(--text3);font-size:11px">(÷ '+l.nbAssoc+')</span>':'—'}</td>
  </tr>`).join('')}
  </tbody>
  </table>
