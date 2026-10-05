@@ -296,10 +296,9 @@ canvas{max-width:100%;display:block}
  <button class="subnav-btn" id="sub-locataires" onclick="showSubPage('locataires',this)">Locataires</button>
  </div>
  <div class="subnav-bar" id="subnav-projection">
- <button class="subnav-btn active" id="proj-sub-dashboard" onclick="showProjPage('proj-dashboard',this)">Dashboard</button>
+ <button class="subnav-btn active" id="proj-sub-dashboard" onclick="showProjPage('proj-dashboard',this)">Analyse d'achat</button>
  <button class="subnav-btn" id="proj-sub-biens" onclick="showProjPage('proj-biens',this)">Biens</button>
  <button class="subnav-btn" id="proj-sub-emprunt" onclick="showProjPage('proj-emprunt',this)">Emprunt</button>
- <button class="subnav-btn" id="proj-sub-locataires" onclick="showProjPage('proj-locataires',this)">Locataires</button>
  <button class="subnav-btn" id="proj-sub-tresorerie" onclick="showProjPage('proj-tresorerie',this)"> Trésorerie</button>
  <button class="subnav-btn" id="proj-sub-resultat" onclick="showProjPage('proj-resultat',this)"> Résultat & IS</button>
  <button class="subnav-btn" id="proj-sub-cca" onclick="showProjPage('proj-cca',this)"> CCA</button>
@@ -469,16 +468,27 @@ canvas{max-width:100%;display:block}
  <div style="background:linear-gradient(135deg,var(--amber-light),var(--blue-light));border:1px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
  <span style="font-size:20px"></span>
  <div>
- <div style="font-size:13px;font-weight:600;color:var(--amber)">Mode Projection — Simulation hypothétique</div>
- <div style="font-size:12px;color:var(--text2);margin-top:2px">Les biens réels sont recopiés + vos biens fictifs ajoutés. Les données réelles ne sont jamais modifiées.</div>
+ <div style="font-size:13px;font-weight:600;color:var(--amber)">Mode Projection — Simulation d'achat</div>
+ <div style="font-size:12px;color:var(--text2);margin-top:2px">Testez des biens fictifs : rentabilité, apport nécessaire et impact sur la SCI. Les données réelles ne sont jamais modifiées.</div>
  </div>
  <button class="btn btn-sm" style="margin-left:auto" onclick="openAirbnbParams()">⚙ Hypothèses Airbnb</button>
  <button class="btn btn-sm" onclick="resetProjBiens()" style="margin-left:auto;color:var(--red);border-color:var(--red);flex-shrink:0">↺ Réinitialiser</button>
  </div>
+ <div class="sl">Capacité d'achat</div>
+ <div class="card" id="proj-capacite" style="margin-bottom:14px"></div>
+ <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:6px">
+ <div class="sl" style="margin:0">Analyse des achats envisagés</div>
+ <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text2)">
+ <span>Intéressant si rendement net ≥ <input id="proj-crit-rdt" type="number" step="0.1" onchange="setProjCriteres()" style="width:62px;padding:4px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px"> % et cash-flow ≥ <input id="proj-crit-cf" type="number" step="10" onchange="setProjCriteres()" style="width:70px;padding:4px 7px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px"> €/mois</span>
+ <button class="btn btn-primary btn-sm" onclick="openAddProjBienModal()">+ Bien fictif</button>
+ </div>
+ </div>
+ <div id="proj-analyse-list" style="margin:10px 0 18px"></div>
+ <div class="sl">Portefeuille projeté (réel + achats envisagés)</div>
  <div class="kpi-grid" id="proj-dash-kpis"></div>
  <div class="sl">Comparatif Réel vs Projection</div>
  <div id="proj-dash-compare" class="card" style="margin-bottom:14px"></div>
- <div class="sl">Patrimoine projeté</div>
+ <div class="sl">Détail du patrimoine projeté</div>
  <div id="proj-dash-biens"></div>
  </div>
 
@@ -506,18 +516,6 @@ canvas{max-width:100%;display:block}
  </div>
  <div class="page-title" style="margin-bottom:16px">Tableaux d'amortissement · Projection</div>
  <div id="proj-empr-content"></div>
- </div>
-
- <!-- PROJ LOCATAIRES -->
- <div class="page" id="page-proj-locataires">
- <div style="background:linear-gradient(135deg,var(--amber-light),var(--blue-light));border:1px solid var(--amber);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
- <span style="font-size:20px"></span>
- <div>
- <div style="font-size:13px;font-weight:600;color:var(--amber)">Locataires projetés</div>
- <div style="font-size:12px;color:var(--text2);margin-top:2px">Vue locataires des biens réels + fictifs.</div>
- </div>
- </div>
- <div id="proj-locataires-content"></div>
  </div>
 
  <!-- PROJ TRÉSORERIE MENSUELLE -->
@@ -1057,7 +1055,8 @@ canvas{max-width:100%;display:block}
  <div class="modal">
  <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
  <span style="font-size:20px"></span>
- <div class="modal-title" style="margin-bottom:0">Ajouter un bien fictif · Projection</div>
+ <div class="modal-title" style="margin-bottom:0" id="pb-modal-title">Ajouter un bien fictif · Projection</div>
+ <input type="hidden" id="pb-edit-id">
  </div>
  <div style="background:var(--amber-light);border-radius:var(--radius);padding:8px 12px;margin-bottom:14px;font-size:12px;color:var(--amber)">
  Ce bien n'existe que dans la simulation. Il ne sera pas sauvegardé dans les données réelles.
@@ -1075,8 +1074,8 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Date d'achat prévue</label><input id="pb-dateachat" type="date"></div>
  </div>
  <div class="two-col">
- <div class="fg"><label>Frais de notaire (€)</label><input id="pb-notaire" type="number" placeholder="10000"></div>
- <div class="fg"><label>Travaux (€)</label><input id="pb-travaux" type="number" value="0"></div>
+ <div class="fg"><label>Frais de notaire (€)</label><input id="pb-notaire" type="number" placeholder="8 % du prix si vide" oninput="updatePbPreview()"></div>
+ <div class="fg"><label>Travaux (€)</label><input id="pb-travaux" type="number" value="0" oninput="updatePbPreview()"></div>
  </div>
  <div class="sl" style="margin-top:4px">Emprunt</div>
  <div class="two-col">
@@ -1091,23 +1090,20 @@ canvas{max-width:100%;display:block}
  <div id="pb-mens-preview" style="font-size:12px;color:var(--text3);background:var(--surface2);border-radius:var(--radius);padding:8px 12px;margin-bottom:4px">
  Mensualité estimée : <strong>—</strong>
  </div>
- <div class="sl" style="margin-top:4px">Location</div>
+ <div class="sl" style="margin-top:4px">Revenu locatif</div>
  <div class="two-col">
  <div class="fg"><label>Loyer prévu HC (€/mois)</label><input id="pb-loyer" type="number" placeholder="700" oninput="updatePbPreview()"></div>
- <div class="fg"><label>Statut location</label>
- <select id="pb-statut"><option>Non loué</option><option>Bail signé - attente locataire</option><option selected>Bail signé - loué</option></select>
- </div>
- </div>
- <div class="two-col">
  <div class="fg"><label>Mode de gestion</label>
  <select id="pb-mode" onchange="updatePbPreview()">
  <option value="C">Mode C — Longue durée</option>
  <option value="A">Mode A — Bail + Airbnb été</option>
  <option value="B">Mode B — Full Airbnb</option>
  </select></div>
- <div class="fg"><label>Prix Airbnb / nuit (€) <span style="font-weight:400;color:var(--text3)">— Modes A et B</span></label><input id="pb-airbnb" type="number" placeholder="0" oninput="updatePbPreview()"></div>
  </div>
- <div style="margin-bottom:10px"><button class="btn btn-sm" onclick="openAirbnbParams()">⚙ Hypothèses Airbnb</button></div>
+ <div class="two-col">
+ <div class="fg"><label>Prix Airbnb / nuit (€) <span style="font-weight:400;color:var(--text3)">— Modes A et B</span></label><input id="pb-airbnb" type="number" placeholder="0" oninput="updatePbPreview()"></div>
+ <div class="fg" style="display:flex;align-items:flex-end"><button class="btn btn-sm" onclick="openAirbnbParams()">⚙ Hypothèses Airbnb</button></div>
+ </div>
  <div class="sl" style="margin-top:4px">Charges annuelles (€/an)</div>
  <div class="two-col">
  <div class="fg"><label>Copropriété</label><input id="pb-copro" type="number" placeholder="350" oninput="updatePbPreview()"></div>
@@ -1120,9 +1116,10 @@ canvas{max-width:100%;display:block}
  <div id="pb-cf-preview" style="font-size:13px;font-weight:600;background:var(--surface2);border-radius:var(--radius);padding:10px 14px;margin-bottom:4px;display:flex;justify-content:space-between">
  <span>Cash-flow estimé</span><span id="pb-cf-val">—</span>
  </div>
+ <div id="pb-analyse" style="margin-bottom:4px"></div>
  <div class="modal-footer">
  <button class="btn" onclick="closeModal('modal-add-proj-bien')">Annuler</button>
- <button class="btn btn-primary" onclick="saveProjBien()">Ajouter à la projection</button>
+ <button class="btn btn-primary" id="pb-save-btn" onclick="saveProjBien()">Ajouter à la projection</button>
  </div>
  </div>
 </div>
@@ -2556,7 +2553,7 @@ function fbSave(subPath,data){return enqueueOp({type:'patch',subPath,data},' Mod
 function fbRemove(subPath){return enqueueOp({type:'delete',subPath},' Supprimé');}
 
 // ---- Réglages stockés en localStorage (BP, marché, projection) synchronisés via Firebase ----
-const SYNC_KEYS=['sci_bp_biens','sci_bp_params','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url'];
+const SYNC_KEYS=['sci_bp_biens','sci_bp_params','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url','sci_proj_criteres'];
 const _lsSet=Storage.prototype.setItem;
 const _lsRemove=Storage.prototype.removeItem;
 const dirtySettings=new Set();
@@ -3522,99 +3519,256 @@ function resetProjBiens(){
  showToast(' Projection réinitialisée');
 }
 
-// ---- Modal ajout bien fictif ----
+// ---- Analyse d'un achat : rentabilité, apport, verdict ----
+const PROJ_CRITERES_DEFAULT={rdtNet:5,cf:0};
+function projCriteres(){
+ let c={};try{c=JSON.parse(localStorage.getItem('sci_proj_criteres')||'{}')||{};}catch(e){}
+ const num=(v,d)=>(v===undefined||v===null||v===''||!isFinite(Number(v)))?d:Number(v);
+ return {rdtNet:num(c.rdtNet,PROJ_CRITERES_DEFAULT.rdtNet),cf:num(c.cf,PROJ_CRITERES_DEFAULT.cf)};
+}
+function setProjCriteres(){
+ const r=document.getElementById('proj-crit-rdt').value,c=document.getElementById('proj-crit-cf').value;
+ localStorage.setItem('sci_proj_criteres',JSON.stringify({rdtNet:r===''?PROJ_CRITERES_DEFAULT.rdtNet:Number(r),cf:c===''?PROJ_CRITERES_DEFAULT.cf:Number(c)}));
+ renderProjAll();
+}
+const pct1=v=>(v==null||!isFinite(v))?'—':v.toFixed(1).replace('.',',')+' %';
+function projAnalyse(b){
+ const prix=Number(b.prix)||0;
+ const frais=(Number(b.notaire)||0)+(Number(b.courtier)||0)+(Number(b.travaux)||0);
+ const coutTotal=prix+frais;
+ const credit=Number(b.capital)||0;
+ const apport=Math.max(0,coutTotal-credit);
+ const mens=bienMensualite(b);
+ const rev=bienRevenuMensuel(b);
+ const pb=bienToProj(b);
+ const chargesSaisies=Object.values(b.chargesAnnuelles||{}).reduce((s,v)=>s+(Number(v)||0),0)>0;
+ const charges=projChargesMois(pb);
+ const cf=rev-mens-charges;
+ const rdtBrut=prix>0?rev*12/prix*100:null;
+ const rdtNet=coutTotal>0?(rev-charges)*12/coutTotal*100:null;
+ const coc=apport>0?cf*12/apport*100:null;
+ const cr=projCriteres();
+ let verdict='nodata',okCf=null,okRdt=null;
+ if(rev>0&&prix>0){
+  okCf=cf>=cr.cf;okRdt=rdtNet>=cr.rdtNet;
+  verdict=okCf&&okRdt?'bon':(okCf||okRdt?'moyen':'faible');
+ }
+ return {prix,frais,coutTotal,credit,apport,mens,rev,charges,chargesSaisies,cf,rdtBrut,rdtNet,coc,verdict,okCf,okRdt,crit:cr};
+}
+function projVerdictBadge(v){
+ const t={bon:['badge-ok','Intéressant'],moyen:['badge-warn','À surveiller'],faible:['badge-red','Peu intéressant'],nodata:['badge-info','Loyer à renseigner']}[v]||['badge-info','—'];
+ return `<span class="badge ${t[0]}">${t[1]}</span>`;
+}
+function projAnalyseCard(b){
+ const a=projAnalyse(b);
+ const col={bon:'var(--green)',moyen:'var(--amber)',faible:'var(--red)',nodata:'var(--border2)'}[a.verdict];
+ const chip=(ok,txt)=>`<span style="font-size:11px;padding:2px 9px;border-radius:99px;font-weight:600;background:${ok?'var(--green-light)':'var(--red-light)'};color:${ok?'var(--green)':'var(--red)'}">${ok?'✓':'✗'} ${txt}</span>`;
+ const m=(label,val,sub)=>`<div><div class="kpi-label">${label}</div><div style="font-size:15px;font-weight:600">${val}</div>${sub?`<div style="font-size:10px;color:var(--text3);margin-top:1px">${sub}</div>`:''}</div>`;
+ const modeTxt={A:'bail + Airbnb été (loyer seul compté)',B:'full Airbnb, moyenne annuelle',C:'longue durée'}[b.modeLocation||'C'];
+ return `<div class="card" style="border-left:3px solid ${col};margin-bottom:12px">
+  <div class="card-header">
+   <div>
+    <div style="font-weight:600;font-size:15px">${escH(b.nom||b.adresse)}</div>
+    <div style="font-size:12px;color:var(--text3);margin-top:2px">${escH([b.type,b.surface?b.surface+' m²':'',b.ville].filter(Boolean).join(' · '))}</div>
+   </div>
+   <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+    ${projVerdictBadge(a.verdict)}
+    <button class="btn btn-sm" title="Modifier" onclick="openEditProjBien('${b.id}')" style="padding:3px 7px">${ICON_EDIT}</button>
+    <button class="btn btn-danger btn-sm" title="Supprimer" onclick="deleteProjBien('${b.id}')">${ICON_TRASH}</button>
+   </div>
+  </div>
+  ${a.verdict!=='nodata'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 14px">${chip(a.okRdt,'Rendement net '+pct1(a.rdtNet)+' (objectif ≥ '+String(a.crit.rdtNet).replace('.',',')+' %)')}${chip(a.okCf,'Cash-flow '+(a.cf>=0?'+':'')+euro(a.cf,0)+'/mois (objectif ≥ '+euro(a.crit.cf,0)+')')}</div>`:`<div style="font-size:12px;color:var(--text3);margin:-4px 0 12px">Renseignez un loyer (ou un prix Airbnb) pour obtenir l'analyse.</div>`}
+  <div class="three-col" style="row-gap:14px">
+   ${m('Coût total',euro(a.coutTotal),'prix '+euro(a.prix)+' + frais '+euro(a.frais))}
+   ${m('Apport à mobiliser',euro(a.apport),'emprunt '+euro(a.credit))}
+   ${m('Mensualité',euro(a.mens,0),'par mois')}
+   ${m('Revenu / mois',euro(a.rev,0),modeTxt)}
+   ${m('Charges / mois',euro(a.charges,0),a.chargesSaisies?'charges saisies':'estimation par défaut')}
+   ${m('Cash-flow / mois',`<span style="color:${a.cf>=0?'var(--green)':'var(--red)'}">${a.cf>=0?'+':''}${euro(a.cf,0)}</span>`,'avant impôt')}
+   ${m('Rendement brut',pct1(a.rdtBrut),'revenu annuel ÷ prix')}
+   ${m('Rendement net',pct1(a.rdtNet),'(revenu − charges) ÷ coût total')}
+   ${m('Rentabilité sur apport',pct1(a.coc),'cash-flow annuel ÷ apport')}
+  </div>
+ </div>`;
+}
+function renderProjAnalyse(){
+ const el=document.getElementById('proj-analyse-list');if(!el)return;
+ const cr=projCriteres();
+ document.getElementById('proj-crit-rdt').value=cr.rdtNet;
+ document.getElementById('proj-crit-cf').value=cr.cf;
+ const fict=loadProjBiens();
+ // repère : portefeuille actuel
+ const reels=biensList().filter(b=>Number(b.prix)>0);
+ let ref='';
+ if(reels.length){
+  const an=reels.map(projAnalyse);
+  const moy=k=>{const v=an.map(x=>x[k]).filter(x=>x!=null&&isFinite(x));return v.length?v.reduce((s,x)=>s+x,0)/v.length:null;};
+  ref=`<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Repère — portefeuille actuel (${reels.length} bien${reels.length>1?'s':''}) : rendement brut moyen ${pct1(moy('rdtBrut'))} · rendement net moyen ${pct1(moy('rdtNet'))} · cash-flow moyen ${(moy('cf')||0)>=0?'+':''}${euro(moy('cf')||0,0)}/mois par bien.</div>`;
+ }
+ el.innerHTML=fict.length===0
+  ?`<div class="card"><div class="empty-state" style="padding:22px">Aucun achat envisagé pour l'instant.<br><span style="font-size:12px">Ajoutez un bien fictif (prix, financement, loyer, charges) : l'appli calcule l'apport nécessaire, le cash-flow, les rendements et indique s'il est intéressant.</span><br><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openAddProjBienModal()">+ Bien fictif</button></div></div>`
+  :ref+fict.map(projAnalyseCard).join('');
+}
+
+// ---- Capacité d'achat : trésorerie disponible, apport nécessaire, prix maximum ----
+let projCap={apport:null,taux:null,ans:null,frais:8,fin:100};
+function renderProjCapacite(){
+ const el=document.getElementById('proj-capacite');if(!el)return;
+ const sol=computeSoldes();
+ const solde=sol.length?sol[sol.length-1].solde:0;
+ const fict=loadProjBiens();
+ const req=fict.reduce((s,b)=>s+projAnalyse(b).apport,0);
+ const reste=solde-req;
+ if(projCap.taux==null)projCap.taux=Number(BP_PARAMS.taux)||3.5;
+ if(projCap.ans==null)projCap.ans=Math.round((Number(BP_PARAMS.duree)||240)/12);
+ if(projCap.apport==null)projCap.apport=Math.max(0,Math.round(solde));
+ const inp=(id,val,w,step)=>`<input id="${id}" type="number" step="${step||1}" value="${val}" oninput="projCapUpdate()" style="width:${w}px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">`;
+ const k=(label,val,sub,color)=>`<div><div class="kpi-label">${label}</div><div style="font-size:18px;font-weight:600;${color?'color:'+color:''}">${val}</div>${sub?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${sub}</div>`:''}</div>`;
+ el.innerHTML=`
+  <div class="three-col" style="margin-bottom:14px">
+   ${k('Trésorerie disponible',euro(solde),'solde de la Comptabilité')}
+   ${k('Apport à mobiliser',euro(req),fict.length?fict.length+' achat'+(fict.length>1?'s':'')+' envisagé'+(fict.length>1?'s':'')+(ASSOCIES.length?' · '+euro(req/ASSOCIES.length)+' par associé':''):'aucun achat envisagé')}
+   ${k('Reste après achats',(reste>=0?'':'−')+euro(Math.abs(reste)),reste>=0?'la trésorerie couvre les apports':'manque à financer (comptes courants associés)',reste>=0?'var(--green)':'var(--red)')}
+  </div>
+  <div style="border-top:0.5px solid var(--border);padding-top:12px">
+   <div style="font-size:13px;font-weight:600;margin-bottom:8px">Que puis-je acheter ?</div>
+   <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text2);margin-bottom:10px">
+    <label>Apport disponible ${inp('pcap-apport',projCap.apport,90,100)} €</label>
+    <label>Frais d'acquisition ${inp('pcap-frais',projCap.frais,52,0.5)} %</label>
+    <label>Prix financé à ${inp('pcap-fin',projCap.fin,56,5)} %</label>
+    <label>Taux ${inp('pcap-taux',projCap.taux,58,0.05)} %</label>
+    <label>Durée ${inp('pcap-ans',projCap.ans,50,1)} ans</label>
+   </div>
+   <div id="pcap-out" style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px;font-size:13px;line-height:1.7"></div>
+  </div>`;
+ projCapCompute();
+}
+function projCapUpdate(){
+ const g=id=>Number(document.getElementById(id).value);
+ projCap={apport:g('pcap-apport')||0,frais:g('pcap-frais')||0,fin:g('pcap-fin')||0,taux:g('pcap-taux')||0,ans:g('pcap-ans')||0};
+ projCapCompute();
+}
+function projCapCompute(){
+ const out=document.getElementById('pcap-out');if(!out)return;
+ const {apport,frais,fin,taux,ans}=projCap;
+ const denom=(1+frais/100)-fin/100;           // part du prix à payer comptant (frais + prix non financé)
+ if(!(apport>0)){out.innerHTML='Saisissez un apport disponible pour estimer le prix maximum.';return;}
+ if(!(denom>0.0001)){out.innerHTML='Avec ces paramètres, le financement couvre déjà tous les frais : réduisez la part financée ou augmentez les frais pour estimer un prix maximum.';return;}
+ const prixMax=apport/denom;
+ const emprunt=prixMax*fin/100;
+ const mens=projMensualite({credit:emprunt,taux,duree:Math.round(ans*12),prix:0,frais:0});
+ const charges=projChargesMois({prix:prixMax,chargesAnnuelles:{}});
+ const loyerMin=mens+charges;
+ out.innerHTML=`Avec <strong>${euro(apport)}</strong> d'apport, vous pouvez viser un bien jusqu'à <strong style="font-size:15px">${euro(Math.floor(prixMax/100+1e-6)*100)}</strong> <span style="color:var(--text3)">(frais ${String(frais).replace('.',',')} %, prix financé à ${fin} %)</span>.<br>
+  Emprunt ≈ ${euro(emprunt)} · mensualité ≈ <strong>${euro(mens,0)}</strong> · charges estimées ≈ ${euro(charges,0)}/mois.<br>
+  Pour <strong>s'autofinancer</strong>, le loyer doit atteindre <strong>${euro(Math.ceil(loyerMin/10)*10,0)}/mois</strong> <span style="color:var(--text3)">(rendement brut ≈ ${pct1(loyerMin*12/prixMax*100)})</span>.`;
+}
+
+// ---- Modal ajout / modification d'un bien fictif ----
+function pbVal(id){const el=document.getElementById(id);return el?el.value:'';}
+function pbFormBien(){
+ const prix=Number(pbVal('pb-prix'))||0;
+ const notRaw=pbVal('pb-notaire');
+ const notaireAuto=notRaw===''&&prix>0;
+ const capital=Number(pbVal('pb-capital'))||0;
+ return {
+  adresse:pbVal('pb-adresse').trim(),
+  ville:pbVal('pb-ville').trim(),
+  type:pbVal('pb-type')||'Studio',
+  surface:Number(pbVal('pb-surface'))||0,
+  prix,
+  dateAchat:pbVal('pb-dateachat'),
+  notaire:notaireAuto?Math.round(prix*0.08):(Number(notRaw)||0),
+  _notaireAuto:notaireAuto,
+  travaux:Number(pbVal('pb-travaux'))||0,
+  capital,
+  capitalRestant:capital,
+  taux:Number(pbVal('pb-taux'))||0,
+  duree:Number(pbVal('pb-duree'))||240,
+  banque:pbVal('pb-banque').trim(),
+  debut:pbVal('pb-debut'),
+  loyer:Number(pbVal('pb-loyer'))||0,
+  modeLocation:pbVal('pb-mode')||'C',
+  airbnb_nuit:Number(pbVal('pb-airbnb'))||0,
+  charges:0,
+  chargesAnnuelles:{
+   copro:Number(pbVal('pb-copro'))||0,
+   fonciere:Number(pbVal('pb-fonciere'))||0,
+   assurpno:Number(pbVal('pb-assurpno'))||0,
+   entretien:Number(pbVal('pb-entretien'))||0,
+   autres:0
+  },
+  valeurEstimee:prix,
+  _fictif:true
+ };
+}
 function openAddProjBienModal(){
- // reset fields
- ['pb-adresse','pb-ville','pb-banque'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
- ['pb-prix','pb-notaire','pb-travaux','pb-capital','pb-taux','pb-loyer','pb-copro','pb-fonciere','pb-assurpno','pb-entretien'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
- const d=document.getElementById('pb-duree');if(d)d.value=240;
- const s=document.getElementById('pb-surface');if(s)s.value='';
- const pm=document.getElementById('pb-mode');if(pm)pm.value='C';
- const pa=document.getElementById('pb-airbnb');if(pa)pa.value='';
- document.getElementById('pb-mens-preview').innerHTML='Mensualité estimée : <strong>—</strong>';
- document.getElementById('pb-cf-val').textContent='—';
- document.getElementById('pb-cf-val').style.color='var(--text)';
+ ['pb-adresse','pb-ville','pb-banque','pb-prix','pb-notaire','pb-capital','pb-taux','pb-loyer','pb-copro','pb-fonciere','pb-assurpno','pb-entretien','pb-surface','pb-airbnb','pb-edit-id'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+ document.getElementById('pb-travaux').value=0;
+ document.getElementById('pb-duree').value=240;
+ document.getElementById('pb-mode').value='C';
+ document.getElementById('pb-type').selectedIndex=0;
  const today=new Date().toISOString().split('T')[0];
  document.getElementById('pb-dateachat').value=today;
  document.getElementById('pb-debut').value=today;
+ document.getElementById('pb-modal-title').textContent='Ajouter un bien fictif · Projection';
+ document.getElementById('pb-save-btn').textContent='Ajouter à la projection';
+ updatePbPreview();
  openModal('modal-add-proj-bien');
 }
-
+function openEditProjBien(id){
+ const b=loadProjBiens().find(x=>x.id===id);if(!b)return;
+ const set=(k,v)=>{const el=document.getElementById(k);if(el)el.value=(v===undefined||v===null||v===0&&['pb-loyer','pb-airbnb','pb-surface','pb-capital','pb-taux','pb-copro','pb-fonciere','pb-assurpno','pb-entretien'].includes(k))?'':v;};
+ set('pb-edit-id',b.id);set('pb-adresse',b.adresse);set('pb-ville',b.ville);set('pb-type',b.type||'Studio');set('pb-surface',b.surface);
+ set('pb-prix',b.prix);set('pb-dateachat',b.dateAchat);set('pb-notaire',b.notaire);set('pb-travaux',b.travaux||0);
+ set('pb-capital',b.capital);set('pb-taux',b.taux);set('pb-duree',b.duree||240);set('pb-banque',b.banque);set('pb-debut',b.debut);
+ set('pb-loyer',b.loyer);set('pb-mode',b.modeLocation||'C');set('pb-airbnb',b.airbnb_nuit);
+ const ca=b.chargesAnnuelles||{};
+ set('pb-copro',ca.copro);set('pb-fonciere',ca.fonciere);set('pb-assurpno',ca.assurpno);set('pb-entretien',ca.entretien);
+ document.getElementById('pb-modal-title').textContent='Modifier le bien fictif · Projection';
+ document.getElementById('pb-save-btn').textContent='Enregistrer les modifications';
+ updatePbPreview();
+ openModal('modal-add-proj-bien');
+}
 function updatePbPreview(){
- const capital=Number(document.getElementById('pb-capital').value)||0;
- const taux=Number(document.getElementById('pb-taux').value)||0;
- const duree=Number(document.getElementById('pb-duree').value)||0;
- const loyer=Number(document.getElementById('pb-loyer').value)||0;
- const copro=Number(document.getElementById('pb-copro').value)||0;
- const fonciere=Number(document.getElementById('pb-fonciere').value)||0;
- const assurpno=Number(document.getElementById('pb-assurpno').value)||0;
- const entretien=Number(document.getElementById('pb-entretien').value)||0;
- const chargesMois=(copro+fonciere+assurpno+entretien)/12;
-
- let mens=0;
- if(capital>0&&taux>0&&duree>0){
- const r=taux/100/12;
- mens=capital*r*Math.pow(1+r,duree)/(Math.pow(1+r,duree)-1);
- }
- const pbMode=(document.getElementById('pb-mode')||{}).value||'C';
- const pbAirbnb=Number((document.getElementById('pb-airbnb')||{}).value)||0;
- const revMois=pbMode==='B'?bienCaAnnuel({modeLocation:pbMode,loyer,charges:0,airbnb_nuit:pbAirbnb})/12:loyer;
- const cf=revMois-mens-chargesMois;
-
+ const b=pbFormBien();
+ const a=projAnalyse(b);
  const mpEl=document.getElementById('pb-mens-preview');
- if(mpEl) mpEl.innerHTML=mens>0?`Mensualité estimée : <strong>${euro(mens,0)}/mois</strong>`:'Mensualité estimée : <strong>—</strong>';
-
+ if(mpEl)mpEl.innerHTML=a.mens>0?`Mensualité estimée : <strong>${euro(a.mens,0)}/mois</strong>`:'Mensualité estimée : <strong>—</strong>';
  const cfEl=document.getElementById('pb-cf-val');
  if(cfEl){
- if(revMois>0||mens>0){
- cfEl.textContent=(cf>=0?'+':'')+euro(cf,0)+'/mois';
- cfEl.style.color=cf>=0?'var(--green)':'var(--red)';
- } else {
- cfEl.textContent='—';
- cfEl.style.color='var(--text)';
+  if(a.rev>0||a.mens>0){cfEl.textContent=(a.cf>=0?'+':'')+euro(a.cf,0)+'/mois';cfEl.style.color=a.cf>=0?'var(--green)':'var(--red)';}
+  else{cfEl.textContent='—';cfEl.style.color='var(--text)';}
  }
- }
+ const an=document.getElementById('pb-analyse');
+ if(!an)return;
+ if(!(a.prix>0)){an.innerHTML='';return;}
+ const line=(l,v)=>`<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--text2)">${l}</span><span style="font-weight:600">${v}</span></div>`;
+ an.innerHTML=`<div style="background:var(--surface2);border-radius:var(--radius);padding:10px 14px;font-size:12px">
+  ${line('Coût total (prix + frais)',euro(a.coutTotal)+(b._notaireAuto?' <span style="font-weight:400;color:var(--text3)">· notaire estimé 8 %</span>':''))}
+  ${line('Apport à mobiliser',euro(a.apport))}
+  ${a.rev>0?line('Rendement brut / net',pct1(a.rdtBrut)+' / '+pct1(a.rdtNet)):''}
+  ${a.rev>0&&a.coc!=null?line('Rentabilité sur apport',pct1(a.coc)):''}
+  ${!a.chargesSaisies?'<div style="color:var(--text3);padding-top:4px">Charges non saisies : estimation par défaut de '+euro(a.charges,0)+'/mois.</div>':''}
+  <div style="padding-top:6px;text-align:right">${projVerdictBadge(a.verdict)}</div>
+ </div>`;
 }
-
 function saveProjBien(){
- const adresse=document.getElementById('pb-adresse').value.trim();
- if(!adresse){showToast('Adresse requise');return;}
- const b={
- id:'proj_'+Date.now(),
- adresse,
- ville:document.getElementById('pb-ville').value.trim(),
- type:document.getElementById('pb-type').value,
- surface:Number(document.getElementById('pb-surface').value)||0,
- prix:Number(document.getElementById('pb-prix').value)||0,
- dateAchat:document.getElementById('pb-dateachat').value,
- notaire:Number(document.getElementById('pb-notaire').value)||0,
- travaux:Number(document.getElementById('pb-travaux').value)||0,
- capital:Number(document.getElementById('pb-capital').value)||0,
- capitalRestant:Number(document.getElementById('pb-capital').value)||0,
- taux:Number(document.getElementById('pb-taux').value)||0,
- duree:Number(document.getElementById('pb-duree').value)||240,
- banque:document.getElementById('pb-banque').value.trim(),
- debut:document.getElementById('pb-debut').value,
- loyer:Number(document.getElementById('pb-loyer').value)||0,
- modeLocation:document.getElementById('pb-mode').value||'C',
- airbnb_nuit:Number(document.getElementById('pb-airbnb').value)||0,
- charges:0,locataire:'',
- chargesAnnuelles:{
- copro:Number(document.getElementById('pb-copro').value)||0,
- fonciere:Number(document.getElementById('pb-fonciere').value)||0,
- assurpno:Number(document.getElementById('pb-assurpno').value)||0,
- entretien:Number(document.getElementById('pb-entretien').value)||0,
- autres:0
- },
- statut:document.getElementById('pb-statut').value,
- valeurEstimee:Number(document.getElementById('pb-prix').value)||0,
- _fictif:true
- };
+ const f=pbFormBien();
+ if(!f.adresse){showToast('Adresse requise');return;}
+ delete f._notaireAuto;
+ const editId=pbVal('pb-edit-id');
  const arr=loadProjBiens();
- arr.push(b);
+ if(editId){
+  const i=arr.findIndex(x=>x.id===editId);
+  if(i<0){showToast('Bien introuvable');return;}
+  arr[i]={...f,id:editId};
+ }else{
+  arr.push({...f,id:'proj_'+Date.now()});
+ }
  saveProjBiensLocal(arr);
  closeModal('modal-add-proj-bien');
- showToast(' Bien fictif ajouté à la projection');
+ showToast(editId?' Bien fictif modifié':' Bien fictif ajouté à la projection');
  renderProjAll();
 }
 
@@ -3628,10 +3782,11 @@ function deleteProjBien(id){
 
 // ---- Render Projection ----
 function renderProjAll(){
+ renderProjCapacite();
+ renderProjAnalyse();
  renderProjDashboard();
  renderProjBiens();
  renderProjEmprunt();
- renderProjLocataires();
  renderProjTresorerie();
  renderProjResultat();
  renderProjCCA();
@@ -3657,7 +3812,6 @@ function bienToProj(b) {
  credit: Number(b.capital)||0,
  frais: Number(b.notaire||0) + Number(b.courtier||0) + Number(b.travaux||0),
  chargesAnnuelles: b.chargesAnnuelles || {},
- statut: b.statut || 'Non loué',
  mode: b.modeLocation || 'C', // mode de gestion A/B/C du bien
  airbnb_nuit: Number(b.airbnb_nuit)||0, // prix Airbnb / nuit (modes A et B)
  irl: 0, // pas d'indexation pour la projection simple
@@ -3693,10 +3847,7 @@ function projCaMensuel(pb, an, mois) {
  const achatMois = parseInt(parts[1]);
  if(an < achatAn || (an===achatAn && mois < achatMois)) return 0;
  const mode = pb.mode || 'C';
- if(mode === 'C'){
-  if(pb.statut === 'Non loué') return 0;
-  return pb.loyer || 0;
- }
+ if(mode === 'C') return pb.loyer || 0;    // en projection tout bien est supposé loué dès l'achat
  // Modes A/B : même calcul que Gestion (bail hors été + Airbnb selon la saisonnalité)
  return bienCaMoisBrut(mode, Number(pb.loyer)||0, pb.airbnb_nuit, mois);
 }
@@ -4197,7 +4348,7 @@ function renderProjDashboard(){
  const valNette=totalValeur-totalCRD;
  const totalMens=biens.reduce((s,b)=>s+bienMensualite(b),0);
  const totalLoyers=biens.reduce((s,b)=>s+bienRevenuMensuel(b),0);
- const totalChargesMois=biens.reduce((s,b)=>s+bienChargesMois(b),0);
+ const totalChargesMois=biens.reduce((s,b)=>s+projChargesMois(bienToProj(b)),0);
  const cashflowTotal=totalLoyers-totalMens-totalChargesMois;
 
  el.innerHTML=`
@@ -4214,7 +4365,7 @@ function renderProjDashboard(){
  const rCRD=reels.reduce((s,b)=>s+Number(b.capitalRestant||b.capital),0);
  const rMens=reels.reduce((s,b)=>s+bienMensualite(b),0);
  const rLoyers=reels.reduce((s,b)=>s+bienRevenuMensuel(b),0);
- const rChargesMois=reels.reduce((s,b)=>s+bienChargesMois(b),0);
+ const rChargesMois=reels.reduce((s,b)=>s+projChargesMois(bienToProj(b)),0);
  const rCF=rLoyers-rMens-rChargesMois;
  const diffValeur=totalValeur-rValeur;
  const diffCRD=totalCRD-rCRD;
@@ -4247,14 +4398,14 @@ function renderProjDashboard(){
  :biens.map(b=>{
  const mens=bienMensualite(b);
  const loyer=bienRevenuMensuel(b);
- const cf=loyer-mens-bienChargesMois(b);
+ const cf=loyer-mens-projChargesMois(bienToProj(b));
  return`<div class="card" style="${b._fictif?'border-color:var(--amber);border-width:1px':''}">
  <div class="card-header">
  <div>
- <div style="font-weight:500;font-size:14px">${b.nom||b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700;vertical-align:middle">FICTIF</span>':''}</div>
- <div style="font-size:12px;color:var(--text3);margin-top:2px">${b.adresse}${b.ville?' · '+b.ville:''}</div>
+ <div style="font-weight:500;font-size:14px">${escH(b.nom||b.adresse)}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700;vertical-align:middle">FICTIF</span>':''}</div>
+ <div style="font-size:12px;color:var(--text3);margin-top:2px">${escH(b.adresse)}${b.ville?' · '+escH(b.ville):''}</div>
  </div>
- ${locBadge(b.statut)}
+ ${b._fictif?projVerdictBadge(projAnalyse(b).verdict):''}
  </div>
  <div class="three-col">
  <div><div class="kpi-label">Prix</div><div style="font-size:14px;font-weight:500">${euro(b.prix)}</div></div>
@@ -4273,7 +4424,7 @@ function renderProjBiens(){
  biens.map(b=>{
  const mens=bienMensualite(b);
  const loyer=bienRevenuMensuel(b);
- const cf=loyer-mens-bienChargesMois(b);
+ const cf=loyer-mens-projChargesMois(bienToProj(b));
  return`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
  <div class="bien-row-icon" style="${b._fictif?'background:var(--amber-light);color:var(--amber)':''}">
  ${b._fictif?'':({Studio:'🏠',T2:'🏠',T3:'🏠',T4:'🏠',Maison:'🏡',Parking:'🅿️'}[b.type]||'')}
@@ -4283,8 +4434,7 @@ function renderProjBiens(){
  <div class="bien-row-sub">${b.type} ${b.surface}m² · ${(b.ville||'').split('·')[0].trim()} · ${euro(loyer)}/mois · CF ${cf>=0?'+':''}${euro(cf,0)}</div>
  </div>
  <div class="bien-row-right">
- ${locBadge(b.statut)}
- ${b._fictif?`<button class="btn btn-danger btn-sm" title="Supprimer" onclick="deleteProjBien('${b.id}');event.stopPropagation()">${ICON_TRASH}</button>`:''}
+ ${b._fictif?projVerdictBadge(projAnalyse(b).verdict)+` <button class="btn btn-sm" title="Modifier" onclick="openEditProjBien('${b.id}');event.stopPropagation()" style="padding:3px 7px">${ICON_EDIT}</button> <button class="btn btn-danger btn-sm" title="Supprimer" onclick="deleteProjBien('${b.id}');event.stopPropagation()">${ICON_TRASH}</button>`:''}
  </div>
  </div>`;
  }).join('')+`</div>`;
@@ -4312,44 +4462,6 @@ function renderProjEmprunt(){
  </div>`;
  }).join('')+`</div>`;
  el.innerHTML=html;
-}
-
-function renderProjLocataires(){
- const el=document.getElementById('proj-locataires-content');if(!el)return;
- const biens=projBiensList();
- const loues=biens.filter(b=>b.statut==='Bail signé - loué');
- const nonLoues=biens.filter(b=>b.statut!=='Bail signé - loué');
- const totalLoyers=loues.reduce((s,b)=>s+Number(b.loyer||0),0);
-
- el.innerHTML=`
- <div class="kpi-grid" style="margin-bottom:14px">
- <div class="kpi"><div class="kpi-label">Biens loués</div><div class="kpi-val kpi-pos">${loues.length}</div></div>
- <div class="kpi"><div class="kpi-label">Non loués</div><div class="kpi-val">${nonLoues.length}</div></div>
- <div class="kpi"><div class="kpi-label">Loyers HC/mois</div><div class="kpi-val kpi-pos">${euro(totalLoyers)}</div></div>
- </div>
- ${loues.length>0?`<div class="sl">Biens loués</div>
- <div class="card" style="padding:0;overflow:hidden">`+
- loues.map(b=>`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
- <div class="bien-row-icon av-teal" style="background:var(--green-light);color:var(--green)"></div>
- <div class="bien-row-info">
- <div class="bien-row-addr">${b.nom||b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
- <div class="bien-row-sub">${b.locataire||'(fictif)'} · ${euro(Number(b.loyer||0)+Number(b.charges||0))}/mois</div>
- </div>
- <div class="bien-row-right">
- <span style="font-size:12px;font-weight:600;color:var(--green)">${euro(b.loyer||0)}/mois</span>
- </div>
- </div>`).join('')+`</div>`:''}
- ${nonLoues.length>0?`<div class="sl">Non loués / en attente</div>
- <div class="card" style="padding:0;overflow:hidden">`+
- nonLoues.map(b=>`<div class="bien-row" style="${b._fictif?'border-left:3px solid var(--amber)':''}">
- <div class="bien-row-icon" style="background:var(--red-light);color:var(--red)"></div>
- <div class="bien-row-info">
- <div class="bien-row-addr">${b.nom||b.adresse}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700">FICTIF</span>':''}</div>
- <div class="bien-row-sub">${b.type} ${b.surface}m² · ${b.statut}</div>
- </div>
- ${locBadge(b.statut)}
- </div>`).join('')+`</div>`:''}
- `;
 }
 
 // ============================================================
