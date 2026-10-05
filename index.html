@@ -114,6 +114,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
 .cat-sel{appearance:none;-webkit-appearance:none;border:0;border-radius:99px;padding:4px 24px 4px 11px;font-size:11px;font-weight:600;cursor:pointer;max-width:190px;background-color:var(--surface2);color:var(--text2);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}
 .cat-sel:hover{filter:brightness(.96)}
 .cat-sel:focus{outline:2px solid var(--accent);outline-offset:1px}
+.cat-hors{background-color:var(--surface2);color:var(--text2)}
 .cat-warn{background-color:var(--amber-light);color:var(--amber);box-shadow:0 0 0 1.5px var(--amber)}
 .cat-loyers{background-color:var(--green-light);color:var(--green)}
 .cat-loyers_airbnb{background-color:var(--blue-light);color:var(--blue)}
@@ -315,6 +316,7 @@ canvas{max-width:100%;display:block}
  <button class="subnav-btn active" id="sub-dashboard" onclick="showSubPage('dashboard',this)">Dashboard</button>
  <button class="subnav-btn" id="sub-biens" onclick="showSubPage('biens',this)">Biens</button>
  <button class="subnav-btn" id="sub-tresorerie" onclick="showSubPage('tresorerie',this)">Comptabilité</button>
+ <button class="subnav-btn" id="sub-rentabilite" onclick="showSubPage('rentabilite',this)">Rentabilité</button>
  <button class="subnav-btn" id="sub-associes" onclick="showSubPage('associes',this)">Associés</button>
  <button class="subnav-btn" id="sub-emprunt" onclick="showSubPage('emprunt',this)">Emprunt</button>
  <button class="subnav-btn" id="sub-locataires" onclick="showSubPage('locataires',this)">Locataires</button>
@@ -385,6 +387,7 @@ canvas{max-width:100%;display:block}
  <div class="page-header">
  <div class="page-title">Comptabilité</div>
  <div class="btn-group">
+ <button class="btn btn-sm" onclick="openAffRules()">⚙ Règles d'affectation</button>
  <button class="btn btn-sm" onclick="openImportOdoo()">⬆ Import Odoo</button>
  <button class="btn btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
  <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-mvt')">+ Mouvement</button>
@@ -402,6 +405,7 @@ canvas{max-width:100%;display:block}
  </div>
  </div>
  <div id="auto-mvt-alert"></div>
+ <div id="aff-alert"></div>
  <div class="kpi-grid" id="tres-kpis"></div>
  <div class="card">
  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
@@ -409,6 +413,7 @@ canvas{max-width:100%;display:block}
  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
  <input type="text" id="tres-search" placeholder="Rechercher un libellé…" oninput="tresFilterChanged()" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text);width:170px">
  <select id="tres-filter-cat" onchange="tresFilterChanged()" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
+ <select id="tres-filter-aff" onchange="tresFilterChanged()" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
  <select id="tres-filter" onchange="tresFilterChanged()" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)">
  <option value="">Toutes les origines</option>
  <option value="odoo">Importées d'Odoo</option>
@@ -420,17 +425,35 @@ canvas{max-width:100%;display:block}
  <div id="tres-selbar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--red-light);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;font-size:12px">
  <span id="tres-seltxt" style="flex:1;min-width:140px;color:var(--text)"></span>
  <select id="tres-bulk-cat" onchange="bulkSetCat(this.value)" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
+ <select id="tres-bulk-aff" onchange="bulkSetAff(this.value)" style="padding:5px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
  <button class="btn btn-sm" onclick="tresToggleAll(false)">Désélectionner</button>
  <button class="btn btn-sm btn-danger" style="border-color:var(--red)" onclick="deleteSelectedMvts()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"/></svg> Supprimer la sélection</button>
  </div>
  <div id="tres-loading" class="loading-overlay"><div class="spinner"></div></div>
  <div style="overflow-x:auto">
  <table class="jtable" id="tres-table" style="display:none">
- <thead><tr><th style="width:30px"><input type="checkbox" id="tres-all" onchange="tresToggleAll(this.checked)" title="Tout cocher / décocher les lignes affichées"></th><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Montant</th><th>Solde</th><th></th></tr></thead>
+ <thead><tr><th style="width:30px"><input type="checkbox" id="tres-all" onchange="tresToggleAll(this.checked)" title="Tout cocher / décocher les lignes affichées"></th><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Affectation</th><th>Montant</th><th>Solde</th><th></th></tr></thead>
  <tbody id="tres-body"></tbody>
  </table>
  </div>
  </div>
+ </div>
+
+ <!-- RENTABILITÉ PAR BIEN -->
+ <div class="page" id="page-rentabilite">
+ <div class="page-header">
+ <div class="page-title">Rentabilité par bien</div>
+ <div class="btn-group">
+ <select id="renta-periode" onchange="renderRentabilite()" style="padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
+ <button class="btn btn-sm" onclick="openAffRules()">⚙ Règles d'affectation</button>
+ </div>
+ </div>
+ <div id="renta-alert"></div>
+ <div class="kpi-grid" id="renta-kpis"></div>
+ <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px"><div style="overflow-x:auto" id="renta-wrap"></div></div>
+ <div class="sl">Détail par bien</div>
+ <div id="renta-detail"></div>
+ <div id="renta-note" style="font-size:12px;color:var(--text3);line-height:1.6;margin:14px 0"></div>
  </div>
 
  <!-- ASSOCIES -->
@@ -1326,6 +1349,7 @@ canvas{max-width:100%;display:block}
  <option value="apport">Compte courant associé</option>
  </select>
  </div>
+ <div class="fg"><label>Affectation <span style="font-weight:400;color:var(--text3)">(bien concerné, ou commun à la SCI)</span></label><select id="mv-aff"></select></div>
  <div class="fg"><label>Montant (€) — positif = entrée, négatif = sortie</label><input id="mv-montant" type="number" step="0.01" placeholder="ex: 1000 ou -250"></div>
  <div class="modal-footer">
  <button class="btn" onclick="closeModal('modal-add-mvt')">Annuler</button>
@@ -1350,6 +1374,24 @@ canvas{max-width:100%;display:block}
  <button class="btn" onclick="resetAirbnbParams()">Valeurs par défaut</button>
  <button class="btn" onclick="closeModal('modal-airbnb')">Annuler</button>
  <button class="btn btn-primary" onclick="saveAirbnbParams()">Enregistrer</button>
+ </div>
+ </div>
+</div>
+
+<div class="modal-bg" id="modal-aff-rules">
+ <div class="modal" style="max-width:640px">
+ <div class="modal-title">Règles d'affectation</div>
+ <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:12px">Une règle affecte automatiquement les lignes dont le libellé contient un mot : à l'import, et avec le bouton « Appliquer les règles ». Exemples : « AXA » → un bien précis, « BANQUE » ou « CFE » → Commun SCI. Sans règle, l'appli reconnaît aussi le nom ou l'adresse d'un bien dans le libellé, et affecte tout au bien lorsqu'il n'y en a qu'un seul.</div>
+ <div id="aff-rules-list" style="margin-bottom:12px"></div>
+ <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+ <div class="fg" style="flex:1;min-width:150px;margin:0"><label>Le libellé contient</label><input id="aff-rule-p" type="text" maxlength="60" placeholder="ex: AXA" onkeydown="if(event.key==='Enter')addAffRule()"></div>
+ <div class="fg" style="flex:1;min-width:170px;margin:0"><label>Affecter à</label><select id="aff-rule-aff"></select></div>
+ <button class="btn btn-primary" onclick="addAffRule()">Ajouter la règle</button>
+ </div>
+ <div id="aff-rules-msg" style="color:var(--red);font-size:12px;min-height:18px;margin-top:8px"></div>
+ <div class="modal-footer">
+ <button class="btn" onclick="closeModal('modal-aff-rules')">Fermer</button>
+ <button class="btn btn-primary" onclick="applyAffRules()">Appliquer aux lignes à affecter</button>
  </div>
  </div>
 </div>
@@ -1392,7 +1434,7 @@ canvas{max-width:100%;display:block}
  </div>
  <div id="imp-summary" style="font-size:12px;color:var(--text2);margin:10px 0 8px;line-height:1.6"></div>
  <div style="overflow:auto;max-height:310px;border:0.5px solid var(--border);border-radius:var(--radius)">
- <table class="jtable"><thead><tr><th style="width:34px"><input type="checkbox" id="imp-all" checked onchange="impToggleAll(this.checked)" title="Tout cocher / décocher"></th><th>Date</th><th>Libellé</th><th style="text-align:right">Montant</th><th>Catégorie</th><th>Statut</th></tr></thead><tbody id="imp-body"></tbody></table>
+ <table class="jtable"><thead><tr><th style="width:34px"><input type="checkbox" id="imp-all" checked onchange="impToggleAll(this.checked)" title="Tout cocher / décocher"></th><th>Date</th><th>Libellé</th><th style="text-align:right">Montant</th><th>Catégorie</th><th>Affectation</th><th>Statut</th></tr></thead><tbody id="imp-body"></tbody></table>
  </div>
  <div style="font-size:11px;color:var(--text3);margin-top:6px">Les catégories sont proposées automatiquement (selon le sens et le libellé) ; vous pouvez les modifier ligne par ligne avant d'importer.</div>
  </div>
@@ -2255,7 +2297,8 @@ function impBuild(){
    const n=(seenAll.get(k)||0)+1;seenAll.set(k,n);
    dup=n<=(exKeyAll.get(k)||0);                                                           // les lignes identiques en plus restent importables
   }
-  out.push({date,libelle:lab,montant:amt,cat:impGuessCat(lab,amt),oid,inc:!dup,dup});
+  const cat=impGuessCat(lab,amt);
+  out.push({date,libelle:lab,montant:amt,cat,aff:impGuessAff(lab,cat),oid,inc:!dup,dup});
  });
  out.sort((a,b)=>a.date.localeCompare(b.date));
  impState.rows=out;
@@ -2271,6 +2314,7 @@ function impRenderPreview(bad,old){
    <td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${assocEsc(r.libelle)}">${assocEsc(r.libelle)}</td>
    <td style="text-align:right;white-space:nowrap;font-weight:600;color:${r.montant>=0?'var(--green)':'var(--red)'}">${r.montant>=0?'+':''}${euro(r.montant,2)}</td>
    <td><select onchange="impSetCat(${i},this.value)">${mvtCatOptions(r.cat)}</select></td>
+   <td>${r.cat==='apport'?'—':`<select onchange="impSetAff(${i},this.value)">${affOptions(r.aff)}</select>`}</td>
    <td>${r.dup?'<span class="badge badge-warn">Déjà présente</span>':'<span class="badge badge-ok">Nouvelle</span>'}</td>
   </tr>`).join('');
  impState.bad=bad;impState.old=old;impState.truncated=rows.length>LIMIT;
@@ -2291,7 +2335,12 @@ function impSummary(){
  go.textContent=sel.length?'Importer '+sel.length+' ligne'+(sel.length>1?'s':''):'Importer';
 }
 function impToggle(i,v){impState.rows[i].inc=!!v;impSummary();}
-function impSetCat(i,c){impState.rows[i].cat=c;}
+function impSetCat(i,c){
+ const r=impState.rows[i];r.cat=c;
+ r.aff=c==='apport'?'':(r.aff||impGuessAff(r.libelle,c));
+ impRenderPreview(impState.bad,impState.old);
+}
+function impSetAff(i,v){impState.rows[i].aff=v;}
 function impToggleAll(v){
  impState.rows.forEach(r=>{r.inc=v?!r.dup:false;});   // « tout cocher » ne recoche pas les lignes déjà présentes
  document.querySelectorAll('#imp-body input[type=checkbox]').forEach((cb,i)=>{if(impState.rows[i])cb.checked=impState.rows[i].inc;});
@@ -2308,6 +2357,7 @@ async function impRun(){
   const id='m_'+uid()+'_'+i.toString(36);
   const m={id,date:r.date,libelle:r.libelle,cat:r.cat,montant:r.montant,src:'odoo'};
   if(r.oid)m.odooId=r.oid;
+  if(r.aff&&r.cat!=='apport'&&affValideVal(r.aff))m.aff=r.aff;
   DATA.mouvements[id]=m;batch[id]=m;
   if(r.cat==='apport'){const k=impAssocFromLabel(r.libelle);if(k){if(linkMvt(m,k,pImp)==='cree')autoCree++;else autoRatt++;}}   // associé reconnu dans le libellé
  });
@@ -2620,7 +2670,7 @@ function fbSave(subPath,data){return enqueueOp({type:'patch',subPath,data},' Mod
 function fbRemove(subPath){return enqueueOp({type:'delete',subPath},' Supprimé');}
 
 // ---- Réglages stockés en localStorage (BP, marché, projection) synchronisés via Firebase ----
-const SYNC_KEYS=['sci_bp_biens','sci_bp_params','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url','sci_proj_criteres','sci_banque_crit','sci_assoc_fin'];
+const SYNC_KEYS=['sci_bp_biens','sci_bp_params','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url','sci_proj_criteres','sci_banque_crit','sci_assoc_fin','sci_aff_rules'];
 const _lsSet=Storage.prototype.setItem;
 const _lsRemove=Storage.prototype.removeItem;
 const dirtySettings=new Set();
@@ -3192,7 +3242,7 @@ function openDrawerBien(id){
  const b=DATA.biens[id];if(!b)return;
  document.getElementById('drw-titre').textContent=b.nom||b.adresse;
  document.getElementById('drw-sous-titre').textContent=`${b.adresse}${b.ville?' · '+b.ville:''} · ${b.type} ${b.surface}m²`;
- document.getElementById('drw-body').innerHTML=bienDrawerContent(b);
+ document.getElementById('drw-body').innerHTML=bienDrawerContent(b)+bienRentaBlock(b);
  document.getElementById('drw-modifier-btn').onclick=()=>{closeDrawer();openEditBien(id);};
  document.getElementById('drw-supprimer-btn').onclick=()=>deleteBienDrawer(id);
  document.getElementById('drw-supprimer-btn').style.display='';
@@ -3238,8 +3288,229 @@ function renderBiens(){
 // ============================================================
 // RENDER — TRESORERIE
 // ============================================================
+// ============================================================
+// AFFECTATION DES LIGNES AUX BIENS — rentabilité réelle par bien
+// Une ligne de la Comptabilité peut être : affectée à un bien (id), « commune » à la SCI (répartie au prorata
+// du coût d'achat des biens déjà acquis à la date de la ligne), ou à affecter. Les comptes courants d'associés
+// (catégorie « apport ») ne s'affectent pas : ce ne sont pas des produits ni des charges.
+// ============================================================
+const AFF_COMMUN='commun';
+const AFF_HORS='hors';       // exclue de la rentabilité : acquisition, déblocage de prêt, dépôt de garantie…
+const affValideVal=a=>a===AFF_COMMUN||a===AFF_HORS||!!DATA.biens[a];
+const CATS_PRODUIT=['loyers','loyers_airbnb','autre_produit'];
+function bienCoutAchat(b){return (Number(b.prix)||0)+(Number(b.notaire)||0)+(Number(b.courtier)||0)+(Number(b.travaux)||0);}
+function bienNom(b){return b.nom||b.adresse||b.id;}
+function mvtAff(m){
+ if(m.aff===AFF_COMMUN||m.aff===AFF_HORS)return m.aff;
+ return (m.aff&&DATA.biens[m.aff])?m.aff:'';          // bien supprimé : la ligne redevient « à affecter »
+}
+function affOptions(cur){
+ return '<option value="">— à affecter —</option>'+biensList().map(b=>`<option value="${escH(b.id)}"${b.id===cur?' selected':''}>${escH(bienNom(b))}</option>`).join('')+`<option value="${AFF_COMMUN}"${cur===AFF_COMMUN?' selected':''}>Commun SCI (prorata)</option><option value="${AFF_HORS}"${cur===AFF_HORS?' selected':''}>Hors rentabilité</option>`;
+}
+function affLabel(a){return a===AFF_COMMUN?'Commun SCI':(a===AFF_HORS?'Hors rentabilité':(a&&DATA.biens[a]?bienNom(DATA.biens[a]):'À affecter'));}
+function affRules(){let r=[];try{r=JSON.parse(localStorage.getItem('sci_aff_rules')||'[]');}catch(e){}return Array.isArray(r)?r.filter(x=>x&&x.p&&x.a):[];}
+// Proposition d'affectation : règles → nom/adresse d'un bien dans le libellé → bien unique
+function impGuessAff(lab,cat){
+ if(!cat||cat==='apport'||cat==='autres'||cat==='emprunt')return '';
+ const t=impNorm(lab);
+ for(const r of affRules()){const p=impNorm(r.p);if(p&&t.includes(p)&&affValideVal(r.a))return r.a;}
+ if(/\b(notaire|acquisition|deblocage|credit logement|frais de dossier)\b/.test(t))return AFF_HORS;   // paiements d'achat et de financement : hors exploitation
+ const biens=biensList();
+ for(const b of biens)for(const nm of [b.nom,b.adresse]){const q=impNorm(nm||'');if(q.length>=4&&t.includes(q))return b.id;}
+ if(biens.length===1)return biens[0].id;
+ return '';
+}
+function affNonAffectees(){
+ return mvtsList().filter(m=>m.cat!=='apport'&&(CATS_PRODUIT.includes(m.cat)||m.cat==='depense'||m.cat==='loyer_emprunt')&&!mvtAff(m));
+}
+const isoOf=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const daysBetween=(a,b)=>Math.round((Date.UTC(+b.slice(0,4),+b.slice(5,7)-1,+b.slice(8,10))-Date.UTC(+a.slice(0,4),+a.slice(5,7)-1,+a.slice(8,10)))/86400000)+1;
+function rentaPeriode(sel){
+ const today=isoOf(new Date());
+ if(sel==='tout'){
+  const dates=mvtsList().filter(m=>m.cat!=='apport').map(m=>m.date).concat(biensList().map(b=>b.dateAchat).filter(Boolean)).sort();
+  return {d1:dates[0]||today,d2:today,label:'depuis l\'origine'};
+ }
+ if(/^an:\d{4}$/.test(sel||'')){const y=sel.slice(3),fin=y+'-12-31';return {d1:y+'-01-01',d2:fin>today?today:fin,label:'année '+y};}
+ const t=new Date();t.setFullYear(t.getFullYear()-1);t.setDate(t.getDate()+1);
+ return {d1:isoOf(t),d2:today,label:'12 derniers mois'};
+}
+// Rentabilité réelle de chaque bien sur [d1,d2] (dates ISO incluses)
+function rentaCalc(d1,d2){
+ const biens=biensList(),info={};
+ biens.forEach(b=>{info[b.id]={cout:bienCoutAchat(b),achat:b.dateAchat||'0000-01-01',prodD:0,depD:0,empD:0,prodC:0,depC:0,empC:0,lines:[]};});
+ const nonAff={prod:0,dep:0,emp:0,n:0,lines:[]},nonRep={prod:0,dep:0,emp:0,n:0,lines:[]};
+ const exclu={hors:{n:0,entrees:0,sorties:0},apport:{n:0,net:0},autres:{n:0,net:0}};   // ce qui n'entre pas dans la rentabilité
+ mvtsList().forEach(m=>{
+  if(m.date<d1||m.date>d2)return;
+  const mt=Number(m.montant)||0;
+  if(m.cat==='apport'){exclu.apport.n++;exclu.apport.net+=mt;return;}              // comptes courants d'associés
+  if(mvtAff(m)===AFF_HORS){exclu.hors.n++;if(mt>=0)exclu.hors.entrees+=mt;else exclu.hors.sorties-=mt;return;}   // lignes exclues volontairement
+  const k=CATS_PRODUIT.includes(m.cat)?'prod':(m.cat==='depense'?'dep':(m.cat==='loyer_emprunt'?'emp':null));
+  if(!k){exclu.autres.n++;exclu.autres.net+=mt;return;}   // anciennes catégories (« Non classé », déblocage…)
+  const v=Number(m.montant)||0,val=k==='prod'?v:-v,a=mvtAff(m);   // charges et emprunt exprimés en positif
+  if(a===AFF_COMMUN){
+   const el=biens.filter(b=>info[b.id].cout>0&&info[b.id].achat<=m.date),W=el.reduce((t,b)=>t+info[b.id].cout,0);
+   if(!W){nonRep[k]+=val;nonRep.n++;nonRep.lines.push({m,val});return;}   // avant le premier achat
+   el.forEach(b=>{const part=info[b.id].cout/W;info[b.id][k+'C']+=val*part;info[b.id].lines.push({m,val:val*part,commun:true,part});});
+  }else if(a){info[a][k+'D']+=val;info[a].lines.push({m,val,commun:false,part:1});}
+  else{nonAff[k]+=val;nonAff.n++;nonAff.lines.push({m,val});}
+ });
+ const rows=biens.map(b=>{
+  const i=info[b.id],prod=i.prodD+i.prodC,dep=i.depD+i.depC,emp=i.empD+i.empC;
+  const debut=i.achat>d1?i.achat:d1,jours=debut<=d2?daysBetween(debut,d2):0,resultat=prod-dep,mois=jours/30.4375;
+  const prevRev=bienRevenuMensuel(b)*mois,prevCh=bienChargesMois(b)*mois,ok=jours>=30&&i.cout>0;
+  return {b,cout:i.cout,jours,prodD:i.prodD,prodC:i.prodC,prod,depD:i.depD,depC:i.depC,dep,emp,resultat,cashflow:resultat-emp,
+   renta:ok?resultat*(365.25/jours)/i.cout*100:null,rentaPrev:ok?(prevRev-prevCh)*(365.25/jours)/i.cout*100:null,prevRev,prevCh,lines:i.lines};
+ });
+ return {d1,d2,rows,nonAff,nonRep,exclu,totCout:rows.reduce((t,r)=>t+r.cout,0)};
+}
+
+
+// ---- Affecter une ou plusieurs lignes ----
+function fillAffSelects(){
+ const biens=biensList();
+ const opts=biens.map(b=>`<option value="${escH(b.id)}">${escH(bienNom(b))}</option>`).join('')+`<option value="${AFF_COMMUN}">Commun SCI (prorata)</option><option value="${AFF_HORS}">Hors rentabilité</option>`;
+ const fa=document.getElementById('tres-filter-aff');
+ if(fa){const cur=fa.value;fa.innerHTML='<option value="">Toutes les affectations</option><option value="__none">À affecter</option>'+opts;fa.value=[...fa.options].some(o=>o.value===cur)?cur:'';}
+ const ba=document.getElementById('tres-bulk-aff');
+ if(ba)ba.innerHTML='<option value="">Affecter à…</option>'+opts+'<option value="__none">Retirer l\'affectation</option>';
+ const ma=document.getElementById('mv-aff');
+ if(ma){const cur=ma.value;ma.innerHTML=affOptions('');ma.value=(cur&&[...ma.options].some(o=>o.value===cur))?cur:(biens.length===1?biens[0].id:'');}
+}
+async function setMvtAff(id,aff){
+ const m=DATA.mouvements[id];if(!m)return;
+ if(aff&&!affValideVal(aff))return;
+ if(aff)m.aff=aff;else delete m.aff;
+ renderTresorerie();renderRentabilite();
+ await fbSave('mouvements',{[id]:m});
+}
+async function bulkSetAff(v){
+ const sel=document.getElementById('tres-bulk-aff');if(sel)sel.value='';
+ if(!v)return;
+ const aff=v==='__none'?'':v;
+ if(aff&&!affValideVal(aff))return;
+ const ids=[...tresSelected].filter(id=>DATA.mouvements[id]&&DATA.mouvements[id].cat!=='apport');
+ if(!ids.length){showToast('Aucune ligne concernée : les comptes courants d\'associés ne s\'affectent pas');return;}
+ ids.forEach(id=>{const m=DATA.mouvements[id];if(aff)m.aff=aff;else delete m.aff;});
+ tresSelected.clear();
+ renderTresorerie();renderRentabilite();
+ for(let i=0;i<ids.length;i+=200){const chunk={};ids.slice(i,i+200).forEach(id=>{chunk[id]=DATA.mouvements[id];});await fbSave('mouvements',chunk);}
+ showToast(ids.length+' ligne'+(ids.length>1?'s':'')+(aff?' affectée'+(ids.length>1?'s':'')+' à « '+affLabel(aff)+' »':' remise'+(ids.length>1?'s':'')+' à affecter'));
+}
+function renderAffAlert(){
+ const el=document.getElementById('aff-alert');if(!el)return;
+ const l=affNonAffectees();
+ if(!biensList().length||!l.length){el.innerHTML='';return;}
+ const dep=l.filter(m=>m.cat==='depense'||m.cat==='loyer_emprunt').reduce((s,m)=>s-Number(m.montant),0),prod=l.filter(m=>CATS_PRODUIT.includes(m.cat)).reduce((s,m)=>s+Number(m.montant),0);
+ el.innerHTML=`<div class="card" style="border-left:3px solid var(--amber);display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+  <div style="flex:1;min-width:230px;font-size:12px;line-height:1.55;color:var(--text2)"><strong style="color:var(--text);font-size:13px">${l.length} ligne${l.length>1?'s':''} à affecter à un bien</strong><br>Pour suivre la rentabilité de chaque bien, affectez les loyers, dépenses et prélèvements au bien concerné (ou « Commun SCI » pour les frais partagés, répartis au prorata du coût d'achat). À affecter : ${euro(prod)} de produits et ${euro(dep)} de charges.</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="affShowUnassigned()">Afficher ces lignes</button><button class="btn" onclick="applyAffRules()">Appliquer les règles</button></div></div>`;
+}
+function affShowUnassigned(){
+ showMainTab('gestion');showSubPage('tresorerie',document.getElementById('sub-tresorerie'));
+ const f=document.getElementById('tres-filter-aff');if(f)f.value='__none';
+ tresFilterChanged();
+}
+// ---- Règles d'affectation automatique (libellé contient … → bien) ----
+function openAffRules(){renderAffRules();openModal('modal-aff-rules');}
+function renderAffRules(){
+ const rules=affRules();
+ document.getElementById('aff-rules-list').innerHTML=rules.length?`<table class="jtable" style="font-size:12.5px"><thead><tr><th>Si le libellé contient</th><th>Affecter à</th><th></th></tr></thead><tbody>${rules.map((r,i)=>`<tr><td><strong>${escH(r.p)}</strong></td><td>${escH(affLabel(r.a))}${!affValideVal(r.a)?' <span style="color:var(--red)">(bien supprimé)</span>':''}</td><td style="text-align:right"><button class="btn btn-danger btn-sm" title="Supprimer la règle" onclick="delAffRule(${i})">${ICON_TRASH}</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty-state" style="padding:14px">Aucune règle pour l\'instant.</div>';
+ const sel=document.getElementById('aff-rule-aff');
+ if(sel){const cur=sel.value;sel.innerHTML=affOptions('').replace('<option value="">— à affecter —</option>','<option value="">Choisir…</option>');sel.value=[...sel.options].some(o=>o.value===cur)?cur:'';}
+ document.getElementById('aff-rules-msg').textContent='';
+}
+function addAffRule(){
+ const p=document.getElementById('aff-rule-p').value.trim(),a=document.getElementById('aff-rule-aff').value,msg=document.getElementById('aff-rules-msg');
+ msg.style.color='var(--red)';
+ if(p.length<3){msg.textContent='Saisissez au moins 3 caractères du libellé (par exemple « AXA » ou « ENGIE »).';return;}
+ if(!a){msg.textContent='Choisissez le bien, ou « Commun SCI ».';return;}
+ const rules=affRules();
+ if(rules.some(r=>impNorm(r.p)===impNorm(p))){msg.textContent='Une règle existe déjà pour ce libellé : supprimez-la d\'abord.';return;}
+ rules.push({p:p.slice(0,60),a});
+ localStorage.setItem('sci_aff_rules',JSON.stringify(rules));
+ document.getElementById('aff-rule-p').value='';
+ renderAffRules();
+}
+function delAffRule(i){const rules=affRules();rules.splice(i,1);localStorage.setItem('sci_aff_rules',JSON.stringify(rules));renderAffRules();}
+// Applique les règles (puis les autres propositions : nom du bien dans le libellé, bien unique) aux lignes encore à affecter
+async function applyAffRules(){
+ const todo=affNonAffectees().map(m=>({m,a:impGuessAff(m.libelle,m.cat)})).filter(x=>x.a);
+ if(!todo.length){showToast('Aucune règle ne correspond aux lignes à affecter');return;}
+ if(!confirm(todo.length+' ligne'+(todo.length>1?'s':'')+' à affecter vont être affectée'+(todo.length>1?'s':'')+' selon vos règles et les noms de biens trouvés dans les libellés. Continuer ?'))return;
+ todo.forEach(x=>{x.m.aff=x.a;});
+ renderTresorerie();renderRentabilite();
+ for(let i=0;i<todo.length;i+=200){const chunk={};todo.slice(i,i+200).forEach(x=>{chunk[x.m.id]=x.m;});await fbSave('mouvements',chunk);}
+ closeModal('modal-aff-rules');
+ showToast(todo.length+' ligne'+(todo.length>1?'s':'')+' affectée'+(todo.length>1?'s':''));
+}
+
+// ---- Page « Rentabilité par bien » ----
+function renderRentabilite(){
+ const wrap=document.getElementById('renta-wrap');if(!wrap)return;
+ const sel=document.getElementById('renta-periode'),cur=sel.value||'r12';
+ const years=[...new Set(mvtsList().filter(m=>m.cat!=='apport').map(m=>m.date.slice(0,4)))].sort().reverse();
+ sel.innerHTML='<option value="r12">12 derniers mois</option><option value="tout">Depuis l\'origine</option>'+years.map(y=>`<option value="an:${y}">Année ${y}</option>`).join('');
+ sel.value=[...sel.options].some(o=>o.value===cur)?cur:'r12';
+ const P=rentaPeriode(sel.value),R=rentaCalc(P.d1,P.d2),fd=iso=>iso.split('-').reverse().join('/');
+ const E=escH,rows=R.rows;
+ if(!rows.length){
+  document.getElementById('renta-alert').innerHTML='';document.getElementById('renta-kpis').innerHTML='';document.getElementById('renta-detail').innerHTML='';document.getElementById('renta-note').innerHTML='';
+  wrap.innerHTML='<div class="empty-state" style="padding:24px">Ajoutez un bien (onglet Biens) pour suivre sa rentabilité réelle.</div>';return;
+ }
+ const sum=k=>rows.reduce((t,r)=>t+r[k],0);
+ const prod=sum('prod'),dep=sum('dep'),emp=sum('emp'),res=prod-dep;
+ const nA=affNonAffectees().filter(m=>m.date>=P.d1&&m.date<=P.d2).length;
+ document.getElementById('renta-alert').innerHTML=nA?`<div class="card" style="border-left:3px solid var(--amber);display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px"><div style="flex:1;min-width:220px;font-size:12px;line-height:1.55;color:var(--text2)"><strong style="color:var(--text);font-size:13px">${nA} ligne${nA>1?'s':''} de la période ${nA>1?'ne sont':'n\'est'} affectée${nA>1?'s':''} à aucun bien</strong><br>Elles ne sont pas comptées dans les chiffres ci-dessous.</div><button class="btn" onclick="affShowUnassigned()">Les affecter</button></div>`:'';
+ const kpi=(l,v,c)=>`<div class="kpi"><div class="kpi-label">${l}</div><div class="kpi-val ${c||''}">${v}</div></div>`;
+ document.getElementById('renta-kpis').innerHTML=kpi('Produits',euro(prod),'kpi-pos')+kpi('Dépenses',euro(dep),'kpi-neg')+kpi('Résultat d\'exploitation',(res>=0?'':'−')+euro(Math.abs(res)),res>=0?'kpi-pos':'kpi-neg')+kpi('Remboursements d\'emprunt',euro(emp))+kpi('Cash-flow',(res-emp>=0?'':'−')+euro(Math.abs(res-emp)),res-emp>=0?'kpi-pos':'kpi-neg');
+ const pc=v=>v==null?'<span style="color:var(--text3)" title="Période d\'exploitation inférieure à 30 jours">—</span>':pct1(v);
+ const sg=v=>`<span style="color:${v>=0?'var(--green)':'var(--red)'};font-weight:600">${v>=0?'':'−'}${euro(Math.abs(v),0)}</span>`;
+ const part=r=>R.totCout>0?Math.round(r.cout/R.totCout*100):0;
+ let body=rows.map(r=>`<tr>
+  <td><strong>${E(bienNom(r.b))}</strong><div style="font-size:11px;color:var(--text3)">${r.jours>0?r.jours+' jours d\'exploitation':'pas encore acheté'}</div></td>
+  <td style="text-align:right">${euro(r.cout,0)}<div style="font-size:11px;color:var(--text3)">${part(r)} % du total</div></td>
+  <td style="text-align:right;color:var(--green)">${euro(r.prod,0)}</td>
+  <td style="text-align:right">${euro(r.depD,0)}</td>
+  <td style="text-align:right">${euro(r.depC,0)}</td>
+  <td style="text-align:right">${sg(r.resultat)}</td>
+  <td style="text-align:right">${euro(r.emp,0)}</td>
+  <td style="text-align:right">${sg(r.cashflow)}</td>
+  <td style="text-align:right;font-weight:600">${pc(r.renta)}</td>
+  <td style="text-align:right;color:var(--text3)">${pc(r.rentaPrev)}</td></tr>`).join('');
+ const tot=`<tr style="background:var(--surface2);font-weight:600"><td>Total affecté aux biens</td><td style="text-align:right">${euro(R.totCout,0)}</td><td style="text-align:right">${euro(prod,0)}</td><td style="text-align:right">${euro(sum('depD'),0)}</td><td style="text-align:right">${euro(sum('depC'),0)}</td><td style="text-align:right">${sg(res)}</td><td style="text-align:right">${euro(emp,0)}</td><td style="text-align:right">${sg(res-emp)}</td><td></td><td></td></tr>`;
+ const autre=(label,o,css)=>o.n?`<tr style="${css}"><td>${label} <span style="font-weight:400;color:var(--text3)">(${o.n} ligne${o.n>1?'s':''})</span></td><td></td><td style="text-align:right">${euro(o.prod,0)}</td><td style="text-align:right">${euro(o.dep,0)}</td><td></td><td></td><td style="text-align:right">${euro(o.emp,0)}</td><td></td><td></td><td></td></tr>`:'';
+ wrap.innerHTML=`<table class="jtable" style="font-size:12.5px"><thead><tr><th>Bien</th><th style="text-align:right">Coût d'achat</th><th style="text-align:right">Produits</th><th style="text-align:right">Dépenses directes</th><th style="text-align:right">Quote-part commune</th><th style="text-align:right">Résultat</th><th style="text-align:right">Emprunt</th><th style="text-align:right">Cash-flow</th><th style="text-align:right">Rendement net réel</th><th style="text-align:right">Prévu</th></tr></thead><tbody>${body}${tot}${autre('À affecter',R.nonAff,'background:var(--amber-light)')}${autre('Commun avant le premier achat',R.nonRep,'background:var(--surface2)')}</tbody></table>`;
+ // détail par bien
+ document.getElementById('renta-detail').innerHTML=rows.map(r=>{
+  const ls=r.lines.slice().sort((a,b)=>b.m.date.localeCompare(a.m.date)).slice(0,300);
+  return `<details class="card" style="margin-bottom:8px;padding:10px 16px"><summary style="cursor:pointer;font-weight:600;font-size:13px">${E(bienNom(r.b))} <span style="font-weight:400;color:var(--text3)">· ${r.lines.length} ligne${r.lines.length>1?'s':''} · résultat ${sg(r.resultat)}</span></summary>
+  ${ls.length?`<div style="overflow-x:auto;margin-top:8px"><table class="jtable" style="font-size:12px"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Imputation</th><th style="text-align:right">Montant imputé</th></tr></thead><tbody>${ls.map(x=>`<tr><td style="white-space:nowrap">${fdate(x.m.date)}</td><td>${E(x.m.libelle)}</td><td>${E(catLabel(x.m.cat))}</td><td>${x.commun?'quote-part commune ('+Math.round(x.part*100)+' %)':'directe'}</td><td style="text-align:right">${x.val>=0?'+':'−'}${euro(Math.abs(x.val),2)}</td></tr>`).join('')}</tbody></table></div>`:'<div style="font-size:12px;color:var(--text3);margin-top:8px">Aucune ligne affectée à ce bien sur la période.</div>'}</details>`;
+ }).join('');
+ const shares=rows.map(r=>E(bienNom(r.b))+' '+part(r)+' %').join(' · ');
+ const X=R.exclu,eur=v=>euro(Math.abs(v),0);
+ const exclTxt=[X.apport.n?`<strong>${X.apport.n} ligne${X.apport.n>1?'s':''} de comptes courants d'associés</strong> (${X.apport.net>=0?'+':'−'}${eur(X.apport.net)})`:'',X.hors.n?`<strong>${X.hors.n} ligne${X.hors.n>1?'s':''} « Hors rentabilité »</strong> (${eur(X.hors.entrees)} d'entrées, ${eur(X.hors.sorties)} de sorties)`:'',X.autres.n?`<strong>${X.autres.n} ligne${X.autres.n>1?'s':''} non classée${X.autres.n>1?'s':''}</strong> (${X.autres.net>=0?'+':'−'}${eur(X.autres.net)})`:''].filter(Boolean);
+ document.getElementById('renta-note').innerHTML=`<strong>Comment lire ce tableau.</strong> Période : ${P.label} (${fd(P.d1)} → ${fd(P.d2)}). <em>Produits</em> = loyers, loyers Airbnb et autres produits ; <em>Dépenses</em> = charges affectées au bien (directes) + sa quote-part des frais communs ; <em>Résultat</em> = produits − dépenses ; <em>Cash-flow</em> = résultat − remboursements d'emprunt ; <em>Rendement net réel</em> = résultat annualisé ÷ coût d'achat (prix + frais + travaux). Colonne <em>Prévu</em> : rendement net attendu d'après les loyers et charges saisis sur la fiche du bien.<br><strong>Frais communs à la SCI</strong> (lignes affectées à « Commun SCI ») : répartis au <strong>prorata du coût d'achat</strong> des biens déjà acquis à la date de chaque ligne. Répartition actuelle : ${shares}. <br><strong>Exclus de la rentabilité</strong> : les comptes courants d'associés (ce n'est ni un produit ni une charge), les lignes affectées à « Hors rentabilité » (paiement d'acquisition, notaire, déblocage de prêt, dépôt de garantie…) et les lignes « Non classé ». Sur la période : ${exclTxt.length?exclTxt.join(' · '):'aucune ligne exclue'}.`;
+}
+// Bloc affiché dans la fiche d'un bien
+function bienRentaBlock(b){
+ const P=rentaPeriode('r12'),R=rentaCalc(P.d1,P.d2),r=R.rows.find(x=>x.b.id===b.id);
+ if(!r)return '';
+ const sg=v=>`<span style="color:${v>=0?'var(--green)':'var(--red)'};font-weight:600">${v>=0?'':'−'}${euro(Math.abs(v),0)}</span>`;
+ const lignes=r.lines.length;
+ return `<div class="status-block" style="margin-top:16px"><div style="font-weight:600;font-size:13px;margin-bottom:6px">Rentabilité réelle · 12 derniers mois</div>
+  ${lignes?`<div class="status-row"><span>Produits</span><span style="font-weight:500">${euro(r.prod,0)}</span></div>
+  <div class="status-row"><span>Dépenses <span style="color:var(--text3);font-size:11px">(dont ${euro(r.depC,0)} de frais communs)</span></span><span style="font-weight:500">${euro(r.dep,0)}</span></div>
+  <div class="status-row"><span>Résultat d'exploitation</span><span>${sg(r.resultat)}</span></div>
+  <div class="status-row"><span>Rendement net réel · prévu</span><span style="font-weight:500">${r.renta==null?'—':pct1(r.renta)} · ${r.rentaPrev==null?'—':pct1(r.rentaPrev)}</span></div>`:`<div style="font-size:12px;color:var(--text3)">Aucune ligne de la Comptabilité n'est affectée à ce bien sur la période.</div>`}
+  <div style="margin-top:8px"><button class="btn btn-sm" onclick="closeDrawer();showSubPage('rentabilite',document.getElementById('sub-rentabilite'))">Voir la rentabilité par bien →</button></div></div>`;
+}
+
 function renderTresorerie(){
  refreshOdooLink();
+ fillAffSelects();
+ renderAffAlert();
  renderAutoMvtAlert();
  const soldes=computeSoldes();
  const tresorerie=soldes.length?soldes[soldes.length-1].solde:0;
@@ -3260,12 +3531,14 @@ function renderTresorerie(){
  const kind=m=>m.src==='odoo'?'odoo':(autoSet.has(m.id)?'auto':'manuel');
  const filt=(document.getElementById('tres-filter')||{}).value||'';
  const fcat=(document.getElementById('tres-filter-cat')||{}).value||'';
+ const faff=(document.getElementById('tres-filter-aff')||{}).value||'';
  const q=((document.getElementById('tres-search')||{}).value||'').trim().toLowerCase();
  tresSelected.forEach(id=>{if(!DATA.mouvements[id])tresSelected.delete(id);});
  if(tresEdit&&!DATA.mouvements[tresEdit.id])tresEdit=null;
  const badge={odoo:'<span class="badge" style="background:#EFE3EB;color:#714B67;font-size:9px;margin-left:6px;padding:2px 7px">Odoo</span>',auto:'<span class="badge badge-warn" style="font-size:9px;margin-left:6px;padding:2px 7px">Auto</span>',manuel:''};
  const rows=soldes.reverse().filter(m=>(!filt||kind(m)===filt)
   &&(!fcat||(fcat==='__other'?!MVT_CATS.some(x=>x[0]===m.cat):m.cat===fcat))
+  &&(!faff||(faff==='__none'?(m.cat!=='apport'&&!mvtAff(m)):mvtAff(m)===faff))
   &&(!q||String(m.libelle).toLowerCase().includes(q)));
  document.getElementById('tres-body').innerHTML=rows.length?rows.map(m=>`
  <tr${tresSelected.has(m.id)?' style="background:var(--surface2)"':''}>
@@ -3280,11 +3553,12 @@ function renderTresorerie(){
  <select class="cat-sel cat-${escH(m.cat)}" title="Modifier la catégorie" onchange="setMvtCat('${m.id}',this.value)">${mvtCatOptions(m.cat)}</select>
  ${m.cat==='apport'?`<select class="cat-sel ${mvtAssocK(m)?'cat-apport':'cat-warn'}" title="Associé concerné : la ligne est transférée dans son compte courant" onchange="setMvtAssoc('${m.id}',this.value)"><option value="">Choisir l'associé…</option>${ASSOCIES.map(a=>`<option value="${a.k}"${a.k===mvtAssocK(m)?' selected':''}>${escH(a.n)}</option>`).join('')}</select>`:''}
  </div></td>
+ <td>${m.cat==='apport'?'<span style="color:var(--text3)" title="Les comptes courants d\'associés ne s\'affectent pas à un bien">—</span>':`<select class="cat-sel ${mvtAff(m)===''?'cat-warn':(mvtAff(m)===AFF_COMMUN?'cat-autre_produit':(mvtAff(m)===AFF_HORS?'cat-hors':'cat-loyers'))}" title="Affecter la ligne à un bien, ou la répartir au prorata (commun à la SCI)" onchange="setMvtAff('${m.id}',this.value)">${affOptions(mvtAff(m))}</select>`}</td>
  <td class="${m.montant>=0?'amount-pos':'amount-neg'}">${m.montant>=0?'+':''}${euro(m.montant,2)}</td>
  <td style="font-weight:500">${euro(m.solde,2)}</td>
  <td style="white-space:nowrap"><button class="btn btn-sm" title="Modifier le libellé" onclick="tresEditStart('${m.id}')" style="padding:3px 7px;margin-right:4px">${ICON_EDIT}</button><button class="btn btn-danger btn-sm" title="Supprimer cette ligne" onclick="deleteMouvement('${m.id}')">${ICON_TRASH}</button></td>
  </tr>
- `).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">Aucune ligne${(filt||fcat||q)?' pour ce filtre':''}.</td></tr>`;
+ `).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:18px">Aucune ligne${(filt||fcat||faff||q)?' pour ce filtre':''}.</td></tr>`;
  tresUpdateBar();
  const ei=document.getElementById('tres-edit-input');
  if(ei&&tresEdit&&tresEdit.focus){tresEdit.focus=false;ei.focus();ei.select();}
@@ -3555,6 +3829,7 @@ function renderAll(){
  renderDashboard();
  renderBiens();
  renderTresorerie();
+ renderRentabilite();
  renderAssocies();
  renderEmprunt();
  renderLocataires();
@@ -4225,7 +4500,17 @@ function buildGuideHtml(){
   <h3>Emprunt</h3>
   <p>Un tableau d'amortissement par bien : capital remboursé, intérêts et capital restant dû.</p>
   <h3>Locataires</h3>
-  <p>Situation de chaque bien : loué, bail signé en attente, non loué ou Airbnb, avec le total encaissable.</p>`);
+  <p>Situation de chaque bien : loué, bail signé en attente, non loué ou Airbnb, avec le total encaissable.</p>
+  <h3>Rentabilité par bien</h3>
+  <p>L'onglet ${U('Rentabilité')} (Gestion) montre ce que rapporte <strong>réellement</strong> chaque bien, d'après les lignes de la Comptabilité qui lui sont affectées. Choisissez la période : 12 derniers mois, depuis l'origine, ou une année. Pour chaque bien, le tableau donne :</p>
+  <ul><li>le <strong>coût d'achat</strong> (prix + frais + travaux) et sa part dans le total ;</li>
+  <li>les <strong>produits</strong> (loyers, loyers Airbnb, autres produits) ;</li>
+  <li>les <strong>dépenses directes</strong> et la <strong>quote-part des frais communs</strong> ;</li>
+  <li>le <strong>résultat d'exploitation</strong> (produits − dépenses), les <strong>remboursements d'emprunt</strong> et le <strong>cash-flow</strong> ;</li>
+  <li>le <strong>rendement net réel</strong> (résultat annualisé ÷ coût d'achat), comparé au rendement <strong>prévu</strong> d'après les loyers et charges saisis sur la fiche du bien.</li></ul>
+  ${co('<strong>Frais communs à la SCI</strong> (comptable, CFE, frais bancaires…) : une ligne affectée à « Commun SCI » est répartie <strong>au prorata du coût d\'achat</strong> des biens déjà acquis à la date de la ligne. Avec un seul bien, il reçoit tout ; avec deux biens de 100 000 € et 300 000 €, ils supportent 25 % et 75 %. Un bien acheté plus tard ne porte pas les frais antérieurs à son achat.','info')}
+  <p>Sous le tableau, un détail par bien liste chaque ligne imputée (directe ou en quote-part). La fiche d'un bien affiche aussi sa rentabilité réelle sur 12 mois.</p>
+  ${co('<strong>Ce qui n\'est pas compté dans la rentabilité :</strong> les <strong>comptes courants d\'associés</strong> (ce n\'est ni un produit ni une charge), les lignes affectées à <strong>Hors rentabilité</strong> (paiement d\'acquisition, notaire, déblocage de prêt, dépôt de garantie…) et les lignes <strong>Non classé</strong>. Sous le tableau, une note indique combien de lignes sont exclues sur la période, pour que rien ne disparaisse sans que vous le sachiez.')}`);
  // ---- 4
  h+=sec(4,'Comptabilité : import Odoo, catégories, comptes courants',`
   <p>L'onglet ${U('Comptabilité')} (dans Gestion) est le journal de la SCI. La comptabilité est tenue dans <strong>Odoo</strong> ; l'application la récupère par <strong>import</strong>. <strong>Aucune ligne n'est créée automatiquement</strong> quand vous ajoutez un bien : il n'y a donc pas de doublon.</p>
@@ -4252,6 +4537,15 @@ function buildGuideHtml(){
   <ul><li>Si un apport identique (même associé, même montant) a déjà été saisi, la ligne s'y <strong>rattache</strong> au lieu de créer un doublon ; un message le précise.</li>
   <li>À l'import, si le libellé contient le nom d'un seul associé, la ligne est rattachée automatiquement.</li>
   <li>Changer l'associé ou la catégorie met à jour l'onglet Associés ; supprimer la ligne supprime l'écriture qu'elle avait créée.</li></ul>
+  <h3>Affecter les lignes aux biens (pour suivre leur rentabilité)</h3>
+  <p>La colonne <strong>Affectation</strong> indique à quoi se rattache chaque ligne (hors comptes courants d'associés) :</p>
+  <ul><li><strong>un bien</strong> : loyer, dépense ou prélèvement propre à ce bien ;</li>
+  <li><strong>Commun SCI (prorata)</strong> : frais partagés, répartis entre les biens au prorata de leur coût d'achat (voir Rentabilité) ;</li>
+  <li><strong>Hors rentabilité</strong> : la ligne ne doit pas compter dans la rentabilité d'un bien (paiement d'acquisition, frais de notaire, déblocage de prêt, dépôt de garantie…) ;</li>
+  <li><strong>à affecter</strong> (liste orange) : la ligne n'est pas encore comptée dans la rentabilité d'un bien.</li></ul>
+  <p>Un bandeau indique le nombre de lignes à affecter. Pour en traiter plusieurs : filtrez (par exemple « À affecter » ou une recherche sur le libellé), cochez les lignes, puis ${U('Affecter à…')}. La liste de la saisie manuelle propose aussi l'affectation.</p>
+  <p><strong>Affectation automatique.</strong> À l'import, l'appli propose une affectation à chaque ligne : d'abord vos <strong>règles</strong>, puis le <strong>nom ou l'adresse d'un bien</strong> repéré dans le libellé, et enfin le <strong>bien unique</strong> s'il n'y en a qu'un. Les libellés contenant « notaire », « acquisition », « déblocage » ou « frais de dossier » sont proposés <strong>Hors rentabilité</strong> (modifiable). Le bouton ${U('⚙ Règles d\'affectation')} permet de créer des règles du type « si le libellé contient AXA, affecter à tel bien » ou « CFE → Commun SCI », et ${U('Appliquer aux lignes à affecter')} les applique aux lignes déjà importées. Les règles sont partagées entre associés.</p>
+  ${co('Si vous supprimez un bien, ses lignes ne sont pas supprimées : elles redeviennent « à affecter ».')}
   <h3>Autres actions</h3>
   <ul><li><strong>Modifier le libellé</strong> : crayon sur la ligne (ou clic sur le texte), Entrée pour enregistrer, Échap pour annuler. Le libellé d'origine est mémorisé pour éviter les doublons au réimport.</li>
   <li><strong>Supprimer</strong> : corbeille sur la ligne, ou cases à cocher puis ${U('Supprimer la sélection')}. Une confirmation est demandée.</li>
@@ -4324,7 +4618,8 @@ function buildGuideHtml(){
   <h3>Au quotidien</h3>
   <ol><li>Exporter les transactions bancaires depuis Odoo et les <strong>importer</strong> dans l'onglet Comptabilité.</li>
   <li>Classer les lignes <em>Non classé</em> (recherche + sélection + changement groupé) et attribuer les <em>Comptes courants associés</em>.</li>
-  <li>Contrôler l'onglet Associés (soldes et parts) et le Dashboard.</li></ol>
+  <li><strong>Affecter</strong> les loyers, dépenses et prélèvements à chaque bien (ou « Commun SCI »), idéalement avec des règles pour les opérations récurrentes.</li>
+  <li>Contrôler l'onglet <strong>Rentabilité</strong> (réel contre prévu), l'onglet Associés (soldes et parts) et le Dashboard.</li></ol>
   <h3>Avant un achat</h3>
   <ol><li>Dans <strong>Marché</strong>, repérer le quartier et cliquer sur <em>Simuler un achat ici</em>, ou ajouter directement un bien fictif.</li>
   <li>Dans <strong>Analyse d'achat</strong> : ajuster le prix, le loyer, les charges, le financement et l'apport ; lire le verdict, les tests de résistance et la négociation.</li>
@@ -4358,6 +4653,9 @@ function buildGuideHtml(){
   ['IS','Impôt sur les sociétés : la SCI y est soumise ; taux réduit puis taux normal selon le résultat.'],
   ['VNC','Valeur nette comptable : prix d\'acquisition diminué des amortissements. En SCI à l\'IS, la plus-value de revente se calcule par rapport à elle.'],
   ['Cash-flow','Loyers moins mensualités et charges (avant impôt dans les fiches d\'achat).'],
+  ['Affectation','Rattachement d\'une ligne de la Comptabilité à un bien, ou à la SCI en général (frais communs).'],
+  ['Prorata du coût d\'achat','Clé de répartition des frais communs : chaque bien en supporte une part égale à son coût d\'achat divisé par le total des biens acquis.'],
+  ['Résultat d\'exploitation','Produits moins dépenses d\'un bien, avant remboursement d\'emprunt.'],
   ['Rendement brut / net','Brut : revenu annuel ÷ prix. Net : (revenu − charges) annuels ÷ coût total.'],
   ['Apport','Part du coût total (prix + frais) non financée par l\'emprunt.'],
   ['Loyers retenus','Part des loyers que la banque accepte de prendre en compte (souvent 70 à 80 %).'],
@@ -6015,6 +6313,8 @@ async function saveMouvement(){
  montant:Number(document.getElementById('mv-montant').value)||0
  };
  if(!m.date||!m.libelle){showToast('Date et libellé requis');return;}
+ const af=(document.getElementById('mv-aff')||{}).value||'';
+ if(af&&m.cat!=='apport'&&affValideVal(af))m.aff=af;
  DATA.mouvements[id]=m;
  closeModal('modal-add-mvt');
  await fbSave('mouvements',{[id]:m});
@@ -6093,7 +6393,7 @@ function unlinkMvt(m,p){
 function linkMvt(m,k,p){
  unlinkMvt(m,p);
  const a=assocByK(k);
- m.cat='apport';m.assocK=k;
+ m.cat='apport';m.assocK=k;delete m.aff;   // un compte courant ne s'affecte pas à un bien
  const entree=Number(m.montant)>0,amt=Math.abs(Number(m.montant)),t0=new Date(m.date).getTime();
  const cand=Object.values(DATA.cca)
   .filter(c=>!c.mvtId&&c.assoc===a.n&&(entree?(Number(c.apport)===amt&&!Number(c.remb)):(Number(c.remb)===amt&&!Number(c.apport))))
@@ -6150,6 +6450,7 @@ async function setMvtCat(id,cat){
  }
  const had=!!m.ccaId,p=newPatches();
  unlinkMvt(m,p);m.cat=cat;
+ if(!m.aff){const g=impGuessAff(m.libelle,cat);if(g)m.aff=g;}   // affectation proposée (règle, nom du bien, bien unique)
  renderAll();
  await persistPatches(p);
  if(had)showToast('Ligne retirée du compte courant de l\'associé');
@@ -6179,7 +6480,7 @@ async function bulkSetCat(cat){
  const ids=all.filter(id=>DATA.mouvements[id].cat!==cat);
  if(!ids.length){showToast('Les lignes sélectionnées ont déjà cette catégorie');return;}
  const p=newPatches();let had=0;
- ids.forEach(id=>{const m=DATA.mouvements[id];if(m.ccaId)had++;unlinkMvt(m,p);m.cat=cat;});
+ ids.forEach(id=>{const m=DATA.mouvements[id];if(m.ccaId)had++;unlinkMvt(m,p);m.cat=cat;if(!m.aff){const g=impGuessAff(m.libelle,cat);if(g)m.aff=g;}});
  tresSelected.clear();
  renderAll();
  await persistPatches(p);
@@ -6232,9 +6533,9 @@ async function deleteSelectedMvts(){
 
 function exportCSV(){
  const soldes=computeSoldes();
- let csv='\uFEFFDate,Libellé,Catégorie,Montant (€),Solde (€)\n';
+ let csv='\uFEFFDate,Libellé,Catégorie,Affectation,Montant (€),Solde (€)\n';
  const cc=v=>{let t=String(v==null?'':v);if(/^[=+\-@\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};   // évite l'injection de formules dans Excel
- soldes.forEach(m=>{csv+=`${m.date},${cc(m.libelle)},${cc(catLabel(m.cat))},${m.montant.toFixed(2)},${m.solde.toFixed(2)}\n`;});
+ soldes.forEach(m=>{csv+=`${m.date},${cc(m.libelle)},${cc(catLabel(m.cat))},${cc(m.cat==='apport'?'':affLabel(mvtAff(m)))},${m.montant.toFixed(2)},${m.solde.toFixed(2)}\n`;});
  const a=document.createElement('a');
  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
  a.download='comptabilite_sci_perripe.csv';a.click();
