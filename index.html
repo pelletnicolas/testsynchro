@@ -114,11 +114,13 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
 .cat-sel{appearance:none;-webkit-appearance:none;border:0;border-radius:99px;padding:4px 24px 4px 11px;font-size:11px;font-weight:600;cursor:pointer;max-width:190px;background-color:var(--surface2);color:var(--text2);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}
 .cat-sel:hover{filter:brightness(.96)}
 .cat-sel:focus{outline:2px solid var(--accent);outline-offset:1px}
+.cat-warn{background-color:var(--amber-light);color:var(--amber);box-shadow:0 0 0 1.5px var(--amber)}
 .cat-loyers{background-color:var(--green-light);color:var(--green)}
 .cat-loyers_airbnb{background-color:var(--blue-light);color:var(--blue)}
 .cat-loyer_emprunt{background-color:var(--amber-light);color:var(--amber)}
 .cat-depense{background-color:var(--red-light);color:var(--red)}
 .cat-apport{background-color:rgba(139,92,246,.16);color:var(--text)}
+.cat-autre_produit{background-color:rgba(20,184,166,.18);color:var(--text)}
 .imp-dup td{opacity:.55}
 #imp-body td{padding:6px 10px;font-size:12px}
 #imp-body select{padding:3px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)}
@@ -416,6 +418,7 @@ canvas{max-width:100%;display:block}
  <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-cca')">+ Mouvement CCA</button>
  </div>
  </div>
+ <div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.5">Les lignes classées « Compte courant associé » dans la Comptabilité sont transférées ici automatiquement (étiquette « Compta »). Un montant reçu est un apport, un montant versé est un remboursement.</div>
  <div class="three-col" id="assoc-kpis" style="margin-bottom:14px"></div>
  <div class="card">
  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">
@@ -1254,6 +1257,7 @@ canvas{max-width:100%;display:block}
  <select id="mv-cat">
  <option value="loyers">Loyers</option>
  <option value="loyers_airbnb">Loyers Airbnb</option>
+ <option value="autre_produit">Autre produit</option>
  <option value="loyer_emprunt">Remboursement emprunt</option>
  <option value="depense">Dépense</option>
  <option value="apport">Compte courant associé</option>
@@ -1348,6 +1352,15 @@ canvas{max-width:100%;display:block}
  <button class="btn" onclick="closeModal('modal-odoo')">Annuler</button>
  <button class="btn btn-primary" onclick="saveOdooSettings()">Enregistrer</button>
  </div>
+ </div>
+</div>
+
+<div class="modal-bg" id="modal-pick-assoc">
+ <div class="modal" style="max-width:420px">
+ <div class="modal-title">Quel associé ?</div>
+ <div id="pick-assoc-info" style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px"></div>
+ <div id="pick-assoc-list" style="display:flex;flex-direction:column;gap:8px"></div>
+ <div class="modal-footer"><button class="btn" onclick="closeModal('modal-pick-assoc')">Annuler</button></div>
  </div>
 </div>
 
@@ -1827,7 +1840,7 @@ buildAssocUI();
 
 // ---- Lignes de la Comptabilité créées automatiquement par d'anciennes versions (liens biens/CCA -> journal) ----
 function autoMvtIds(){
- const fromCca=new Set(Object.values(DATA.cca).map(c=>c.mvtId).filter(Boolean));
+ const fromCca=new Set(Object.values(DATA.cca).filter(c=>c.src!=='compta').map(c=>c.mvtId).filter(Boolean));
  return Object.values(DATA.mouvements).filter(m=>m.src!=='odoo'&&(m.bienId||fromCca.has(m.id))).map(m=>m.id);
 }
 function renderAutoMvtAlert(){
@@ -2042,6 +2055,11 @@ function impDate(v){
  if((m=/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/.exec(s))){let y=m[3];if(y.length===2)y='20'+y;return impYmd(y,m[2],m[1]);}   // jj/mm/aaaa
  return null;
 }
+function impAssocFromLabel(lab){
+ const t=' '+impNorm(lab)+' ';
+ const hits=ASSOCIES.filter(a=>{const n=impNorm(a.n);return n&&t.includes(' '+n+' ');});
+ return hits.length===1?hits[0].k:'';
+}
 function impKey(date,montant,libelle){
  return date+'|'+(Math.round(Number(montant)*100)/100).toFixed(2)+'|'+impNorm(libelle).slice(0,60);
 }
@@ -2050,6 +2068,7 @@ function impGuessCat(lab,amt){
  if(amt>0){
   if(/\b(apport|compte courant|cca|associe)\b/.test(t))return 'apport';
   if(/\b(airbnb|booking)\b/.test(t))return 'loyers_airbnb';
+  if(/\b(indemnite|sinistre|interets|ristourne|remboursement)\b/.test(t))return 'autre_produit';
   if(/\b(loyer|locataire|caf|apl|sejour|location)\b/.test(t))return 'loyers';
   return 'autres';
  }
@@ -2220,19 +2239,22 @@ async function impRun(){
  const btn=document.getElementById('imp-go'),msg=document.getElementById('imp-msg');
  btn.disabled=true;msg.textContent='';
  const batch={};
+ const pImp=newPatches();let autoCree=0,autoRatt=0;
  sel.forEach((r,i)=>{
   const id='m_'+uid()+'_'+i.toString(36);
   const m={id,date:r.date,libelle:r.libelle,cat:r.cat,montant:r.montant,src:'odoo'};
   if(r.oid)m.odooId=r.oid;
   DATA.mouvements[id]=m;batch[id]=m;
+  if(r.cat==='apport'){const k=impAssocFromLabel(r.libelle);if(k){if(linkMvt(m,k,pImp)==='cree')autoCree++;else autoRatt++;}}   // associé reconnu dans le libellé
  });
  const ids=Object.keys(batch);let ok=true;
  for(let i=0;i<ids.length;i+=200){
   const chunk={};ids.slice(i,i+200).forEach(id=>{chunk[id]=batch[id];});
   ok=(await fbSave('mouvements',chunk))&&ok;
  }
+ if(Object.keys(pImp.cca).length||pImp.ccaDel.length)ok=(await persistPatches(pImp,false).then(()=>true,()=>false))&&ok;
  renderAll();
- if(ok){closeModal('modal-odoo-import');showToast(sel.length+' ligne(s) importée(s) depuis Odoo');}
+ if(ok){closeModal('modal-odoo-import');showToast(sel.length+' ligne(s) importée(s) depuis Odoo'+((autoCree+autoRatt)?' · '+(autoCree+autoRatt)+' transférée(s) dans les comptes courants':''));}
  else{msg.style.color='var(--amber)';msg.textContent='Lignes ajoutées mais Firebase est injoignable : elles seront envoyées dès que la connexion revient. Ne rechargez pas avant la synchronisation.';btn.disabled=false;}
 }
 
@@ -2395,6 +2417,7 @@ let isFirebaseReady = false;
 // ============================================================
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function escH(t){return String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const ICON_EDIT='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
 const ICON_TRASH='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"/></svg>';
 
 let syncState='ok';
@@ -2703,7 +2726,7 @@ function fdate(s){
  return s;
 }
 // Catégories de la Comptabilité (modifiables ligne par ligne). 'emprunt' et 'autres' = anciennes valeurs, conservées à l'affichage.
-const MVT_CATS=[['loyers','Loyers'],['loyers_airbnb','Loyers Airbnb'],['loyer_emprunt','Remboursement emprunt'],['depense','Dépense'],['apport','Compte courant associé']];
+const MVT_CATS=[['loyers','Loyers'],['loyers_airbnb','Loyers Airbnb'],['autre_produit','Autre produit'],['loyer_emprunt','Remboursement emprunt'],['depense','Dépense'],['apport','Compte courant associé']];
 const MVT_CAT_LEGACY={emprunt:'Déblocage emprunt',autres:'Non classé'};
 function catLabel(c){
  const f=MVT_CATS.find(x=>x[0]===c);
@@ -3184,7 +3207,10 @@ function renderTresorerie(){
  <td><input type="checkbox" class="tres-cb" data-id="${m.id}" ${tresSelected.has(m.id)?'checked':''} onchange="tresToggle('${m.id}',this.checked)"></td>
  <td>${fdate(m.date)}</td>
  <td>${escH(m.libelle)}${badge[kind(m)]}</td>
- <td><select class="cat-sel cat-${escH(m.cat)}" title="Modifier la catégorie" onchange="setMvtCat('${m.id}',this.value)">${mvtCatOptions(m.cat)}</select></td>
+ <td><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+ <select class="cat-sel cat-${escH(m.cat)}" title="Modifier la catégorie" onchange="setMvtCat('${m.id}',this.value)">${mvtCatOptions(m.cat)}</select>
+ ${m.cat==='apport'?`<select class="cat-sel ${mvtAssocK(m)?'cat-apport':'cat-warn'}" title="Associé concerné : la ligne est transférée dans son compte courant" onchange="setMvtAssoc('${m.id}',this.value)"><option value="">Choisir l'associé…</option>${ASSOCIES.map(a=>`<option value="${a.k}"${a.k===mvtAssocK(m)?' selected':''}>${escH(a.n)}</option>`).join('')}</select>`:''}
+ </div></td>
  <td class="${m.montant>=0?'amount-pos':'amount-neg'}">${m.montant>=0?'+':''}${euro(m.montant,2)}</td>
  <td style="font-weight:500">${euro(m.solde,2)}</td>
  <td><button class="btn btn-danger btn-sm" title="Supprimer cette ligne" onclick="deleteMouvement('${m.id}')">${ICON_TRASH}</button></td>
@@ -3248,12 +3274,12 @@ function renderAssocies(){
  :liste.map(c=>`
  <tr>
  <td>${fdate(c.date)}</td>
- <td>${escH(c.libelle)}</td>
+ <td>${escH(c.libelle)}${(c.mvtId&&DATA.mouvements[c.mvtId]&&DATA.mouvements[c.mvtId].ccaId===c.id)?' <span class="badge" style="background:#EFE3EB;color:#714B67;font-size:9px;padding:2px 7px;margin-left:4px" title="Lié à une ligne de la Comptabilité">Compta</span>':''}</td>
  <td>${c.assoc}</td>
  <td>${c.apport>0?`<span class="amount-pos">+${euro(c.apport)}</span>`:'—'}</td>
  <td>${c.remb>0?`<span class="amount-neg">−${euro(c.remb)}</span>`:'—'}</td>
  <td style="display:flex;gap:4px">
- <button class="btn btn-sm" onclick="openEditCCA('${c.id}')" style="padding:3px 7px;font-size:12px"></button>
+ <button class="btn btn-sm" title="Modifier" onclick="openEditCCA('${c.id}')" style="padding:3px 7px">${ICON_EDIT}</button>
  <button class="btn btn-danger btn-sm" title="Supprimer" onclick="deleteCCA('${c.id}')">${ICON_TRASH}</button>
  </td>
  </tr>
@@ -4624,6 +4650,11 @@ async function saveBien(){
  renderAll();
 }
 
+async function detachMvtsFromCca(ccaIds){
+ const set=new Set(ccaIds),patch={};
+ Object.values(DATA.mouvements).forEach(m=>{if(m.ccaId&&set.has(m.ccaId)){delete m.ccaId;delete m.assocK;patch[m.id]=m;}});
+ if(Object.keys(patch).length)await fbSave('mouvements',patch);
+}
 function openEditBien(id){
  const b=DATA.biens[id];if(!b)return;
  document.getElementById('eb-id').value=id;
@@ -4835,6 +4866,7 @@ async function deleteBien(){
  delete DATA.biens[id];
 
  closeModal('modal-edit-bien');
+ await detachMvtsFromCca(ccaLies.map(c=>c.id));
  await Promise.all([fbRemove(`biens/${id}`), ...ccaDeletes]);
  renderAll();
  showToast(` Bien et ${ccaLies.length} apport(s) lié(s) supprimés`);
@@ -4858,6 +4890,7 @@ async function deleteBienDrawer(id){
  delete DATA.biens[id];
 
  closeDrawer();
+ await detachMvtsFromCca(ccaLies.map(c=>c.id));
  await Promise.all([fbRemove(`biens/${id}`), ...ccaDeletes]);
  renderAll();
  showToast(` Bien et ${ccaLies.length} apport(s) lié(s) supprimés`);
@@ -4883,11 +4916,15 @@ async function saveMouvement(){
 async function deleteMouvement(id){
  const m=DATA.mouvements[id];
  if(!m)return;
- if(!confirm('Supprimer cette ligne de la Comptabilité ?\n\n'+fdate(m.date)+' — '+m.libelle+'\n'+euro(m.montant,2)))return;
+ const linked=m.ccaId&&DATA.cca[m.ccaId];
+ if(!confirm('Supprimer cette ligne de la Comptabilité ?\n\n'+fdate(m.date)+' — '+m.libelle+'\n'+euro(m.montant,2)+(linked?'\n\nSon écriture dans le compte courant de '+linked.assoc+(linked.src==='compta'?' sera aussi supprimée.':' sera conservée (apport saisi à la main).'):'')))return;
+ const p=newPatches();
+ unlinkMvt(m,p);
  delete DATA.mouvements[id];
  tresSelected.delete(id);
  await fbRemove(`mouvements/${id}`);
- renderTresorerie();renderDashboard();
+ await persistPatches(p,false);
+ renderAll();
 }
 let tresSelected=new Set();
 function initCatSelects(){
@@ -4896,29 +4933,119 @@ function initCatSelects(){
  if(bc)bc.innerHTML='<option value="">Changer la catégorie…</option>'+MVT_CATS.map(([k,l])=>`<option value="${k}">${l}</option>`).join('');
 }
 function tresFilterChanged(){tresSelected.clear();renderTresorerie();}
+// ---- Compte courant associé : transfert Comptabilité -> onglet Associés ----
+function assocByK(k){return ASSOCIES.find(a=>a.k===k)||null;}
+function mvtAssocK(m){
+ if(m.assocK&&assocByK(m.assocK))return m.assocK;
+ const a=ASSOCIES.find(x=>x.n===m.assoc);return a?a.k:'';
+}
+function newPatches(){return {mv:{},cca:{},ccaDel:[]};}
+// Détache une ligne de son compte courant : l'écriture créée à partir de la ligne est supprimée ;
+// un apport saisi à la main (ou à l'ajout d'un bien) est conservé, seulement détaché.
+function unlinkMvt(m,p){
+ const c=m.ccaId?DATA.cca[m.ccaId]:null;
+ if(c){
+  if(c.src==='compta'){delete DATA.cca[c.id];delete p.cca[c.id];p.ccaDel.push(c.id);}
+  else{delete c.mvtId;p.cca[c.id]=c;}
+ }
+ delete m.ccaId;delete m.assocK;
+ p.mv[m.id]=m;
+}
+// Classe la ligne en « Compte courant associé » pour l'associé k : rattache à un apport identique déjà saisi, sinon crée l'écriture
+function linkMvt(m,k,p){
+ unlinkMvt(m,p);
+ const a=assocByK(k);
+ m.cat='apport';m.assocK=k;
+ const entree=Number(m.montant)>0,amt=Math.abs(Number(m.montant)),t0=new Date(m.date).getTime();
+ const cand=Object.values(DATA.cca)
+  .filter(c=>!c.mvtId&&c.assoc===a.n&&(entree?(Number(c.apport)===amt&&!Number(c.remb)):(Number(c.remb)===amt&&!Number(c.apport))))
+  .sort((x,y)=>Math.abs(new Date(x.date)-t0)-Math.abs(new Date(y.date)-t0))[0];
+ let res;
+ if(cand){cand.mvtId=m.id;p.cca[cand.id]=cand;m.ccaId=cand.id;res='rattache';}
+ else{
+  const c={id:'c_'+uid(),date:m.date,libelle:String(m.libelle).slice(0,140),assoc:a.n,apport:entree?amt:0,remb:entree?0:amt,mvtId:m.id,src:'compta'};
+  DATA.cca[c.id]=c;p.cca[c.id]=c;m.ccaId=c.id;res='cree';
+ }
+ p.mv[m.id]=m;
+ return res;
+}
+async function persistPatches(p,withMv){
+ const chunked=async(obj,sub)=>{
+  const ids=Object.keys(obj);
+  for(let i=0;i<ids.length;i+=200){const part={};ids.slice(i,i+200).forEach(id=>{part[id]=obj[id];});await fbSave(sub,part);}
+ };
+ if(withMv!==false)await chunked(p.mv,'mouvements');
+ await chunked(p.cca,'cca');
+ if(p.ccaDel.length){const nulls={};p.ccaDel.forEach(id=>{nulls[id]=null;});await fbSave('cca',nulls);}
+}
+// Fenêtre « Quel associé ? »
+let pickAssocCb=null;
+function pickAssoc(info,cb){
+ pickAssocCb=cb;
+ document.getElementById('pick-assoc-info').innerHTML=info+'<br><span style="color:var(--text3)">Un montant reçu devient un apport, un montant versé un remboursement du compte courant.</span>';
+ document.getElementById('pick-assoc-list').innerHTML=ASSOCIES.map(a=>`<button class="btn" style="justify-content:flex-start;gap:12px;padding:10px 14px;font-size:14px" onclick="pickAssocChoose('${a.k}')"><div class="av ${a.av}">${escH(a.init)}</div>${escH(a.n)}</button>`).join('');
+ openModal('modal-pick-assoc');
+}
+function pickAssocChoose(k){
+ const cb=pickAssocCb;pickAssocCb=null;
+ closeModal('modal-pick-assoc');
+ if(cb)cb(k);
+}
+async function applyAssocLinks(ids,k){
+ const a=assocByK(k);if(!a)return;
+ const p=newPatches();let cree=0,ratt=0;
+ ids.forEach(id=>{const m=DATA.mouvements[id];if(!m)return;if(linkMvt(m,k,p)==='cree')cree++;else ratt++;});
+ tresSelected.clear();
+ renderAll();
+ await persistPatches(p);
+ const n=cree+ratt;
+ showToast(n+' ligne'+(n>1?'s':'')+' transférée'+(n>1?'s':'')+' dans le compte courant de '+a.n+(ratt?' (dont '+ratt+' rattachée'+(ratt>1?'s':'')+' à un apport déjà saisi)':''),ratt?6000:3500);
+}
 // Modifie la catégorie d'une ligne
 async function setMvtCat(id,cat){
  const m=DATA.mouvements[id];
  if(!m||!MVT_CATS.some(x=>x[0]===cat)||m.cat===cat)return;
- m.cat=cat;
- renderTresorerie();renderDashboard();
- await fbSave('mouvements',{[id]:m});
+ if(cat==='apport'){
+  renderTresorerie();     // la liste reprend l'ancienne valeur tant que l'associé n'est pas choisi
+  pickAssoc('<strong>'+fdate(m.date)+'</strong> — '+escH(m.libelle)+'<br>'+euro(m.montant,2),k=>applyAssocLinks([id],k));
+  return;
+ }
+ const had=!!m.ccaId,p=newPatches();
+ unlinkMvt(m,p);m.cat=cat;
+ renderAll();
+ await persistPatches(p);
+ if(had)showToast('Ligne retirée du compte courant de l\'associé');
+}
+// Choix (ou changement) de l'associé d'une ligne « Compte courant associé »
+async function setMvtAssoc(id,k){
+ const m=DATA.mouvements[id];if(!m)return;
+ if(!k){
+  const p=newPatches();unlinkMvt(m,p);
+  renderAll();await persistPatches(p);
+  showToast('Ligne détachée du compte courant');return;
+ }
+ await applyAssocLinks([id],k);
 }
 // Modifie la catégorie de toutes les lignes cochées
 async function bulkSetCat(cat){
  const sel=document.getElementById('tres-bulk-cat');
  if(sel)sel.value='';
  if(!MVT_CATS.some(x=>x[0]===cat))return;
- const ids=[...tresSelected].filter(id=>DATA.mouvements[id]&&DATA.mouvements[id].cat!==cat);
- if(!ids.length){showToast('Les lignes sélectionnées ont déjà cette catégorie');return;}
- ids.forEach(id=>{DATA.mouvements[id].cat=cat;});
- tresSelected.clear();
- renderTresorerie();renderDashboard();
- for(let i=0;i<ids.length;i+=200){
-  const chunk={};ids.slice(i,i+200).forEach(id=>{chunk[id]=DATA.mouvements[id];});
-  await fbSave('mouvements',chunk);
+ const all=[...tresSelected].filter(id=>DATA.mouvements[id]);
+ if(cat==='apport'){
+  if(!all.length)return;
+  const tot=all.reduce((s,id)=>s+Number(DATA.mouvements[id].montant),0);
+  pickAssoc('<strong>'+all.length+'</strong> ligne'+(all.length>1?'s':'')+' · total '+euro(tot,2),k=>applyAssocLinks(all,k));
+  return;
  }
- showToast(ids.length+' ligne'+(ids.length>1?'s':'')+' classée'+(ids.length>1?'s':'')+' en « '+catLabel(cat)+' »');
+ const ids=all.filter(id=>DATA.mouvements[id].cat!==cat);
+ if(!ids.length){showToast('Les lignes sélectionnées ont déjà cette catégorie');return;}
+ const p=newPatches();let had=0;
+ ids.forEach(id=>{const m=DATA.mouvements[id];if(m.ccaId)had++;unlinkMvt(m,p);m.cat=cat;});
+ tresSelected.clear();
+ renderAll();
+ await persistPatches(p);
+ showToast(ids.length+' ligne'+(ids.length>1?'s':'')+' classée'+(ids.length>1?'s':'')+' en « '+catLabel(cat)+' »'+(had?' · '+had+' retirée'+(had>1?'s':'')+' des comptes courants':''));
 }
 function tresToggle(id,v){
  if(v)tresSelected.add(id);else tresSelected.delete(id);
@@ -4952,13 +5079,15 @@ async function deleteSelectedMvts(){
  if(!ids.length)return;
  const total=ids.reduce((s,id)=>s+Number(DATA.mouvements[id].montant),0);
  if(!confirm('Supprimer '+ids.length+' ligne'+(ids.length>1?'s':'')+' de la Comptabilité (total '+euro(total,2)+') ?\n\nCette action est irréversible. Les lignes importées d\'Odoo pourront être réimportées si besoin.'))return;
- ids.forEach(id=>{delete DATA.mouvements[id];});
+ const pDel=newPatches();
+ ids.forEach(id=>{unlinkMvt(DATA.mouvements[id],pDel);delete DATA.mouvements[id];});
  tresSelected.clear();
  let ok=true;
  for(let i=0;i<ids.length;i+=200){
   const nulls={};ids.slice(i,i+200).forEach(id=>{nulls[id]=null;});   // null = suppression côté Firebase
   ok=(await fbSave('mouvements',nulls))&&ok;
  }
+ await persistPatches(pDel,false);
  renderAll();
  showToast(ids.length+' ligne'+(ids.length>1?'s':'')+' supprimée'+(ids.length>1?'s':''));
 }
@@ -5013,15 +5142,23 @@ async function saveEditCCA(){
  c.apport=Number(document.getElementById('ecca-apport').value)||0;
  c.remb=Number(document.getElementById('ecca-remb').value)||0;
  closeModal('modal-edit-cca');
+ const lm=c.mvtId?DATA.mouvements[c.mvtId]:null;
+ if(lm&&lm.ccaId===id){const ak=ASSOCIES.find(x=>x.n===c.assoc);if(ak){lm.assocK=ak.k;await fbSave('mouvements',{[lm.id]:lm});}}   // la ligne de la Comptabilité suit l'associé choisi
  await fbSave('cca',{[id]:c});
  renderAssocies();
  showToast(' Mouvement CCA mis à jour');
 }
 
 async function deleteCCA(id){
+ const c=DATA.cca[id];if(!c)return;
+ const m=c.mvtId?DATA.mouvements[c.mvtId]:null;
+ const linked=!!(m&&m.ccaId===id);
+ if(!confirm('Supprimer ce mouvement du compte courant de '+c.assoc+' ?'+(linked?'\n\nIl vient de la Comptabilité : la ligne y reste, classée « Compte courant associé » avec l\'associé à choisir.':'')))return;
  delete DATA.cca[id];
- await fbRemove(`cca/${id}`);
- renderAssocies();
+ const jobs=[fbRemove(`cca/${id}`)];
+ if(linked){delete m.ccaId;delete m.assocK;jobs.push(fbSave('mouvements',{[m.id]:m}));}
+ await Promise.all(jobs);
+ renderAssocies();renderTresorerie();
 }
 
 // ============================================================
