@@ -2153,7 +2153,7 @@ function impBuild(){
  // lignes déjà présentes : par identifiant Odoo, sinon par (date, montant, libellé)
  const exIds=new Set(),exKeyNoId=new Map(),exKeyAll=new Map();
  mvtsList().forEach(m=>{
-  const k=impKey(m.date,m.montant,m.libelle);
+  const k=impKey(m.date,m.montant,m.libelleOrigine||m.libelle);
   exKeyAll.set(k,(exKeyAll.get(k)||0)+1);
   if(m.odooId)exIds.add(m.odooId);else exKeyNoId.set(k,(exKeyNoId.get(k)||0)+1);
  });
@@ -3198,6 +3198,7 @@ function renderTresorerie(){
  const fcat=(document.getElementById('tres-filter-cat')||{}).value||'';
  const q=((document.getElementById('tres-search')||{}).value||'').trim().toLowerCase();
  tresSelected.forEach(id=>{if(!DATA.mouvements[id])tresSelected.delete(id);});
+ if(tresEdit&&!DATA.mouvements[tresEdit.id])tresEdit=null;
  const badge={odoo:'<span class="badge" style="background:#EFE3EB;color:#714B67;font-size:9px;margin-left:6px;padding:2px 7px">Odoo</span>',auto:'<span class="badge badge-warn" style="font-size:9px;margin-left:6px;padding:2px 7px">Auto</span>',manuel:''};
  const rows=soldes.reverse().filter(m=>(!filt||kind(m)===filt)
   &&(!fcat||(fcat==='__other'?!MVT_CATS.some(x=>x[0]===m.cat):m.cat===fcat))
@@ -3206,17 +3207,23 @@ function renderTresorerie(){
  <tr${tresSelected.has(m.id)?' style="background:var(--surface2)"':''}>
  <td><input type="checkbox" class="tres-cb" data-id="${m.id}" ${tresSelected.has(m.id)?'checked':''} onchange="tresToggle('${m.id}',this.checked)"></td>
  <td>${fdate(m.date)}</td>
- <td>${escH(m.libelle)}${badge[kind(m)]}</td>
+ ${tresEdit&&tresEdit.id===m.id?`<td><div style="display:flex;gap:6px;align-items:center;min-width:220px">
+  <input type="text" id="tres-edit-input" maxlength="200" value="${escH(tresEdit.val)}" oninput="tresEdit.val=this.value" onkeydown="tresEditKey(event)" style="flex:1;min-width:150px;padding:5px 8px;border:1px solid var(--accent);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text)">
+  <button class="btn btn-sm btn-primary" title="Enregistrer (Entrée)" onclick="tresEditSave()">✓</button>
+  <button class="btn btn-sm" title="Annuler (Échap)" onclick="tresEditCancel()">✕</button>
+  </div></td>`:`<td><span title="Cliquer pour modifier le libellé" style="cursor:text" onclick="tresEditStart('${m.id}')">${escH(m.libelle)}</span>${badge[kind(m)]}</td>`}
  <td><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
  <select class="cat-sel cat-${escH(m.cat)}" title="Modifier la catégorie" onchange="setMvtCat('${m.id}',this.value)">${mvtCatOptions(m.cat)}</select>
  ${m.cat==='apport'?`<select class="cat-sel ${mvtAssocK(m)?'cat-apport':'cat-warn'}" title="Associé concerné : la ligne est transférée dans son compte courant" onchange="setMvtAssoc('${m.id}',this.value)"><option value="">Choisir l'associé…</option>${ASSOCIES.map(a=>`<option value="${a.k}"${a.k===mvtAssocK(m)?' selected':''}>${escH(a.n)}</option>`).join('')}</select>`:''}
  </div></td>
  <td class="${m.montant>=0?'amount-pos':'amount-neg'}">${m.montant>=0?'+':''}${euro(m.montant,2)}</td>
  <td style="font-weight:500">${euro(m.solde,2)}</td>
- <td><button class="btn btn-danger btn-sm" title="Supprimer cette ligne" onclick="deleteMouvement('${m.id}')">${ICON_TRASH}</button></td>
+ <td style="white-space:nowrap"><button class="btn btn-sm" title="Modifier le libellé" onclick="tresEditStart('${m.id}')" style="padding:3px 7px;margin-right:4px">${ICON_EDIT}</button><button class="btn btn-danger btn-sm" title="Supprimer cette ligne" onclick="deleteMouvement('${m.id}')">${ICON_TRASH}</button></td>
  </tr>
  `).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">Aucune ligne${(filt||fcat||q)?' pour ce filtre':''}.</td></tr>`;
  tresUpdateBar();
+ const ei=document.getElementById('tres-edit-input');
+ if(ei&&tresEdit&&tresEdit.focus){tresEdit.focus=false;ei.focus();ei.select();}
 
  document.getElementById('tres-loading').style.display='none';
  document.getElementById('tres-table').style.display='table';
@@ -4927,6 +4934,36 @@ async function deleteMouvement(id){
  renderAll();
 }
 let tresSelected=new Set();
+let tresEdit=null;   // {id,val,focus} : ligne dont le libellé est en cours de modification
+function tresEditStart(id){
+ const m=DATA.mouvements[id];if(!m)return;
+ tresEdit={id,val:String(m.libelle),focus:true};
+ renderTresorerie();
+}
+function tresEditCancel(){tresEdit=null;renderTresorerie();}
+function tresEditKey(e){
+ if(e.key==='Enter'){e.preventDefault();tresEditSave();}
+ else if(e.key==='Escape'){e.preventDefault();tresEditCancel();}
+}
+async function tresEditSave(){
+ if(!tresEdit)return;
+ const id=tresEdit.id,m=DATA.mouvements[id];
+ const val=String(tresEdit.val).replace(/\s+/g,' ').trim().slice(0,200);
+ if(!m){tresEdit=null;renderTresorerie();return;}
+ if(!val){showToast('Le libellé ne peut pas être vide');return;}
+ if(val===m.libelle){tresEditCancel();return;}
+ const ancien=m.libelle;
+ // le libellé d'origine est mémorisé : un réimport de l'export ne recrée pas la ligne en doublon
+ if(!m.libelleOrigine)m.libelleOrigine=ancien;
+ m.libelle=val;
+ tresEdit=null;
+ const c=m.ccaId?DATA.cca[m.ccaId]:null;
+ const jobs=[fbSave('mouvements',{[id]:m})];
+ if(c&&c.src==='compta'){c.libelle=val.slice(0,140);jobs.push(fbSave('cca',{[c.id]:c}));}   // l'écriture du compte courant créée à partir de la ligne suit
+ renderAll();
+ await Promise.all(jobs);
+ showToast('Libellé modifié');
+}
 function initCatSelects(){
  const fc=document.getElementById('tres-filter-cat'),bc=document.getElementById('tres-bulk-cat');
  if(fc)fc.innerHTML='<option value="">Toutes les catégories</option>'+MVT_CATS.map(([k,l])=>`<option value="${k}">${l}</option>`).join('')+'<option value="__other">Non classé / autres</option>';
