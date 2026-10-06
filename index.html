@@ -315,6 +315,10 @@ canvas{max-width:100%;display:block}
  <button class="subnav-btn" id="sub-emprunt" onclick="showSubPage('emprunt',this)">Emprunt</button>
  <button class="subnav-btn" id="sub-locataires" onclick="showSubPage('locataires',this)">Locataires</button>
  </div>
+ <div class="subnav-bar" id="subnav-conseil">
+ <button class="subnav-btn active" id="conseil-sub-achat" onclick="showConseilPage('conseil',this)">Achat</button>
+ <button class="subnav-btn" id="conseil-sub-gestion" onclick="showConseilPage('conseil-gestion',this)">Gestion</button>
+ </div>
  <div class="subnav-bar" id="subnav-projection">
  <button class="subnav-btn active" id="proj-sub-dashboard" onclick="showProjPage('proj-dashboard',this)">Analyse d'achat</button>
  <button class="subnav-btn" id="proj-sub-banque" onclick="showProjPage('proj-banque',this)">Banque</button>
@@ -441,7 +445,7 @@ canvas{max-width:100%;display:block}
  <div class="btn-group">
  <select id="renta-periode" onchange="renderRentabilite()" style="padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
  <select id="renta-auto" onchange="setRentaAutoAcq(this.value)" title="Les frais de notaire et de banque classés « Hors rentabilité » comptent-ils dans le rendement total ?" style="padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"><option value="oui">Frais de notaire et de banque « hors rentabilité » : comptés dans le rendement total</option><option value="non">Frais de notaire et de banque « hors rentabilité » : ignorés</option></select>
- <select id="renta-etal" onchange="setRentaEtal(this.value)" title="Sur quelle durée étaler les frais d'acquisition pour le rendement total ?" style="padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"><option value="pret">Frais d'acquisition étalés sur la durée du prêt</option><option value="10">Frais d'acquisition étalés sur 10 ans</option><option value="20">Frais d'acquisition étalés sur 20 ans</option></select>
+ <select id="renta-etal" onchange="setRentaEtal(this.value)" title="Les frais d'acquisition sont-ils étalés sur plusieurs années, ou déduits en totalité pour le rendement total ?" style="padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"><option value="pret">Frais d'acquisition étalés sur la durée du prêt</option><option value="10">Frais d'acquisition étalés sur 10 ans</option><option value="20">Frais d'acquisition étalés sur 20 ans</option><option value="total">Frais d'acquisition pris en totalité (à date)</option></select>
  <select id="renta-avant" onchange="setRentaAvant(this.value)" title="Que faire des frais communs datés d'avant l'achat d'un bien ?" style="padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"><option value="tous">Frais d'avant achat : répartis sur tous les biens</option><option value="premier">Frais d'avant achat : imputés au premier bien acheté</option><option value="non">Frais d'avant achat : non répartis (résultat SCI à part)</option></select>
  <button class="btn btn-sm" onclick="openAffRules()">⚙ Règles d'affectation</button>
  </div>
@@ -903,6 +907,15 @@ canvas{max-width:100%;display:block}
  <!-- ====================================================== -->
  <div class="page" id="page-conseil">
  <div id="conseil-content"></div>
+ </div>
+
+ <!-- CONSEIL DE GESTION : obligations fiscales et administratives -->
+ <div class="page" id="page-conseil-gestion">
+ <div class="page-header">
+ <div class="page-title">Conseil de gestion</div>
+ <div class="btn-group"><button class="btn btn-sm" onclick="openPrebilanPdf()">Pré-bilan (PDF)</button></div>
+ </div>
+ <div id="conseil-gestion-content"></div>
  </div>
 
  <!-- PROJECTION : HYPOTHÈSES GÉNÉRALES -->
@@ -2428,7 +2441,7 @@ function fbSave(subPath,data){return enqueueOp({type:'patch',subPath,data},' Mod
 function fbRemove(subPath){return enqueueOp({type:'delete',subPath},' Supprimé');}
 
 // ---- Réglages stockés en localStorage (BP, marché, projection) synchronisés via Firebase ----
-const SYNC_KEYS=['sci_bp_params','sci_conseil','sci_renta_avant','sci_renta_etal','sci_renta_autoacq','sci_cca_ignore','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url','sci_proj_criteres','sci_banque_crit','sci_assoc_fin','sci_aff_rules'];
+const SYNC_KEYS=['sci_bp_params','sci_conseil','sci_renta_avant','sci_renta_etal','sci_renta_autoacq','sci_cca_ignore','sci_gestion','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url','sci_proj_criteres','sci_banque_crit','sci_assoc_fin','sci_aff_rules'];
 const _lsSet=Storage.prototype.setItem;
 const _lsRemove=Storage.prototype.removeItem;
 const dirtySettings=new Set();
@@ -2650,8 +2663,8 @@ function showMainTab(tab) {
  if (tab === 'marche') {
   document.getElementById('page-' + currentMarchePage).classList.add('active');
  } else if (tab === 'conseil') {
-  document.getElementById('page-conseil').classList.add('active');
-  renderConseil();
+  document.getElementById('page-'+currentConseilPage).classList.add('active');
+  if(currentConseilPage==='conseil-gestion')renderConseilGestion();else renderConseil();
  } else if (tab === 'projection') {
   document.getElementById('page-' + currentProjPage).classList.add('active');
   renderProjAll();
@@ -3099,7 +3112,9 @@ const daysBetween=(a,b)=>Math.round((Date.UTC(+b.slice(0,4),+b.slice(5,7)-1,+b.s
 function rentaAvantOpt(){const v=localStorage.getItem('sci_renta_avant');return ['tous','premier','non'].includes(v)?v:'tous';}
 function setRentaAvant(v){localStorage.setItem('sci_renta_avant',v);renderRentabilite();if(document.getElementById('page-conseil')&&document.getElementById('page-conseil').classList.contains('active'))renderConseil();}
 // Étalement des frais d'acquisition (notaire, courtage, banque) pour le rendement total : durée du prêt, 10 ans ou 20 ans
-function rentaEtalOpt(){const v=localStorage.getItem('sci_renta_etal');return ['pret','10','20'].includes(v)?v:'pret';}
+function rentaEtalOpt(){const v=localStorage.getItem('sci_renta_etal');return ['pret','10','20','total'].includes(v)?v:'pret';}
+// « total » : les frais d'acquisition sont déduits EN ENTIER du résultat de la période affichée (rien n'est étalé) ; le rendement reste annualisé comme les autres
+const etalPhrase=()=>({pret:'étalés sur la durée du prêt','10':'étalés sur 10 ans','20':'étalés sur 20 ans',total:'pris en totalité à date (sur la période affichée)'}[rentaEtalOpt()]);
 function rentaEtalAns(b){const o=rentaEtalOpt();return o==='pret'?Math.max(1,(Number(b.duree)||240)/12):Number(o);}
 function setRentaEtal(v){localStorage.setItem('sci_renta_etal',v);renderRentabilite();}
 // Charges d'exploitation qui ressemblent à des frais d'acquisition : elles faussent le rendement opérationnel
@@ -3192,11 +3207,11 @@ function rentaCalc(d1,d2,opt){
   // notaire et courtage : le plus élevé entre la fiche et les paiements (un même frais saisi aux deux endroits n'est compté qu'une fois) ; frais bancaires et autres : paiements seuls
   const notaireRet=Math.max(Number(b.notaire)||0,f0.notaire),courtageRet=Math.max(Number(b.courtier)||0,f0.courtage),autresRet=f0.autres;
   const coutOper=prix+trav,fraisAcq=notaireRet+courtageRet+autresRet,coutTotal=coutOper+fraisAcq,k=365.25/Math.max(jours,1),ok=jours>=30;
-  const etalAns=rentaEtalAns(b),fraisAn=fraisAcq/etalAns,fraisPer=fraisAn*jours/365.25,resultatTotal=resultat-fraisPer;   // frais d'acquisition étalés
+  const optE=rentaEtalOpt(),etalAns=optE==='total'?Math.max(jours,1)/365.25:rentaEtalAns(b),fraisAn=fraisAcq/etalAns,fraisPer=fraisAn*jours/365.25,resultatTotal=resultat-fraisPer;   // frais d'acquisition étalés, ou pris en totalité (fraisPer = fraisAcq) en mode « total »
   // opérationnel : uniquement produits − charges d'exploitation ; total : on retranche en plus les frais d'acquisition étalés
   const y=(annuel,den)=>(ok&&den>0)?annuel/den*100:null;
   return {b,cout:i.cout,jours,prodD:i.prodD,prodC:i.prodC,prod,depD:i.depD,depC:i.depC,dep,emp,resultat,cashflow:resultat-emp,
-   prix,trav,fraisFiche,fraisPayes,fraisAcq,notaireRet,courtageRet,autresRet,fraisAuto:f0.auto,coutOper,coutTotal,etalAns,fraisAn,fraisPer,resultatTotal,
+   prix,trav,fraisFiche,fraisPayes,fraisAcq,notaireRet,courtageRet,autresRet,fraisAuto:f0.auto,coutOper,coutTotal,etalAns,etalTotal:optE==='total',fraisAn,fraisPer,resultatTotal,
    rendOper:y(resultat*k,coutOper),renta:y(resultat*k-fraisAn,coutOper),
    rentaPrevOper:y((prevRev-prevCh)*k,coutOper),rentaPrev:y((prevRev-prevCh)*k-fraisAn,coutOper),prevRev,prevCh,lines:i.lines};
  });
@@ -3378,7 +3393,7 @@ function renderRentabilite(){
   <td style="text-align:right">${euro(r.depD,0)}</td>
   <td style="text-align:right">${euro(r.depC,0)}</td>
   <td style="text-align:right">${sg(r.resultat)}</td>
-  <td style="text-align:right;color:var(--text2)" title="Frais d'acquisition ${euro(r.fraisAcq,0)} étalés sur ${Math.round(r.etalAns*10)/10} ans">−${euro(r.fraisPer,0)}</td>
+  <td style="text-align:right;color:var(--text2)" title="Frais d'acquisition ${euro(r.fraisAcq,0)} ${r.etalTotal?'pris en totalité sur la période':'étalés sur '+Math.round(r.etalAns*10)/10+' ans'}">−${euro(r.fraisPer,0)}</td>
   <td style="text-align:right">${sg(r.resultatTotal)}</td>
   <td style="text-align:right">${euro(r.emp,0)}</td>
   <td style="text-align:right">${sg(r.cashflow)}</td>
@@ -3390,13 +3405,13 @@ function renderRentabilite(){
  const tot=tr(['Total affecté aux biens',euro(sum('coutTotal'),0),euro(prod,0),euro(sum('depD'),0),euro(sum('depC'),0),sg(res),'−'+euro(fraisPerTot,0),sg(res-fraisPerTot),euro(emp,0),sg(res-emp),pc(portRend.oper),pc(portRend.total),''],'background:var(--surface2);font-weight:600');
  const dontC=tr(['<span style="padding-left:18px;color:var(--text2)">dont frais communs répartis au prorata du coût d\'achat</span>','',sum('prodC')?euro(sum('prodC'),0):'','',euro(sum('depC'),0),'','','',sum('empC')?euro(sum('empC'),0):'','','','',''],'color:var(--text2)');
  const autre=(label,o,css)=>o.n?tr([label+' <span style="font-weight:400;color:var(--text3)">('+o.n+' ligne'+(o.n>1?'s':'')+')</span>','',euro(o.prod,0),euro(o.dep,0),'','','','',euro(o.emp,0),'','','',''],css):'';
- wrap.innerHTML=`<table class="jtable" style="font-size:12.5px"><thead><tr><th>Bien</th><th style="text-align:right">Coût total d'acquisition</th><th style="text-align:right">Produits</th><th style="text-align:right">Dépenses directes</th><th style="text-align:right">Quote-part commune</th><th style="text-align:right" title="Produits − charges d'exploitation">Résultat d'exploitation</th><th style="text-align:right" title="Frais de notaire, de courtage et de banque, étalés sur la durée choisie">Frais d'acquisition étalés</th><th style="text-align:right" title="Résultat d'exploitation − frais d'acquisition étalés">Résultat total</th><th style="text-align:right">Emprunt</th><th style="text-align:right">Cash-flow</th><th style="text-align:right" title="Résultat d'exploitation annualisé ÷ (prix + travaux) : uniquement les produits et les charges d'exploitation">Rendement opérationnel</th><th style="text-align:right" title="Résultat total annualisé ÷ (prix + travaux) : tout compris, frais d'acquisition inclus">Rendement total (tout compris)</th><th style="text-align:right" title="Rendements attendus d'après les loyers et charges de la fiche : opérationnel · total">Prévu (op. · total)</th></tr></thead><tbody>${body}${tot}${dontC}${autre('À affecter',R.nonAff,'background:var(--amber-light)')}${autre('Commun avant le premier achat',R.nonRep,'background:var(--surface2)')}</tbody></table>`;
+ wrap.innerHTML=`<table class="jtable" style="font-size:12.5px"><thead><tr><th>Bien</th><th style="text-align:right">Coût total d'acquisition</th><th style="text-align:right">Produits</th><th style="text-align:right">Dépenses directes</th><th style="text-align:right">Quote-part commune</th><th style="text-align:right" title="Produits − charges d'exploitation">Résultat d'exploitation</th><th style="text-align:right" title="Frais de notaire, de courtage et de banque, ${etalPhrase()}">${rentaEtalOpt()==='total'?'Frais d\'acquisition (totalité)':'Frais d\'acquisition étalés'}</th><th style="text-align:right" title="Résultat d'exploitation − frais d'acquisition étalés">Résultat total</th><th style="text-align:right">Emprunt</th><th style="text-align:right">Cash-flow</th><th style="text-align:right" title="Résultat d'exploitation annualisé ÷ (prix + travaux) : uniquement les produits et les charges d'exploitation">Rendement opérationnel</th><th style="text-align:right" title="Résultat total annualisé ÷ (prix + travaux) : tout compris, frais d'acquisition inclus">Rendement total (tout compris)</th><th style="text-align:right" title="Rendements attendus d'après les loyers et charges de la fiche : opérationnel · total">Prévu (op. · total)</th></tr></thead><tbody>${body}${tot}${dontC}${autre('À affecter',R.nonAff,'background:var(--amber-light)')}${autre('Commun avant le premier achat',R.nonRep,'background:var(--surface2)')}</tbody></table>`;
  // coût d'acquisition bien par bien
  document.getElementById('renta-couts').innerHTML=`<div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:2px">Coût d'acquisition de chaque bien</div>
-  <div style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.55">Le <strong>rendement opérationnel</strong> ne regarde que les <em>produits</em> et les <em>charges d'exploitation</em> : résultat d'exploitation ÷ (prix + travaux). Le <strong>rendement total</strong> tient compte du tout : il retranche en plus les frais d'acquisition (notaire, courtage, banque), <strong>étalés</strong> sur ${{pret:'la durée du prêt',10:'10 ans',20:'20 ans'}[rentaEtalOpt()]}. Il est donc toujours inférieur ou égal au rendement opérationnel.</div>
-  <div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><thead><tr><th>Bien</th><th style="text-align:right">Prix d'achat</th><th style="text-align:right">Travaux</th><th style="text-align:right">= Base du rendement</th><th style="text-align:right" title="Le plus élevé entre la fiche du bien et les paiements de la Comptabilité">Notaire</th><th style="text-align:right" title="Le plus élevé entre la fiche du bien et les paiements de la Comptabilité">Courtage</th><th style="text-align:right" title="Frais de dossier, garantie, crédit logement… payés">Frais bancaires et autres</th><th style="text-align:right">= Frais d'acquisition</th><th style="text-align:right">Frais / prix</th><th style="text-align:right">Frais étalés par an</th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td><strong>${E(bienNom(r.b))}</strong></td><td style="text-align:right">${euro(r.prix,0)}</td><td style="text-align:right">${euro(r.trav,0)}</td><td style="text-align:right;font-weight:600">${euro(r.coutOper,0)}</td><td style="text-align:right">${euro(r.notaireRet,0)}</td><td style="text-align:right">${euro(r.courtageRet,0)}</td><td style="text-align:right">${r.autresRet?euro(r.autresRet,0):'—'}</td><td style="text-align:right;font-weight:600">${euro(r.fraisAcq,0)}${r.fraisAuto?`<div style="font-size:11px;font-weight:400;color:var(--text3)">dont ${euro(r.fraisAuto,0)} détectés en « Hors rentabilité »</div>`:''}</td><td style="text-align:right">${r.prix>0?pct1(r.fraisAcq/r.prix*100):'—'}</td><td style="text-align:right">${euro(r.fraisAn,0)} <span style="color:var(--text3)">(${Math.round(r.etalAns*10)/10} ans)</span></td></tr>`).join('')}
-  <tr style="background:var(--surface2);font-weight:600"><td>Total</td><td style="text-align:right">${euro(sum('prix'),0)}</td><td style="text-align:right">${euro(sum('trav'),0)}</td><td style="text-align:right">${euro(sum('coutOper'),0)}</td><td style="text-align:right">${euro(sum('notaireRet'),0)}</td><td style="text-align:right">${euro(sum('courtageRet'),0)}</td><td style="text-align:right">${sum('autresRet')?euro(sum('autresRet'),0):'—'}</td><td style="text-align:right">${euro(sum('fraisAcq'),0)}</td><td style="text-align:right">${sum('prix')>0?pct1(sum('fraisAcq')/sum('prix')*100):'—'}</td><td style="text-align:right">${euro(sum('fraisAn'),0)}</td></tr></tbody></table></div>
+  <div style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.55">Le <strong>rendement opérationnel</strong> ne regarde que les <em>produits</em> et les <em>charges d'exploitation</em> : résultat d'exploitation ÷ (prix + travaux). Le <strong>rendement total</strong> tient compte du tout : il retranche en plus les frais d'acquisition (notaire, courtage, banque), <strong>${etalPhrase()}</strong>. Il est donc toujours inférieur ou égal au rendement opérationnel.</div>
+  <div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><thead><tr><th>Bien</th><th style="text-align:right">Prix d'achat</th><th style="text-align:right">Travaux</th><th style="text-align:right">= Base du rendement</th><th style="text-align:right" title="Le plus élevé entre la fiche du bien et les paiements de la Comptabilité">Notaire</th><th style="text-align:right" title="Le plus élevé entre la fiche du bien et les paiements de la Comptabilité">Courtage</th><th style="text-align:right" title="Frais de dossier, garantie, crédit logement… payés">Frais bancaires et autres</th><th style="text-align:right">= Frais d'acquisition</th><th style="text-align:right">Frais / prix</th><th style="text-align:right">${rentaEtalOpt()==='total'?'Frais déduits (totalité)':'Frais étalés par an'}</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td><strong>${E(bienNom(r.b))}</strong></td><td style="text-align:right">${euro(r.prix,0)}</td><td style="text-align:right">${euro(r.trav,0)}</td><td style="text-align:right;font-weight:600">${euro(r.coutOper,0)}</td><td style="text-align:right">${euro(r.notaireRet,0)}</td><td style="text-align:right">${euro(r.courtageRet,0)}</td><td style="text-align:right">${r.autresRet?euro(r.autresRet,0):'—'}</td><td style="text-align:right;font-weight:600">${euro(r.fraisAcq,0)}${r.fraisAuto?`<div style="font-size:11px;font-weight:400;color:var(--text3)">dont ${euro(r.fraisAuto,0)} détectés en « Hors rentabilité »</div>`:''}</td><td style="text-align:right">${r.prix>0?pct1(r.fraisAcq/r.prix*100):'—'}</td><td style="text-align:right">${r.etalTotal?euro(r.fraisAcq,0)+' <span style="color:var(--text3)">(totalité)</span>':euro(r.fraisAn,0)+' <span style="color:var(--text3)">('+Math.round(r.etalAns*10)/10+' ans)</span>'}</td></tr>`).join('')}
+  <tr style="background:var(--surface2);font-weight:600"><td>Total</td><td style="text-align:right">${euro(sum('prix'),0)}</td><td style="text-align:right">${euro(sum('trav'),0)}</td><td style="text-align:right">${euro(sum('coutOper'),0)}</td><td style="text-align:right">${euro(sum('notaireRet'),0)}</td><td style="text-align:right">${euro(sum('courtageRet'),0)}</td><td style="text-align:right">${sum('autresRet')?euro(sum('autresRet'),0):'—'}</td><td style="text-align:right">${euro(sum('fraisAcq'),0)}</td><td style="text-align:right">${sum('prix')>0?pct1(sum('fraisAcq')/sum('prix')*100):'—'}</td><td style="text-align:right">${euro(rentaEtalOpt()==='total'?sum('fraisAcq'):sum('fraisAn'),0)}</td></tr></tbody></table></div>
   <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.55"><strong>D'où viennent ces frais.</strong> <em>Notaire</em> et <em>courtage</em> : le plus élevé entre la fiche du bien et les paiements de la Comptabilité, pour ne pas compter deux fois le même frais. <em>Frais bancaires et autres</em> : les paiements de la Comptabilité. Les lignes comptées sont celles affectées à <em>Frais d'acquisition · bien</em> et, tant que la liste « Frais de notaire et de banque » est sur « comptés », celles classées <em>Hors rentabilité</em> dont le libellé évoque un frais (notaire, frais de dossier, crédit logement, courtage, garantie…) et dont le montant ne dépasse pas 25 % du prix : elles sont rattachées au bien dont la date d'achat est la plus proche. Le paiement du prix d'achat, un déblocage de prêt ou un dépôt de garantie restent neutres. Les intérêts du prêt ne sont pas déduits (la Comptabilité ne distingue pas intérêts et capital) : ils apparaissent dans le cash-flow.</div></div>`;
  // lignes à vérifier : frais d'acquisition comptés par erreur dans les charges d'exploitation
  const aVer=rentaAVerifier(R);
@@ -3449,7 +3464,7 @@ function renderRentabilite(){
   <tr><td style="padding-left:18px">dont non répartis (avant le premier achat)</td><td style="text-align:right">${R.nonRep.n||''}</td><td style="text-align:right">${euro(R.nonRep.dep,2)}</td><td>${R.nonRep.dep?'<span style="color:var(--amber)">non imputés aux biens : ils figurent dans le résultat de la SCI ci-dessus</span>':''}</td></tr>
   ${(Cm.prod||repP)?`<tr><td>Produits communs à la SCI</td><td></td><td style="text-align:right">${euro(Cm.prod,2)}</td><td>répartis de la même façon</td></tr>`:''}`:''}
   ${Hx.n?`<tr style="font-weight:600"><td>Achats et investissements hors rentabilité</td><td style="text-align:right">${Hx.n}</td><td style="text-align:right">${euro(Hx.sorties,2)}${Hx.entrees?' <span style="font-weight:400;color:var(--text3)">(+ '+euro(Hx.entrees,2)+' reçus)</span>':''}</td><td style="font-weight:400">acquisition, notaire, travaux d'achat, déblocage de prêt… : exclus du rendement opérationnel</td></tr>
-  ${hxAcq>0?`<tr><td style="padding-left:18px">dont frais d'acquisition comptés dans le rendement total${hxAuto>0?' (dont '+euro(hxAuto,0)+' détectés d\'après le libellé)':''}</td><td></td><td style="text-align:right">${euro(hxAcq,2)}</td><td>notaire, courtage, frais bancaires : rattachés au bien, étalés sur ${{pret:'la durée du prêt',10:'10 ans',20:'20 ans'}[rentaEtalOpt()]}</td></tr>`:''}`:''}
+  ${hxAcq>0?`<tr><td style="padding-left:18px">dont frais d'acquisition comptés dans le rendement total${hxAuto>0?' (dont '+euro(hxAuto,0)+' détectés d\'après le libellé)':''}</td><td></td><td style="text-align:right">${euro(hxAcq,2)}</td><td>notaire, courtage, frais bancaires : rattachés au bien, ${etalPhrase()}</td></tr>`:''}`:''}
   </tbody></table></div>
   <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--text2)">Voir les lignes concernées (${Cm.lines.length+Hx.lines.length})</summary><div style="overflow-x:auto;margin-top:8px"><table class="jtable" style="font-size:12px"><thead><tr><th>Date</th><th>Libellé</th><th>Type</th><th>Répartition entre les biens</th><th style="text-align:right">Montant</th></tr></thead><tbody>
   ${Cm.lines.concat(Hx.lines).sort((a,b)=>b.m.date.localeCompare(a.m.date)).slice(0,300).map(x=>`<tr><td style="white-space:nowrap">${fdate(x.m.date)}</td><td>${E(x.m.libelle)}</td><td>${Hx.lines.includes(x)?'Hors rentabilité'+(x.acq?' · frais d\'acquisition de '+E(DATA.biens[x.acq]?bienNom(DATA.biens[x.acq]):'?')+(x.acqAuto?' (détecté)':''):''):'Frais commun'}${x.perso||x.pct&&x.pct<100?' <span style="color:var(--text3)">('+pc1(x.perso||x.pct)+' % de la ligne)</span>':''}</td><td>${Hx.lines.includes(x)?'—':lignesRep(x)}</td><td style="text-align:right">${x.val>=0?'+':'−'}${euro(Math.abs(x.val),2)}</td></tr>`).join('')}
@@ -3457,7 +3472,7 @@ function renderRentabilite(){
  const shares=rows.map(r=>E(bienNom(r.b))+' '+part(r)+' %').join(' · ');
  const X=R.exclu,eur=v=>euro(Math.abs(v),0);
  const exclTxt=[X.apport.n?`<strong>${X.apport.n} ligne${X.apport.n>1?'s':''} de comptes courants d'associés</strong> (${X.apport.net>=0?'+':'−'}${eur(X.apport.net)})`:'',X.hors.n?`<strong>${X.hors.n} ligne${X.hors.n>1?'s':''} « Hors rentabilité »</strong> (${eur(X.hors.entrees)} d'entrées, ${eur(X.hors.sorties)} de sorties)`:'',X.autres.n?`<strong>${X.autres.n} ligne${X.autres.n>1?'s':''} non classée${X.autres.n>1?'s':''}</strong> (${X.autres.net>=0?'+':'−'}${eur(X.autres.net)})`:''].filter(Boolean);
- document.getElementById('renta-note').innerHTML=`<strong>Comment lire ce tableau.</strong> Période : ${P.label} (${fd(P.d1)} → ${fd(P.d2)}). <em>Produits</em> = loyers, loyers Airbnb et autres produits ; <em>Dépenses</em> = charges affectées au bien (directes) + sa quote-part des frais communs ; <em>Résultat</em> = produits − dépenses ; <em>Cash-flow</em> = résultat − remboursements d'emprunt ; <em>Rendement opérationnel</em> = résultat d'exploitation annualisé ÷ (prix + travaux) : seulement les produits et les charges d'exploitation. <em>Rendement total (tout compris)</em> = (résultat d'exploitation annualisé − frais d'acquisition étalés par an) ÷ (prix + travaux) : notaire, courtage et frais bancaires inclus, donc toujours inférieur ou égal à l'opérationnel. Colonne <em>Prévu</em> : rendements attendus d'après les loyers et charges saisis sur la fiche du bien.<br><strong>Frais communs à la SCI</strong> (lignes affectées à « Commun SCI ») : répartis au <strong>prorata du coût d'achat</strong> des biens déjà acquis à la date de chaque ligne ; ceux datés d'<strong>avant le premier achat</strong> sont traités selon la liste « Frais d'avant achat » (répartis sur tous les biens, imputés au premier bien acheté, ou laissés non répartis). Répartition actuelle : ${shares}. <br><strong>Exclus de la rentabilité</strong> : les comptes courants d'associés (ce n'est ni un produit ni une charge), les lignes affectées à « Hors rentabilité » (paiement d'acquisition, notaire, déblocage de prêt, dépôt de garantie…) et les lignes « Non classé ». Sur la période : ${exclTxt.length?exclTxt.join(' · '):'aucune ligne exclue'}.`;
+ document.getElementById('renta-note').innerHTML=`<strong>Comment lire ce tableau.</strong> Période : ${P.label} (${fd(P.d1)} → ${fd(P.d2)}). <em>Produits</em> = loyers, loyers Airbnb et autres produits ; <em>Dépenses</em> = charges affectées au bien (directes) + sa quote-part des frais communs ; <em>Résultat</em> = produits − dépenses ; <em>Cash-flow</em> = résultat − remboursements d'emprunt ; <em>Rendement opérationnel</em> = résultat d'exploitation annualisé ÷ (prix + travaux) : seulement les produits et les charges d'exploitation. <em>Rendement total (tout compris)</em> = (résultat d'exploitation annualisé − frais d'acquisition étalés par an) ÷ (prix + travaux) : notaire, courtage et frais bancaires inclus, donc toujours inférieur ou égal à l'opérationnel. Colonne <em>Prévu</em> : rendements attendus d'après les loyers et charges saisis sur la fiche du bien.${rentaEtalOpt()==='total'?` <strong>Frais d'acquisition pris en totalité à date :</strong> ils sont déduits en entier du résultat de la période affichée (résultat total = résultat d'exploitation − frais d'acquisition), et le rendement est annualisé comme les autres : il est donc très bas au début, puis remonte à mesure que le bien rapporte.${(P.d1&&rows.some(r=>r.b.dateAchat&&r.b.dateAchat<P.d1))?' Certains biens ont été achetés avant le début de cette période : leurs frais sont quand même déduits en entier de la période ; choisissez « Depuis l\'origine » pour une lecture depuis l\'achat.':''}`:''}<br><strong>Frais communs à la SCI</strong> (lignes affectées à « Commun SCI ») : répartis au <strong>prorata du coût d'achat</strong> des biens déjà acquis à la date de chaque ligne ; ceux datés d'<strong>avant le premier achat</strong> sont traités selon la liste « Frais d'avant achat » (répartis sur tous les biens, imputés au premier bien acheté, ou laissés non répartis). Répartition actuelle : ${shares}. <br><strong>Exclus de la rentabilité</strong> : les comptes courants d'associés (ce n'est ni un produit ni une charge), les lignes affectées à « Hors rentabilité » (paiement d'acquisition, notaire, déblocage de prêt, dépôt de garantie…) et les lignes « Non classé ». Sur la période : ${exclTxt.length?exclTxt.join(' · '):'aucune ligne exclue'}.`;
 }
 // Bloc affiché dans la fiche d'un bien
 function bienRentaBlock(b){
@@ -3856,6 +3871,246 @@ function renderEmprunt(){
  document.getElementById('empr-content').innerHTML=html;
 }
 
+// ================= CONSEIL ▸ GESTION : obligations fiscales et administratives d'une SCI à l'IS =================
+// Règles vérifiées en octobre 2026 sur impots.gouv.fr, service-public.fr, BOFiP et le guichet unique de l'INPI.
+// Repères indicatifs : ils ne remplacent pas un expert-comptable (voir le bandeau de la page).
+const GESTION_MAJ='octobre 2026';
+let currentConseilPage='conseil';
+const gIso=(y,m,d)=>y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+const gDate=iso=>new Date(iso+'T12:00:00');
+const gFrom=t=>gIso(t.getFullYear(),t.getMonth()+1,t.getDate());
+const gToday=()=>window.__TODAY?window.__TODAY:gFrom(new Date());          // __TODAY : uniquement pour les tests automatiques
+const gAddDays=(iso,n)=>{const t=gDate(iso);t.setDate(t.getDate()+n);return gFrom(t);};
+const gDerJour=(y,m)=>new Date(y,m,0).getDate();
+// ajoute n mois ; une date de fin de mois reste une fin de mois (30/06 + 6 mois = 31/12)
+const gAddMois=(iso,n)=>{const t=gDate(iso),y0=t.getFullYear(),m0=t.getMonth()+1,fin=t.getDate()===gDerJour(y0,m0),d=t.getDate();
+ const tot=y0*12+(m0-1)+n,y=Math.floor(tot/12),m=tot%12+1;return gIso(y,m,fin?gDerJour(y,m):Math.min(d,gDerJour(y,m)));};
+function gPaques(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),j=((h+l-7*m+114)%31)+1;return gIso(y,mo,j);}
+function gFeries(y){const p=gPaques(y);return new Set([gIso(y,1,1),gAddDays(p,1),gIso(y,5,1),gIso(y,5,8),gAddDays(p,39),gAddDays(p,50),gIso(y,7,14),gIso(y,8,15),gIso(y,11,1),gIso(y,11,11),gIso(y,12,25)]);}
+const gEstOuvre=iso=>{const d=gDate(iso).getDay();return d!==0&&d!==6&&!gFeries(+iso.slice(0,4)).has(iso);};
+// une échéance qui tombe un samedi, un dimanche ou un jour férié est reportée au premier jour ouvré suivant
+function gOuvre(iso){let t=iso;for(let i=0;i<10&&!gEstOuvre(t);i++)t=gAddDays(t,1);return t;}
+// 2e jour ouvré suivant le 1er mai (déclaration de résultats d'un exercice clos au 31 décembre)
+function gDeuxiemeOuvre(y){let t=gIso(y,5,1),n=0;for(let i=0;i<20;i++){t=gAddDays(t,1);if(gEstOuvre(t)){n++;if(n===2)return t;}}return t;}
+const gFr=iso=>iso?iso.split('-').reverse().join('/'):'';
+const gMoisNom=iso=>['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][+iso.slice(5,7)-1]+' '+iso.slice(0,4);
+
+function gestionParams(){
+ let c={};try{c=JSON.parse(localStorage.getItem('sci_gestion')||'{}')||{};}catch(e){}
+ const mois=Math.round(Number(c.mois));
+ return {mois:mois>=1&&mois<=12?mois:12,creation:/^\d{4}-\d{2}-\d{2}$/.test(c.creation||'')?c.creation:'',
+  done:(c.done&&typeof c.done==='object')?c.done:{},docs:(c.docs&&typeof c.docs==='object')?c.docs:{}};
+}
+function gestionSave(p){localStorage.setItem('sci_gestion',JSON.stringify({mois:p.mois,creation:p.creation,done:p.done,docs:p.docs}));}
+function gestionSet(){
+ const p=gestionParams(),v=id=>{const e=document.getElementById(id);return e?e.value:'';};
+ p.mois=Math.round(Number(v('gs-mois')))||12;p.creation=v('gs-creation');
+ gestionSave(p);renderConseilGestion();
+}
+function gestionCoche(key,on){const p=gestionParams();if(on)p.done[key]=gToday();else delete p.done[key];gestionSave(p);renderConseilGestion();}
+function gestionCocheDoc(key,on){const p=gestionParams();if(on)p.docs[key]=gToday();else delete p.docs[key];gestionSave(p);renderConseilGestion();}
+
+// exercice en cours (celui qui contient aujourd'hui) et dernier exercice clos
+function gExercice(today,mois){
+ const y=+today.slice(0,4);let fin=gIso(y,mois,gDerJour(y,mois));if(fin<today)fin=gIso(y+1,mois,gDerJour(y+1,mois));
+ const fy=+fin.slice(0,4),prec=gIso(fy-1,mois,gDerJour(fy-1,mois));
+ return {debut:gAddDays(prec,1),fin,precFin:prec};
+}
+// Impôt sur les sociétés estimé pour l'année « an », avec le moteur de la Projection (loyers, charges, intérêts, amortissement des fiches)
+function gestionIsEstime(an){
+ const biens=biensList().filter(b=>b.dateAchat&&+b.dateAchat.slice(0,4)<=an);
+ let ca=0,charges=0,interets=0,amort=0;
+ biens.forEach(b=>{const y=projCalcIS(bienToProj(b),an);ca+=y.ca;charges+=y.charges;interets+=y.interets;amort+=y.amort;});
+ const resultat=ca-charges-interets-amort,seuil=BP_PARAMS.isSeuil||42500,t1=(BP_PARAMS.isTaux1||15)/100,t2=(BP_PARAMS.isTaux2||25)/100,base=Math.max(0,resultat);
+ const is=base<=seuil?base*t1:seuil*t1+(base-seuil)*t2;
+ return {an,n:biens.length,ca,charges,interets,amort,resultat,is,seuil,t1,t2};
+}
+const gestionTf=an=>biensList().filter(b=>b.dateAchat&&b.dateAchat<=an+'-01-01').reduce((t,b)=>t+(Number((b.chargesAnnuelles||{}).fonciere)||0),0);   // taxe foncière due par le propriétaire au 1er janvier
+// CFE : la location nue de logements d'habitation n'y est pas soumise ; la location meublée habituelle (bail meublé, Airbnb) l'est
+function gestionCfe(){const m=biensList().filter(b=>b.modeLocation==='A'||b.modeLocation==='B');return {due:m.length>0,biens:m};}
+
+function gestionTaches(today,P){
+ const ex=gExercice(today,P.mois),T=[],dec=P.mois===12,biens=biensList(),cfe=gestionCfe();
+ const yN=+today.slice(0,4),nom=b=>bienNom(b);
+ const add=t=>T.push(t);
+ const fins=[ex.precFin,ex.fin,gIso(+ex.fin.slice(0,4)+1,P.mois,gDerJour(+ex.fin.slice(0,4)+1,P.mois))];
+ const premier=fin=>P.creation&&P.creation>gAddMois(fin,-12);   // première période d'imposition : pas d'acompte
+ fins.forEach((fin,idx)=>{
+  const an=+fin.slice(0,4),prevFin=gAddMois(fin,-12),debut=gAddDays(prevFin,1);
+  const isEx=gestionIsEstime(an),isRef=gestionIsEstime(an-1);
+  const acomptesEx=[];
+  // acomptes d'IS : 15 mars, 15 juin, 15 septembre, 15 décembre compris dans l'exercice (dispense si l'IS de référence ≤ 3 000 € ou première période)
+  [an-1,an].forEach(y=>['03-15','06-15','09-15','12-15'].forEach(md=>{const d=y+'-'+md;if(d>=debut&&d<=fin){
+   const dispense=isRef.is<=3000||premier(fin);
+   acomptesEx.push({date:gOuvre(d),brut:d});
+   add({key:'acompte:'+d,date:gOuvre(d),cat:'fiscal',titre:'Payer l\'acompte d\'impôt sur les sociétés',detail:dispense?(premier(fin)?'Dispense : première période d\'imposition de la SCI.':'Dispense : l\'IS du dernier exercice (estimé '+euro(isRef.is,0)+') n\'excède pas 3 000 €.'):'Un quart de l\'IS du dernier exercice clos, soit environ '+euro(isRef.is/4,0)+' (estimation). Relevé d\'acompte n° 2571, à payer depuis votre espace professionnel.',montant:dispense?0:isRef.is/4,dispense,how:'impots.gouv.fr › Espace professionnel › Payer › Impôt sur les sociétés (relevé 2571)',exercice:fin});
+  }}));
+  const acomptesVerses=acomptesEx.length&&isRef.is>3000&&!premier(fin)?acomptesEx.length*isRef.is/4:0;
+  // déclaration de résultats : 2e jour ouvré suivant le 1er mai + 15 jours (télétransmission) pour une clôture au 31/12 ; sinon 3 mois après la clôture
+  const dl=gOuvre(dec?gAddDays(gDeuxiemeOuvre(an+1),15):gAddMois(fin,3));
+  add({key:'liasse:'+fin,date:dl,cat:'fiscal',titre:'Déposer la déclaration de résultats de l\'exercice clos le '+gFr(fin),detail:'Liasse fiscale : formulaire 2065 et annexes (2033 en régime simplifié, 2050 à 2059 en régime normal), même sans résultat. Transmission par voie électronique obligatoire. Pour une clôture au 31 décembre : 2e jour ouvré suivant le 1er mai, plus 15 jours en télétransmission.',how:'impots.gouv.fr › Espace professionnel › Déclarer, ou par votre expert-comptable (EDI-TDFC)',exercice:fin,expert:true});
+  // solde de l'IS : 15 mai pour un exercice clos au 31/12, sinon le 15 du 4e mois suivant la clôture
+  const dSolde=gOuvre(dec?gIso(an+1,5,15):(()=>{const t=gAddMois(fin,4);return t.slice(0,8)+'15';})());
+  const solde=Math.max(0,isEx.is-acomptesVerses);
+  add({key:'solde:'+fin,date:dSolde,cat:'fiscal',titre:'Payer le solde de l\'impôt sur les sociétés de l\'exercice clos le '+gFr(fin),detail:'IS de l\'exercice (estimé '+euro(isEx.is,0)+') moins les acomptes versés ('+euro(acomptesVerses,0)+'). Relevé de solde n° 2572.',montant:solde,how:'impots.gouv.fr › Espace professionnel › Payer › Impôt sur les sociétés (relevé 2572)',exercice:fin});
+  // assemblée d'approbation des comptes : dans les 6 mois de la clôture
+  add({key:'ago:'+fin,date:gOuvre(gAddMois(fin,6)),cat:'juridique',titre:'Faire approuver les comptes de l\'exercice clos le '+gFr(fin)+' par les associés',detail:'Assemblée (ou décision écrite) dans les 6 mois de la clôture, procès-verbal consigné au registre des décisions. Pas de dépôt des comptes au greffe pour une SCI civile, sauf clause contraire des statuts.',how:'Convoquer les associés, présenter le rapport de gestion et les comptes, signer le procès-verbal',exercice:fin});
+  // préparation de la clôture et transmission des pièces
+  if(idx>=1)add({key:'cloture:'+fin,date:gAddDays(fin,-30),cat:'compta',titre:'Préparer la clôture de l\'exercice (au '+gFr(fin)+')',detail:'Point avec l\'expert-comptable : amortissements, charges à payer et produits à recevoir, intérêts d\'emprunt courus, comptes courants d\'associés, provisions. Affectez toutes les lignes de la Comptabilité.',how:'Comptabilité › filtre « À affecter » ; Conseil › Gestion › dossier pour l\'expert-comptable',exercice:fin,expert:true});
+  add({key:'pieces:'+fin,date:gAddDays(fin,idx===0?45:30),cat:'compta',titre:'Transmettre les pièces de l\'exercice clos le '+gFr(fin)+' à l\'expert-comptable',detail:'Relevés bancaires, factures, appels de fonds de copropriété, avis de taxe foncière, attestations d\'intérêts et tableaux d\'amortissement des prêts, état des baux.',how:'Dossier PDF de cette page + pièces justificatives',exercice:fin,expert:true});
+ });
+ // taxe foncière (15 octobre) et CFE (15 décembre) : pour l'année en cours et la suivante
+ [yN,yN+1].forEach(y=>{
+  const tf=gestionTf(y);
+  if(tf>0)add({key:'tf:'+y,date:gOuvre(y+'-10-15'),cat:'local',titre:'Payer la taxe foncière '+y,detail:'Due par le propriétaire au 1er janvier, environ '+euro(tf,0)+' d\'après les fiches des biens. '+(y===2026?'En 2026 : 15 octobre (autre moyen de paiement), 20 octobre en paiement en ligne.':'Date limite mi-octobre : confirmez-la sur l\'avis.'),montant:tf,how:'impots.gouv.fr › Espace professionnel › Biens immobiliers / Payer (avis de taxe foncière)',exercice:null});
+  if(cfe.due)add({key:'cfe:'+y,date:gOuvre(y+'-12-15'),cat:'local',titre:'Payer la cotisation foncière des entreprises (CFE) '+y,detail:'Due car la SCI loue en meublé ou en Airbnb ('+cfe.biens.map(nom).join(', ')+'), soit environ '+euro(BP_PARAMS.cfeAn||0,0)+' d\'après vos hypothèses. Acompte de 50 % au 15 juin seulement si la CFE de l\'année précédente est d\'environ 3 000 € ou plus (voir l\'avis d\'acompte).',montant:Number(BP_PARAMS.cfeAn)||0,how:'impots.gouv.fr › Espace professionnel › Payer › CFE',exercice:null});
+  // déclaration d'occupation des biens
+  add({key:'gmbi:'+y,date:gOuvre(y+'-06-30'),cat:'local',titre:'Mettre à jour l\'occupation des biens (« Gérer mes biens immobiliers »), situation au 1er janvier '+y,detail:'À faire seulement si l\'occupation a changé depuis votre dernière déclaration (nouveau locataire, changement d\'usage). Amende de 150 € par local dont l\'occupation n\'est pas renseignée.',how:'impots.gouv.fr › Espace professionnel › Gérer mes biens immobiliers',exercice:null,conditionnel:true});
+ });
+ if(cfe.due&&P.creation){const y=+P.creation.slice(0,4);if(y>=yN-1)add({key:'cfe-init:'+y,date:gIso(y,12,31),cat:'local',titre:'Déposer la déclaration initiale de CFE (1447-C-SD) de l\'année de création',detail:'Avant le 1er janvier de l\'année suivant le début de l\'activité de location meublée. L\'année de création, la CFE n\'est pas due.',how:'impots.gouv.fr › Espace professionnel › Déclarer › CFE',exercice:null});}
+ // suivi des baux : congé du bailleur et révision annuelle du loyer
+ biens.forEach(b=>{
+  const meuble=b.modeLocation==='A'||b.modeLocation==='B';
+  if(b.dateFinBail){const m=meuble?3:6;add({key:'conge:'+b.id+':'+b.dateFinBail,date:gAddMois(b.dateFinBail,-m),cat:'bail',titre:nom(b)+' : dernier jour pour donner congé au locataire (bail jusqu\'au '+gFr(b.dateFinBail)+')',detail:'Le bailleur qui ne veut pas reconduire le bail doit donner congé '+m+' mois avant son terme, pour un motif légitime et sérieux (reprise, vente, motif sérieux). Sans congé, le bail se reconduit.'+(b.locataire?' Locataire : '+b.locataire+'.':''),how:'Lettre recommandée, acte de commissaire de justice ou remise en main propre contre récépissé',exercice:null,bien:b.id});}
+  const ref=b.dateEntree||'';
+  if(ref&&b.modeLocation!=='B'){for(let k=0;k<3;k++){const a=gAddMois(ref,12*(+today.slice(0,4)-+ref.slice(0,4)+k));if(a>ref&&a>=gAddDays(today,-45)&&a<=gAddDays(today,400)){add({key:'irl:'+b.id+':'+a,date:a,cat:'bail',titre:nom(b)+' : réviser le loyer (IRL) à la date anniversaire du bail',detail:'Si le bail contient une clause de révision, demandez-la dans l\'année : passé ce délai, la révision de l\'année écoulée est perdue. Un logement classé F ou G au DPE est en gel des loyers.',how:'Courrier au locataire avec le nouvel indice de référence des loyers (INSEE)',exercice:null,bien:b.id});break;}}}
+ });
+ return T.filter(t=>t.date>=gAddDays(today,-45)&&t.date<=gAddDays(today,400)).sort((a,b)=>a.date.localeCompare(b.date)||a.titre.localeCompare(b.titre));
+}
+
+// Points de vigilance adaptés à la SCI (biens, modes de location, comptes courants, Comptabilité)
+function gestionVigilance(today,P){
+ const V=[],ex=gExercice(today,P.mois),biens=biensList(),cfe=gestionCfe(),E=escH,n=biens.length;
+ const est=gestionIsEstime(+ex.fin.slice(0,4)),nom=b=>bienNom(b);
+ const add=(niveau,titre,texte)=>V.push({niveau,titre,texte});
+ if(!n)add('info','Aucun bien pour l\'instant','Les échéances propres aux biens (taxe foncière, CFE, baux) apparaîtront dès que vous aurez ajouté un bien. Les obligations de la société (déclaration de résultats, approbation des comptes, registres) existent dès sa création, même sans activité.');
+ if(n){
+  if(est.resultat>0)add('info','Impôt sur les sociétés estimé : '+euro(est.is,0),'Résultat fiscal estimé de l\'exercice '+euro(est.resultat,0)+' (loyers '+euro(est.ca,0)+', charges '+euro(est.charges,0)+', intérêts '+euro(est.interets,0)+', amortissements '+euro(est.amort,0)+'). Mettez environ '+euro(est.is/12,0)+' par mois de côté pour régler les acomptes et le solde.');
+  else add('info','Pas d\'impôt attendu cette année','Le résultat fiscal estimé de l\'exercice est de '+euro(est.resultat,0)+' : pas d\'IS, et un déficit se reporte sur les exercices suivants. Déclarez-le quand même (liasse fiscale obligatoire).');
+  add('info','Taux réduit d\'IS à 15 %','Le taux de 15 % jusqu\'à '+euro(est.seuil,0)+' de bénéfice suppose notamment un capital entièrement libéré et détenu à 75 % au moins par des personnes physiques, et un chiffre d\'affaires inférieur à 10 M€. Faites confirmer ces conditions par votre expert-comptable.');
+  if(cfe.due)add('warn','CFE due pour vos locations meublées','Les biens en meublé ou en Airbnb ('+E(cfe.biens.map(nom).join(', '))+') rendent la SCI redevable de la CFE (15 décembre ; déclaration initiale de l\'année de création). Elle est exonérée la première année.');
+  else if((Number(BP_PARAMS.cfeAn)||0)>0)add('info','Pas de CFE pour la location nue d\'habitation','La location nue de logements d\'habitation n\'est pas soumise à la CFE. Vos hypothèses (Projection ▸ Hypothèses) comptent pourtant '+euro(BP_PARAMS.cfeAn,0)+' par an : mettez-les à 0 si tous vos biens restent en location nue, ou gardez-les par prudence.');
+  if(biens.some(b=>b.modeLocation==='B'||b.modeLocation==='A'))add('warn','Location meublée de courte durée (Airbnb)','Louer un logement en meublé de tourisme est un changement d\'usage : à Marseille, une autorisation est exigée, à vérifier auprès de la ville. Un numéro d\'enregistrement est requis pour les meublés de tourisme et la procédure évolue (téléservice national annoncé au quatrième trimestre 2026) : vérifiez la démarche en vigueur auprès de la mairie. La taxe de séjour est collectée par les plateformes. Vérifiez aussi le régime de TVA avec votre expert-comptable.');
+  add('warn','Diagnostic de performance énergétique','Vérifiez le DPE de chaque logement : les logements classés G sont interdits à la location depuis le 1er janvier 2025, les F le seront en 2028 et les E en 2034 ; les loyers des F et G sont gelés.');
+ }
+ const cca=ccaList().reduce((t,c)=>t+(Number(c.apport)||0)-(Number(c.remb)||0),0);
+ if(cca>0)add('info','Comptes courants d\'associés : '+euro(cca,0),'Si vous les rémunérez, prévoyez une convention écrite et un taux qui ne dépasse pas le plafond de déductibilité publié chaque trimestre (taux maximum des intérêts déductibles, sur impots.gouv.fr) : l\'excédent n\'est pas déductible. Sans convention, vos apports ne produisent pas d\'intérêts.');
+ const naf=(typeof affNonAffectees==='function')?affNonAffectees().length:0;
+ if(naf>0)add('warn',naf+' ligne'+(naf>1?'s':'')+' de la Comptabilité à affecter','L\'expert-comptable a besoin de lignes classées et affectées pour clôturer : traitez-les avant la clôture (Comptabilité, filtre « À affecter »).');
+ const dernier=mvtsList().reduce((m,x)=>x.date>m?x.date:m,'');
+ if(dernier&&gAddDays(dernier,45)<today)add('warn','Comptabilité pas à jour','Le dernier mouvement importé date du '+gFr(dernier)+'. Importez régulièrement le relevé bancaire (Odoo) : un relevé manquant fausse le résultat et l\'impôt.');
+ const recents=biens.filter(b=>b.dateEntree&&b.dateEntree>=gAddMois(today,-12));
+ if(recents.length)add('info','Changement de locataire récent','Entrée de locataire récente ('+E(recents.map(nom).join(', '))+') : pensez à mettre à jour l\'occupation du bien dans « Gérer mes biens immobiliers » (échéance annuelle du 30 juin).');
+ if(n)add('info','Revente : plus-value à l\'IS','Pour une SCI à l\'IS, la plus-value de revente se calcule sur la valeur nette comptable, c\'est-à-dire après amortissements : elle est plus élevée qu\'en gestion personnelle. À étudier avec votre expert-comptable avant tout projet de cession.');
+ add('info','Registre des bénéficiaires effectifs','Tout changement (cession de parts, nouveau gérant, changement de domicile d\'un associé) doit être déclaré au guichet unique de l\'INPI, en principe dans les 30 jours (confirmez le délai sur le site).');
+ if(!P.creation)add('info','Date de création non renseignée','Renseignez-la ci-dessus : la première période d\'imposition est dispensée d\'acompte d\'IS et la CFE n\'est pas due l\'année de création.');
+ return V;
+}
+
+// Documents à réunir pour l'expert-comptable
+function gestionDocs(today,P){
+ const biens=biensList(),ex=gExercice(today,P.mois),dernier=mvtsList().reduce((m,x)=>x.date>m?x.date:m,'');
+ const D=[
+  {k:'releves',t:'Relevés bancaires de l\'exercice',auto:dernier?'Dernier mouvement importé : '+gFr(dernier):'Aucun mouvement importé'},
+  {k:'affect',t:'Lignes de la Comptabilité classées et affectées',auto:(typeof affNonAffectees==='function'?affNonAffectees().length:0)+' ligne(s) restant à affecter'},
+  {k:'prets',t:'Tableaux d\'amortissement des prêts et attestations d\'intérêts de la banque',auto:biens.filter(b=>Number(b.capital)>0).length+' prêt(s) saisi(s) dans l\'appli'},
+  {k:'actes',t:'Actes d\'achat avec la ventilation terrain / construction et le détail des frais (notaire, courtage)',auto:''},
+  {k:'travaux',t:'Factures de travaux et d\'équipements de l\'exercice',auto:''},
+  {k:'copro',t:'Appels de fonds et décomptes de charges de copropriété',auto:''},
+  {k:'taxes',t:'Avis de taxe foncière et de CFE',auto:''},
+  {k:'assur',t:'Attestations d\'assurance propriétaire non occupant (PNO)',auto:''},
+  {k:'baux',t:'Baux, états des lieux et état des loyers et du dépôt de garantie',auto:biens.filter(b=>b.locataire).length+' locataire(s) renseigné(s)'},
+  {k:'cca',t:'Détail des comptes courants d\'associés (apports, remboursements, conventions)',auto:ccaList().length+' écriture(s) dans l\'onglet Associés'},
+  {k:'pv',t:'Procès-verbal d\'approbation des comptes de l\'exercice précédent et registre des décisions',auto:''}];
+ return D.map(d=>({...d,fait:!!P.docs[d.k+':'+ex.fin]}));
+}
+
+function renderConseilGestion(){
+ const el=document.getElementById('conseil-gestion-content'),pg=document.getElementById('page-conseil-gestion');
+ if(!el||!pg||!pg.classList.contains('active'))return;
+ const today=gToday(),P=gestionParams(),ex=gExercice(today,P.mois),E=escH;
+ const T=gestionTaches(today,P),V=gestionVigilance(today,P),Dc=gestionDocs(today,P);
+ const isCur=gestionIsEstime(+ex.fin.slice(0,4)),isRef=gestionIsEstime(+ex.precFin.slice(0,4));
+ const catLbl={fiscal:'Fiscal',local:'Taxes locales',juridique:'Juridique',compta:'Comptabilité',bail:'Baux'};
+ const catCol={fiscal:'#0A2A5A',local:'#714B67',juridique:'#7A5A00',compta:'#1B6B3A',bail:'#A04A1D'};
+ const fait=t=>!!P.done[t.key];
+ const jours=t=>Math.round((gDate(t.date)-gDate(today))/86400000);
+ const ligne=t=>{const j=jours(t),f=fait(t),retard=j<0&&!f&&!t.dispense,proche=j>=0&&j<=30&&!f&&!t.dispense;
+  const badge=t.dispense?'<span class="badge" style="background:var(--surface2);color:var(--text3)">Dispensé</span>':(f?'<span class="badge" style="background:var(--green-light);color:var(--green)">Fait</span>':(retard?'<span class="badge" style="background:var(--red-light);color:var(--red)">En retard de '+(-j)+' j</span>':(proche?'<span class="badge" style="background:var(--amber-light);color:var(--amber)">'+(j===0?'Aujourd\'hui':'Dans '+j+' j')+'</span>':'<span style="font-size:11px;color:var(--text3)">dans '+j+' j</span>')));
+  return `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);${f||t.dispense?'opacity:.62':''}"><input type="checkbox" ${f?'checked':''} ${t.dispense?'disabled':''} onchange="gestionCoche('${t.key.replace(/'/g,'')}',this.checked)" style="margin-top:3px"><div style="flex:1;min-width:0"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="font-size:12px;font-weight:600;white-space:nowrap">${gFr(t.date)}</span><span style="font-size:10px;font-weight:600;color:${catCol[t.cat]};text-transform:uppercase;letter-spacing:.04em">${catLbl[t.cat]}</span>${badge}${t.montant>0?`<span style="font-size:12px;color:var(--text2)">≈ ${euro(t.montant,0)}</span>`:''}${t.conditionnel?'<span style="font-size:11px;color:var(--text3)">si changement</span>':''}</div><div style="font-size:13.5px;font-weight:500;margin-top:2px;${f?'text-decoration:line-through':''}">${E(t.titre)}</div><div style="font-size:12px;color:var(--text2);line-height:1.5;margin-top:2px">${E(t.detail)}</div>${t.how?`<div style="font-size:11px;color:var(--text3);margin-top:3px">Où : ${E(t.how)}</div>`:''}</div></div>`;};
+ const proches=T.filter(t=>!fait(t)&&!t.dispense&&jours(t)<=60),aVenir=T.filter(t=>jours(t)>60||fait(t)||t.dispense);
+ const parMois={};T.filter(t=>jours(t)>=0).forEach(t=>{(parMois[t.date.slice(0,7)]=parMois[t.date.slice(0,7)]||[]).push(t);});
+ const nv={crit:['var(--red)','var(--red-light)'],warn:['var(--amber)','var(--amber-light)'],info:['var(--blue)','var(--blue-light)']};
+ const vigil=V.map(v=>`<div style="display:flex;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border)"><div style="width:6px;border-radius:3px;background:${nv[v.niveau][0]};flex-shrink:0"></div><div><div style="font-size:13.5px;font-weight:600">${E(v.titre)}</div><div style="font-size:12px;color:var(--text2);line-height:1.55;margin-top:2px">${E(v.texte)}</div></div></div>`).join('');
+ const moisOpts=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'].map((m,i)=>`<option value="${i+1}"${P.mois===i+1?' selected':''}>${m}</option>`).join('');
+ const acomptesDus=isRef.is>3000&&!(P.creation&&P.creation>gAddMois(ex.fin,-12));
+ el.innerHTML=`
+ <div class="note" style="margin-bottom:14px;line-height:1.55"><strong>Repères indicatifs, pas un avis professionnel.</strong> Règles vérifiées en ${GESTION_MAJ} sur impots.gouv.fr, service-public.fr, le BOFiP et le guichet unique de l'INPI. Elles décrivent le cas général d'une SCI à l'impôt sur les sociétés ; les dates peuvent évoluer et votre situation peut présenter des particularités. Votre expert-comptable reste l'interlocuteur pour valider chaque point.</div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:8px">Votre exercice comptable</div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end"><label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Clôture de l'exercice (fin de)<select id="gs-mois" onchange="gestionSet()" style="padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">${moisOpts}</select></label>
+  <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Date de création de la SCI (facultatif)<input id="gs-creation" type="date" value="${P.creation}" onchange="gestionSet()" style="padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px"></label></div>
+  <div style="font-size:12px;color:var(--text2);margin-top:10px;line-height:1.55">Exercice en cours : du <strong>${gFr(ex.debut)}</strong> au <strong>${gFr(ex.fin)}</strong>. Dernier exercice clos : au <strong>${gFr(ex.precFin)}</strong>.</div></div>
+ <div class="card" style="margin-bottom:14px;border-left:3px solid ${proches.some(t=>jours(t)<0)?'var(--red)':(proches.length?'var(--amber)':'var(--green)')}"><div style="font-weight:600;font-size:14px;margin-bottom:2px">À faire maintenant</div><div style="font-size:12px;color:var(--text3);margin-bottom:6px">Échéances en retard et des 60 prochains jours</div>${proches.length?proches.map(ligne).join(''):'<div style="color:var(--green);font-weight:600;font-size:13px;padding:6px 0">Rien d\'urgent : toutes les échéances des 60 prochains jours sont traitées.</div>'}</div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:2px">Estimation de l'impôt sur les sociétés</div><div style="font-size:12px;color:var(--text3);margin-bottom:8px">D'après les fiches de vos biens (loyers, charges, intérêts d'emprunt, amortissement), avec le même moteur que Projection ▸ Résultat &amp; IS</div>
+  <div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><thead><tr><th></th><th style="text-align:right">Exercice en cours (${gFr(ex.fin)})</th><th style="text-align:right">Dernier exercice clos (${gFr(ex.precFin)})</th></tr></thead><tbody>
+  <tr><td>Produits (loyers)</td><td style="text-align:right">${euro(isCur.ca,0)}</td><td style="text-align:right">${euro(isRef.ca,0)}</td></tr>
+  <tr><td>Charges</td><td style="text-align:right">−${euro(isCur.charges,0)}</td><td style="text-align:right">−${euro(isRef.charges,0)}</td></tr>
+  <tr><td>Intérêts d'emprunt</td><td style="text-align:right">−${euro(isCur.interets,0)}</td><td style="text-align:right">−${euro(isRef.interets,0)}</td></tr>
+  <tr><td>Amortissements</td><td style="text-align:right">−${euro(isCur.amort,0)}</td><td style="text-align:right">−${euro(isRef.amort,0)}</td></tr>
+  <tr style="font-weight:600;background:var(--surface2)"><td>Résultat fiscal estimé</td><td style="text-align:right">${euro(isCur.resultat,0)}</td><td style="text-align:right">${euro(isRef.resultat,0)}</td></tr>
+  <tr style="font-weight:600"><td>Impôt sur les sociétés estimé</td><td style="text-align:right">${euro(isCur.is,0)}</td><td style="text-align:right">${euro(isRef.is,0)}</td></tr></tbody></table></div>
+  <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px">${acomptesDus?`Les acomptes de l'exercice en cours (15 mars, 15 juin, 15 septembre, 15 décembre) sont d'environ <strong>${euro(isRef.is/4,0)}</strong> chacun (un quart de l'IS du dernier exercice). Solde estimé de l'exercice en cours : <strong>${euro(Math.max(0,isCur.is-isRef.is),0)}</strong>, à régler ${P.mois===12?'le 15 mai':'le 15 du 4e mois après la clôture'}.`:`Pas d'acompte : l'IS du dernier exercice (estimé ${euro(isRef.is,0)}) n'excède pas 3 000 € ou il s'agit de la première période. L'impôt de l'exercice en cours (${euro(isCur.is,0)}) se règle en une fois, ${P.mois===12?'le 15 mai':'le 15 du 4e mois après la clôture'}.`}<br><span style="color:var(--text3)">Estimation simplifiée : amortissement de 80 % du prix sur 40 ans, frais d'acquisition et travaux non déduits, déficits antérieurs non reportés. Votre expert-comptable affinera (ventilation terrain / construction, composants, frais d'acquisition).</span></div></div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:2px">Calendrier des 12 prochains mois</div><div style="font-size:12px;color:var(--text3);margin-bottom:6px">Cochez ce qui est fait : l'état est enregistré et partagé entre associés</div>${Object.keys(parMois).sort().map(m=>`<div style="font-size:12px;font-weight:600;color:var(--text2);margin:12px 0 2px;text-transform:capitalize">${gMoisNom(m+'-01')}</div>${parMois[m].map(ligne).join('')}`).join('')||'<div class="empty-state">Aucune échéance</div>'}</div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:4px">Points de vigilance pour votre SCI</div>${vigil}</div>
+ <div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px"><div><div style="font-weight:600;font-size:14px">Dossier pour l'expert-comptable</div><div style="font-size:12px;color:var(--text3)">Pièces à réunir pour l'exercice clos le ${gFr(ex.fin)}</div></div><button class="btn btn-sm btn-primary" onclick="openPrebilanPdf()">Pré-bilan (PDF)</button></div>
+  ${Dc.map(d=>`<label style="display:flex;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border);cursor:pointer"><input type="checkbox" ${d.fait?'checked':''} onchange="gestionCocheDoc('${d.k}:${ex.fin}',this.checked)" style="margin-top:2px"><span style="flex:1;font-size:13px;${d.fait?'text-decoration:line-through;opacity:.6':''}">${E(d.t)}${d.auto?`<span style="display:block;font-size:11px;color:var(--text3)">${E(d.auto)}</span>`:''}</span></label>`).join('')}</div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:6px">Routine mensuelle</div><ul style="margin:0 0 0 18px;font-size:12.5px;line-height:1.7;color:var(--text2)"><li>Importer le relevé bancaire (Odoo) et classer les nouvelles lignes.</li><li>Affecter chaque ligne à un bien, à la SCI ou à « Hors rentabilité » ; rattacher les frais d'acquisition.</li><li>Vérifier le contrôle de la page Rentabilité (« Les deux totaux sont identiques »).</li><li>Suivre les loyers encaissés et relancer les impayés rapidement.</li><li>Conserver les factures et justificatifs : ils sont demandés à la clôture.</li></ul></div>
+ <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:24px"><strong>Sources officielles</strong> (vérifiées en ${GESTION_MAJ}) : <a href="https://www.impots.gouv.fr" target="_blank" rel="noopener">impots.gouv.fr</a> (liasse 2065, relevés 2571 et 2572, CFE, taxe foncière, Gérer mes biens immobiliers) · <a href="https://entreprendre.service-public.gouv.fr/vosdroits/F23547" target="_blank" rel="noopener">service-public.fr, CFE</a> · <a href="https://bofip.impots.gouv.fr" target="_blank" rel="noopener">BOFiP-Impôts</a> (acomptes d'IS, intérêts de comptes courants) · <a href="https://procedures.inpi.fr" target="_blank" rel="noopener">guichet unique de l'INPI</a> (bénéficiaires effectifs).</div>`;
+}
+
+function buildPrebilanHtml(){
+ const today=gToday(),P=gestionParams(),ex=gExercice(today,P.mois),E=escH;
+ const logo=(document.querySelector('#login-overlay picture img')||{}).src||'';
+ const d2=today<ex.fin?today:ex.fin,R=rentaCalc(ex.debut,d2);
+ const isCur=gestionIsEstime(+ex.fin.slice(0,4)),V=gestionVigilance(today,P),Dc=gestionDocs(today,P);
+ const th=(a,r)=>`<th${r?' class="r"':''}>${a}</th>`;
+ const table=(head,rows,rf)=>`<table><thead><tr>${head.map((h,i)=>th(h,rf!=null&&i>=rf)).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td${rf!=null&&i>=rf?' class="r"':''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+ const kv=rows=>`<table><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td class="r"><strong>${r[1]}</strong></td></tr>`).join('')}</tbody></table>`;
+ const biens=biensList(),assoc=ASSOCIES.map(a=>E(a.n)).join(', ');
+ let h=`<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0A2A5A;padding-bottom:10px;margin-bottom:8px"><div><h1>Dossier pour l'expert-comptable</h1><div class="muted">Exercice du ${gFr(ex.debut)} au ${gFr(ex.fin)} · situation arrêtée au ${gFr(d2)}<br>Établi le ${gFr(today)} à partir des données de l'application — document de travail, non certifié</div></div>${logo?`<img src="${logo}" alt="SCI PERIPE" style="height:64px">`:'<strong>SCI PERIPE</strong>'}</div>`;
+ h+=`<h2>1. La société</h2><div>SCI à l'impôt sur les sociétés — associés : ${assoc}. Exercice clos le ${gFr(ex.fin)}${P.creation?' · création le '+gFr(P.creation):''}.</div>`;
+ h+=`<h2>2. Résultat comptable à date, par bien</h2>`;
+ if(R.rows.length){h+=table(['Bien','Produits','Dépenses directes','Quote-part commune','Résultat d\'exploitation','Emprunt payé'],R.rows.map(r=>[E(bienNom(r.b)),euro(r.prod,0),euro(r.depD,0),euro(r.depC,0),euro(r.resultat,0),euro(r.emp,0)]).concat([['<strong>Total SCI</strong>',euro(R.sci.prod,0),'','','<strong>'+euro(R.sci.resultat,0)+'</strong>',euro(R.sci.emp,0)]]),1);
+  h+=`<div class="note">Le total SCI comprend les frais communs et les lignes encore à affecter. Hors résultat : achats et frais d'acquisition « hors rentabilité » ${euro(R.exclu.hors.sorties,0)} (sorties), comptes courants d'associés ${euro(R.exclu.apport.net,0)} (net).</div>`;}
+ else h+='<div class="muted">Aucun bien.</div>';
+ h+=`<h2>3. Biens, prêts et estimation de l'exercice</h2>`;
+ h+=biens.length?table(['Bien','Achat','Prix','Frais (notaire, courtage)','Travaux','Prêt (capital · taux · durée)','Intérêts estimés','Amortissement estimé'],biens.map(b=>{const y=projCalcIS(bienToProj(b),+ex.fin.slice(0,4));return [E(bienNom(b)),b.dateAchat?gFr(b.dateAchat):'—',euro(Number(b.prix)||0,0),euro((Number(b.notaire)||0)+(Number(b.courtier)||0),0),euro(Number(b.travaux)||0,0),euro(Number(b.capital)||0,0)+' · '+(Number(b.taux)||0)+' % · '+Math.round((Number(b.duree)||240)/12)+' ans',euro(y.interets,0),euro(y.amort,0)];}),2):'<div class="muted">Aucun bien.</div>';
+ h+=`<div class="note">Estimation de l'exercice (moteur de la Projection) : résultat fiscal ${euro(isCur.resultat,0)}, impôt sur les sociétés ${euro(isCur.is,0)}. Amortissement : 80 % du prix sur 40 ans ; frais d'acquisition et travaux non déduits ; à affiner par l'expert-comptable.</div>`;
+ h+=`<h2>4. Comptes courants d'associés</h2>`;
+ const soldes={};ccaList().forEach(c=>{soldes[c.assoc]=(soldes[c.assoc]||0)+(Number(c.apport)||0)-(Number(c.remb)||0);});
+ const exCca=ccaList().filter(c=>c.date>=ex.debut&&c.date<=ex.fin).sort((a,b)=>a.date.localeCompare(b.date));
+ h+=kv(ASSOCIES.map(a=>[E(a.n),euro(soldes[a.n]||0,0)]));
+ h+=exCca.length?'<div style="margin-top:6px">'+table(['Date','Associé','Libellé','Apport','Remboursement'],exCca.map(c=>[gFr(c.date),E(c.assoc),E(c.libelle),Number(c.apport)>0?euro(c.apport,0):'',Number(c.remb)>0?euro(c.remb,0):'']),3)+'</div>':'<div class="muted" style="margin-top:6px">Aucun mouvement de compte courant sur l\'exercice.</div>';
+ const aff=mvtsList().filter(m=>m.cat!=='apport'&&!mvtAff(m)&&m.date>=ex.debut&&m.date<=ex.fin);
+ h+=`<h2>5. Points à traiter avant la clôture</h2>`;
+ h+=aff.length?`<div>${aff.length} ligne(s) de la Comptabilité restent à affecter :</div>`+table(['Date','Libellé','Montant'],aff.slice(0,60).map(m=>[gFr(m.date),E(m.libelle),euro(m.montant,2)]),2)+(aff.length>60?`<div class="muted">… et ${aff.length-60} autres.</div>`:''):'<div>Toutes les lignes de l\'exercice sont affectées.</div>';
+ h+=`<ul style="margin:8px 0 0 18px">${V.filter(v=>v.niveau!=='ok').map(v=>`<li><strong>${E(v.titre)}.</strong> ${E(v.texte)}</li>`).join('')}</ul>`;
+ h+=`<h2>6. Pièces à transmettre</h2><ul style="margin:4px 0 0 18px">${Dc.map(d=>`<li>${d.fait?'☑':'☐'} ${E(d.t)}${d.auto?' <span class="muted">— '+E(d.auto)+'</span>':''}</li>`).join('')}</ul>`;
+ h+=`<div class="muted" style="margin-top:14px">Document établi automatiquement à partir des données saisies dans l'application. Il ne constitue ni une comptabilité certifiée ni un avis fiscal.</div>`;
+ return h;
+}
+function openPrebilanPdf(){printDocument(buildPrebilanHtml(),'Dossier expert-comptable SCI PERIPE');}
+
+function showConseilPage(id,btn){
+ currentConseilPage=id;
+ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+ document.getElementById('page-'+id).classList.add('active');
+ document.querySelectorAll('#subnav-conseil .subnav-btn').forEach(b=>b.classList.remove('active'));
+ if(btn)btn.classList.add('active');
+ if(id==='conseil-gestion')renderConseilGestion();else renderConseil();
+ updateWide();
+}
+
 function renderAll(){
  refreshAccueilStats();
  renderDashboard();
@@ -3865,6 +4120,7 @@ function renderAll(){
  renderAssocies();
  renderEmprunt();
  renderLocataires();
+ if(typeof renderConseilGestion==='function')renderConseilGestion();
 }
 
 // ============================================================
@@ -4540,8 +4796,8 @@ function buildGuideHtml(){
   <li>les <strong>produits</strong> (loyers, loyers Airbnb, autres produits) ;</li>
   <li>les <strong>dépenses directes</strong> et la <strong>quote-part des frais communs</strong> ;</li>
   <li>le <strong>résultat d'exploitation</strong> (produits − dépenses), les <strong>remboursements d'emprunt</strong> et le <strong>cash-flow</strong> ;</li>
-  <li>deux rendements : le <strong>rendement opérationnel</strong> (résultat d'exploitation annualisé ÷ prix + travaux : <em>uniquement</em> les produits et les charges d'exploitation) et le <strong>rendement total (tout compris)</strong> (le même résultat, moins les frais d'acquisition — notaire, courtage, banque — étalés sur la durée du prêt, 10 ou 20 ans au choix : il est donc toujours inférieur ou égal à l'opérationnel), comparés aux rendements <strong>prévus</strong> d'après les loyers et charges de la fiche du bien.</li></ul>
-  <p>Une carte <strong>Coût d'acquisition de chaque bien</strong> détaille la base des rendements et les frais : prix, travaux, notaire, courtage, frais bancaires et autres, frais d'acquisition, frais en % du prix et frais étalés par an. <strong>D'où viennent les frais :</strong> pour le notaire et le courtage, le plus élevé entre la fiche du bien et les paiements de la Comptabilité (un même frais saisi aux deux endroits n'est compté qu'une fois) ; pour les frais bancaires (dossier, garantie, crédit logement…), les paiements de la Comptabilité. Sont comptées les lignes affectées à <em>Frais d'acquisition · nom du bien</em> et, par défaut, celles classées <em>Hors rentabilité</em> dont le libellé évoque un frais (notaire, frais de dossier, crédit logement, courtage, garantie…) et dont le montant ne dépasse pas 25 % du prix : elles sont rattachées au bien dont la date d'achat est la plus proche. Le paiement du prix, un déblocage de prêt ou un dépôt de garantie restent neutres. La liste <strong>Frais de notaire et de banque « hors rentabilité »</strong> permet de les ignorer. Une carte <strong>À vérifier</strong> repère les lignes comptées comme charges d'exploitation alors qu'elles ressemblent à des frais d'acquisition (notaire, frais de dossier, crédit logement, courtage, ou un montant supérieur à 20 % du prix) : un bouton les rattache au bien ou les sort de la rentabilité. Les intérêts du prêt ne sont pas déduits : la Comptabilité ne distingue pas intérêts et capital, ils figurent dans le cash-flow. Pour qu'un frais payé (dossier bancaire, garantie de prêt…) compte dans le coût total d'un bien, affectez la ligne à <em>Frais d'acquisition · nom du bien</em> : il s'<strong>ajoute</strong> aux frais de la fiche, sans compter dans le résultat d'exploitation. Pour éviter un double compte, ne rattachez que des frais absents de la fiche ; le paiement du prix d'achat reste en <em>Hors rentabilité</em>.</p>
+  <li>deux rendements : le <strong>rendement opérationnel</strong> (résultat d'exploitation annualisé ÷ prix + travaux : <em>uniquement</em> les produits et les charges d'exploitation) et le <strong>rendement total (tout compris)</strong> (le même résultat, moins les frais d'acquisition — notaire, courtage, banque — étalés sur la durée du prêt, 10 ou 20 ans au choix, ou <strong>pris en totalité à date</strong> : il est donc toujours inférieur ou égal à l'opérationnel), comparés aux rendements <strong>prévus</strong> d'après les loyers et charges de la fiche du bien.</li></ul>
+  <p>Une carte <strong>Coût d'acquisition de chaque bien</strong> détaille la base des rendements et les frais : prix, travaux, notaire, courtage, frais bancaires et autres, frais d'acquisition, frais en % du prix et frais étalés par an. <strong>D'où viennent les frais :</strong> pour le notaire et le courtage, le plus élevé entre la fiche du bien et les paiements de la Comptabilité (un même frais saisi aux deux endroits n'est compté qu'une fois) ; pour les frais bancaires (dossier, garantie, crédit logement…), les paiements de la Comptabilité. Sont comptées les lignes affectées à <em>Frais d'acquisition · nom du bien</em> et, par défaut, celles classées <em>Hors rentabilité</em> dont le libellé évoque un frais (notaire, frais de dossier, crédit logement, courtage, garantie…) et dont le montant ne dépasse pas 25 % du prix : elles sont rattachées au bien dont la date d'achat est la plus proche. Le paiement du prix, un déblocage de prêt ou un dépôt de garantie restent neutres. La liste <strong>Frais de notaire et de banque « hors rentabilité »</strong> permet de les ignorer. La liste <strong>Frais d'acquisition</strong> choisit leur traitement dans le rendement total : étalés sur la durée du prêt, 10 ou 20 ans, ou <strong>pris en totalité à date</strong> (ils sont alors déduits en entier du résultat de la période affichée : le rendement est très bas au début puis remonte ; choisissez « Depuis l'origine » pour une lecture depuis l'achat). Une carte <strong>À vérifier</strong> repère les lignes comptées comme charges d'exploitation alors qu'elles ressemblent à des frais d'acquisition (notaire, frais de dossier, crédit logement, courtage, ou un montant supérieur à 20 % du prix) : un bouton les rattache au bien ou les sort de la rentabilité. Les intérêts du prêt ne sont pas déduits : la Comptabilité ne distingue pas intérêts et capital, ils figurent dans le cash-flow. Pour qu'un frais payé (dossier bancaire, garantie de prêt…) compte dans le coût total d'un bien, affectez la ligne à <em>Frais d'acquisition · nom du bien</em> : il s'<strong>ajoute</strong> aux frais de la fiche, sans compter dans le résultat d'exploitation. Pour éviter un double compte, ne rattachez que des frais absents de la fiche ; le paiement du prix d'achat reste en <em>Hors rentabilité</em>.</p>
   ${co('<strong>Frais communs à la SCI</strong> (comptable, CFE, frais bancaires…) : une ligne affectée à « Commun SCI » est répartie <strong>au prorata du coût d\'achat</strong> des biens déjà acquis à la date de la ligne. Avec un seul bien, il reçoit tout ; avec deux biens de 100 000 € et 300 000 €, ils supportent 25 % et 75 %. Un bien acheté plus tard ne porte pas les frais antérieurs à son achat.','info')}
   <p>Une ligne « dont frais communs répartis » sous le total montre la part des frais communs déjà incluse dans les biens. Une carte <strong>Résultat de la SCI</strong> additionne tout : produits, dépenses (y compris les frais communs non imputés et les lignes encore à affecter), emprunt et cash-flow, puis <strong>contrôle</strong> que la variation de trésorerie reconstituée est égale à la somme de toutes les lignes de la Comptabilité sur la période. Les frais communs datés d'<strong>avant l'achat</strong> d'un bien se traitent avec la liste <strong>Frais d'avant achat</strong> : répartis sur tous les biens (au prorata du coût d'achat), imputés au premier bien acheté, ou laissés non répartis ; dans tous les cas ils figurent dans le résultat de la SCI. Sous le tableau, une carte <strong>Frais communs et achats</strong> donne les <strong>totaux de la période</strong> : frais communs à la SCI (dont répartis dans les biens et dont non répartis, avant le premier achat) et achats et investissements <em>Hors rentabilité</em> (acquisition, notaire, déblocage de prêt…), avec le détail de chaque ligne. Un détail par bien liste ensuite chaque ligne imputée (directe, en quote-part ou en part personnalisée). La fiche d'un bien affiche aussi sa rentabilité réelle sur 12 mois. Ce tableau et celui de la Comptabilité occupent toute la largeur de l'écran pour afficher toutes les colonnes (défilement horizontal sur un petit écran).</p>
   ${co('<strong>Ce qui n\'est pas compté dans la rentabilité :</strong> les <strong>comptes courants d\'associés</strong> (ce n\'est ni un produit ni une charge), les lignes affectées à <strong>Hors rentabilité</strong> (paiement d\'acquisition, notaire, déblocage de prêt, dépôt de garantie…) et les lignes <strong>Non classé</strong>. Sous le tableau, une note indique combien de lignes sont exclues sur la période, pour que rien ne disparaisse sans que vous le sachiez.')}`);
@@ -4576,7 +4832,7 @@ function buildGuideHtml(){
   <ul><li><strong>un bien</strong> : loyer, dépense ou prélèvement propre à ce bien ;</li>
   <li><strong>Commun SCI (prorata)</strong> : frais partagés, répartis entre les biens au prorata de leur coût d'achat (voir Rentabilité) ;</li>
   <li><strong>Hors rentabilité</strong> : la ligne ne doit pas compter dans la rentabilité d'un bien (paiement du prix d'achat, déblocage de prêt, dépôt de garantie…) ;</li>
-  <li><strong>Frais d'acquisition · nom du bien</strong> : frais payés pour acquérir ce bien (notaire, banque, dossier, garantie, courtage…). Ils entrent dans le rendement total (étalés), pas dans le résultat d'exploitation. Les frais de notaire et de banque classés <em>Hors rentabilité</em> sont déjà détectés et rattachés automatiquement : ce choix sert à forcer le bien concerné ;</li>
+  <li><strong>Frais d'acquisition · nom du bien</strong> : frais payés pour acquérir ce bien (notaire, banque, dossier, garantie, courtage…). Ils entrent dans le rendement total (étalés, ou pris en totalité selon votre choix), pas dans le résultat d'exploitation. Les frais de notaire et de banque classés <em>Hors rentabilité</em> sont déjà détectés et rattachés automatiquement : ce choix sert à forcer le bien concerné ;</li>
   <li><strong>Personnalisée</strong> : la ligne est répartie à votre façon entre plusieurs biens (et, si besoin, Commun SCI ou Hors rentabilité) ;</li>
   <li><strong>à affecter</strong> (liste orange) : la ligne n'est pas encore comptée dans la rentabilité d'un bien.</li></ul>
   <p><strong>Répartition personnalisée.</strong> Choisissez ${U('Répartition personnalisée…')} dans la liste d'une ligne (ou dans la barre de sélection pour plusieurs lignes cochées). Une fenêtre demande un pourcentage pour chaque bien, pour Commun SCI et pour Hors rentabilité, à raison de 100 % au total ; les montants se calculent en direct. Les raccourcis ${U('Parts égales entre les biens')} et ${U('Au prorata du coût d\'achat')} préremplissent la saisie, puis ${U('Enregistrer la répartition')}. Exemple : une facture de 600 € partagée 60 % / 40 % entre deux biens. Pour modifier ensuite la répartition, rouvrez la liste de la ligne (option « Modifier la répartition… »). Si un bien est supprimé, sa part est reportée sur les autres.</p>
@@ -4645,16 +4901,26 @@ function buildGuideHtml(){
   <p>Une pastille répond à la question « la SCI peut-elle acheter ? » : <span class="ok">Oui</span>, <span class="wa">Possible, avec des précautions</span>, ou <span class="ko">Pas tant que les points bloquants ne sont pas levés</span>. Elle s'appuie sur la trésorerie, les loyers, les mensualités, la couverture bancaire, l'endettement, la capacité d'emprunt supplémentaire et la rentabilité réelle des biens. Chaque point relevé est expliqué, avec ce qu'il faut faire : couverture insuffisante, trésorerie négative à venir, cash-flow négatif, réserve faible, lignes non affectées…</p>
   <h3>Vos moyens et votre projet</h3>
   <ul><li><strong>Moyens</strong> : apport immédiat des associés (en comptes courants), apport mensuel, délai avant le premier achat.</li>
+  <li><strong>Apport</strong> : <em>visé</em> (par défaut, 15 % du coût d'acquisition, un repère courant pour couvrir à peu près les frais de notaire) ou <em>ajusté pour respecter les critères bancaires</em>. En mode visé, l'emprunt est le coût moins cet apport et les écarts aux critères sont signalés dans « À surveiller ». En mode ajusté, l'emprunt est plafonné pour que les loyers retenus couvrent les mensualités : l'apport peut alors être nettement plus élevé, surtout si la SCI est déjà fortement endettée ; chaque achat explique ce qu'il donnerait avec l'apport habituel.</li>
   <li><strong>Projet</strong> : nombre d'achats maximum, horizon du plan, prix maximum par bien, surfaces, état (Ancien, Récent, Neuf) et mode de location (nue, meublée, Airbnb).</li>
   <li><strong>Stratégie</strong> : négociation visée sous le prix du marché, prudence sur les loyers, délai entre deux achats, secteurs (zones de Marseille) et, si vous le souhaitez, prise en compte de vos achats envisagés de la Projection.</li></ul>
   <p>Les critères d'achat (rendement net, cash-flow) et les critères bancaires viennent des onglets Analyse d'achat et Banque ; les taux et charges viennent des Hypothèses.</p>
   <h3>La proposition</h3>
   <p>Pour chaque achat : <strong>la date</strong> (premier mois où l'apport est finançable avec la trésorerie, au-delà de la réserve, puis les apports des associés), <strong>le secteur</strong> (quartier et zone), le type, la surface, l'état, le mode de location, le <strong>prix cible</strong>, le <strong>prêt</strong> et sa mensualité, l'<strong>apport</strong> réparti entre trésorerie et comptes courants (avec le montant par associé), le loyer, le cash-flow, le rendement net et les tests de résistance. Un encadré explique <strong>pourquoi ce choix</strong>, signale ce qu'il reste à surveiller et cite d'autres secteurs possibles. Un tableau et une courbe montrent l'effet sur la SCI, notamment sur la trésorerie.</p>
-  <p>L'emprunt proposé est le plus élevé qui respecte vos critères bancaires, la couverture des mensualités par les loyers retenus (pour le bien et pour l'ensemble de la SCI) et votre exigence de cash-flow. Les achats sont classés par rendement net, avec un quartier différent à chaque fois ; un achat que l'analyse bancaire jugerait bloquant n'est pas retenu s'il existe une alternative.</p>
+  <p>Selon le mode d'apport, l'emprunt est soit le coût moins l'apport visé, soit le plus élevé qui respecte vos critères bancaires, la couverture des mensualités par les loyers retenus (pour le bien et pour l'ensemble de la SCI) et votre exigence de cash-flow. Les achats sont classés par rendement net, avec un quartier différent à chaque fois ; un achat que l'analyse bancaire jugerait bloquant n'est pas retenu s'il existe une alternative.</p>
   ${co('<strong>Si aucun achat n\'est finançable :</strong> l\'outil ne se contente pas de le dire. Il indique le meilleur bien repéré, l\'apport qu\'il demanderait, ce qui manque, et la date possible selon l\'apport mensuel des associés (200, 500, 1 000 ou 2 000 € par mois).','info')}
   <h3>Après la proposition</h3>
   <ul><li>${U('Ajouter ces achats à la Projection')} crée les achats comme biens fictifs (quartier, état, prix, loyer, prêt, date, financement de l\'apport) : vous pouvez ensuite les analyser un par un, tester les scénarios et préparer le dossier banque. Un nouvel ajout remplace ceux qui venaient du Conseil ; vos autres achats envisagés sont conservés.</li>
   <li>${U('Note de conseil (PDF)')} produit un document pour une réunion d'associés : diagnostic, hypothèses, proposition détaillée avec les contrôles bancaires, effet sur la SCI.</li></ul>
+  <h3>Conseil de gestion (sous-onglet Gestion)</h3>
+  <p>Le sous-onglet <strong>Gestion</strong> du Conseil joue le rôle d'un aide-mémoire d'expert-comptable pour une SCI à l'impôt sur les sociétés. Renseignez le mois de clôture de l'exercice (et, si vous le souhaitez, la date de création de la SCI) : l'outil calcule vos échéances.</p>
+  <ul><li><strong>À faire maintenant</strong> : les échéances en retard et celles des 60 prochains jours, avec la date, le montant estimé, l'explication et l'endroit où faire la démarche. Cochez ce qui est fait : l'état est enregistré et partagé entre associés.</li>
+  <li><strong>Calendrier des 12 prochains mois</strong> : déclaration de résultats (liasse fiscale 2065 et annexes), acomptes et solde de l'impôt sur les sociétés, approbation des comptes par les associés, taxe foncière, CFE (seulement si un bien est loué en meublé ou en Airbnb), mise à jour de l'occupation des biens, préparation de la clôture et transmission des pièces. Une échéance qui tombe un week-end ou un jour férié est reportée au jour ouvré suivant.</li>
+  <li><strong>Suivi des baux</strong> : dernier jour pour donner congé au locataire (6 mois avant la fin d'un bail nu, 3 mois pour un meublé) et révision annuelle du loyer à la date anniversaire, d'après les dates saisies dans la fiche du bien.</li>
+  <li><strong>Estimation de l'impôt sur les sociétés</strong> : résultat fiscal et impôt de l'exercice en cours et du dernier exercice, d'après les fiches des biens, avec les acomptes d'un quart de l'IS du dernier exercice (dispense jusqu'à 3 000 € ou la première année).</li>
+  <li><strong>Points de vigilance</strong> adaptés à votre SCI : CFE ou non selon les modes de location, règles de la location meublée de courte durée, diagnostic de performance énergétique, comptes courants d'associés, lignes à affecter, Comptabilité à jour, plus-value à l'IS en cas de revente.</li>
+  <li><strong>Dossier pour l'expert-comptable</strong> : liste de pièces à cocher et ${U('Pré-bilan (PDF)')} (résultat par bien, biens et prêts, comptes courants, points à traiter).</li></ul>
+  ${co('<strong>Repères indicatifs :</strong> les règles ont été vérifiées en octobre 2026 sur impots.gouv.fr, service-public.fr, le BOFiP et le guichet unique de l\'INPI. Elles décrivent le cas général ; les dates peuvent évoluer et votre situation peut avoir des particularités. L\'estimation de l\'impôt est simplifiée (amortissement de 80 % du prix sur 40 ans, frais d\'acquisition non déduits). Faites valider chaque point par votre expert-comptable.','alert')}
   ${co('<strong>Limites :</strong> le Conseil est une simulation indicative, pas un conseil financier. Il ne connaît ni l\'état réel d\'un bien, ni sa copropriété, ni la demande locative d\'une rue. Les rendements les plus élevés se trouvent souvent dans des quartiers plus risqués (vacance, impayés, revente plus lente) : choisissez les zones qui vous conviennent. Vérifiez chaque bien sur annonces, faites-le estimer, et vérifiez les règles locales avant un projet de location touristique.','alert')}`);
  // ---- 10
  h+=sec(10,'Parcours conseillé et bonnes pratiques',`
@@ -4663,6 +4929,9 @@ function buildGuideHtml(){
   <li>Classer les lignes <em>Non classé</em> (recherche + sélection + changement groupé) et attribuer les <em>Comptes courants associés</em>.</li>
   <li><strong>Affecter</strong> les loyers, dépenses et prélèvements à chaque bien (ou « Commun SCI »), idéalement avec des règles pour les opérations récurrentes.</li>
   <li>Contrôler l'onglet <strong>Rentabilité</strong> (réel contre prévu), l'onglet Associés (soldes et parts) et le Dashboard.</li></ol>
+  <h3>Chaque année</h3>
+  <ol><li>Dans <strong>Conseil ▸ Gestion</strong>, consulter les échéances à venir (déclaration de résultats, impôt sur les sociétés, taxe foncière, CFE, approbation des comptes) et cocher ce qui est fait.</li>
+  <li>Un mois avant la clôture : affecter toutes les lignes, vérifier le contrôle de la Rentabilité, puis préparer le <strong>pré-bilan</strong> pour l'expert-comptable.</li></ol>
   <h3>Avant un achat</h3>
   <ol><li>Dans <strong>Conseil</strong>, voir si la SCI peut acheter, où et quand, en indiquant l'apport que les associés peuvent mobiliser.</li>
   <li>Dans <strong>Marché</strong>, repérer le quartier et cliquer sur <em>Simuler un achat ici</em>, ou ajouter directement un bien fictif.</li>
@@ -4702,7 +4971,7 @@ function buildGuideHtml(){
   ['Prorata du coût d\'achat','Clé de répartition des frais communs : chaque bien en supporte une part égale à son coût d\'achat divisé par le total des biens acquis.'],
   ['Résultat d\'exploitation','Produits moins dépenses d\'un bien, avant remboursement d\'emprunt.'],
   ['Rendement brut / net','Brut : revenu annuel ÷ prix. Net : (revenu − charges) annuels ÷ coût total.'],
-  ['Rendement opérationnel / total (tout compris)','Dans la Rentabilité : opérationnel = (produits − charges d\'exploitation) annualisés ÷ (prix + travaux) ; total = idem après déduction des frais d\'acquisition (notaire, courtage, banque) étalés sur la durée du prêt, 10 ou 20 ans.'],
+  ['Rendement opérationnel / total (tout compris)','Dans la Rentabilité : opérationnel = (produits − charges d\'exploitation) annualisés ÷ (prix + travaux) ; total = idem après déduction des frais d\'acquisition (notaire, courtage, banque) étalés sur la durée du prêt, 10 ou 20 ans, ou déduits en totalité à date.'],
   ['Apport','Part du coût total (prix + frais) non financée par l\'emprunt.'],
   ['Loyers retenus','Part des loyers que la banque accepte de prendre en compte (souvent 70 à 80 %).'],
   ['Couverture','Loyers retenus ÷ mensualités. Elle doit atteindre le seuil fixé dans les critères bancaires.'],
@@ -4810,6 +5079,7 @@ function conseilParams(){
   surfMin:num(c.surfMin,20,10,200),surfMax:num(c.surfMax,45,10,200),etats:arr(c.etats,['Ancien','Récent'],['Ancien','Récent','Neuf']),
   modes:arr(c.modes,['C','A'],['C','A','B']),zones:arr(c.zones,[],zonesMarche()),decote:num(c.decote,5,0,30),prudence:num(c.prudence,5,0,30),
   delaiMin:Math.round(num(c.delaiMin,6,0,36)),delaiPremier:Math.round(num(c.delaiPremier,3,0,24)),
+  apportMode:c.apportMode==='criteres'?'criteres':'cible',apportPct:num(c.apportPct,15,0,60),
   apportInit:num(c.apportInit,0,0,5000000),apportMensuel:num(c.apportMensuel,0,0,100000),inclure:c.inclure?1:0};
  if(P.surfMax<P.surfMin)P.surfMax=P.surfMin;
  if(!P.etats.length)P.etats=['Ancien'];
@@ -4875,8 +5145,13 @@ function conseilCandidats(P){
  return out;
 }
 // Emprunt maximal compatible avec les critères bancaires, la couverture des loyers et votre exigence de cash-flow
-function conseilFinance(c,ctx,crit,cr){
+function conseilFinance(c,ctx,crit,cr,P){
  const a=annuite(c.b.taux,c.b.duree);
+ if(P&&P.apportMode==='cible'){   // apport visé (ex. 15 % du coût, de quoi couvrir les frais d'acquisition) : les critères bancaires ne plafonnent plus l'emprunt, ils sont contrôlés ensuite et les écarts signalés
+  const L=Math.floor(Math.min(c.prix*crit.financeMax/100,c.cout*(1-P.apportPct/100))/1000)*1000;
+  if(!(L>0)||(c.cout-L)/c.cout>0.6)return null;
+  return {L,a,mens:L*a,apport:c.cout-L,limite:'cible'};
+ }
  const Lstd=Math.min(c.prix*crit.financeMax/100,c.cout*(1-crit.apportMin/100));
  const Lcouv=crit.couvMin>0?((ctx.rev+c.rev)*crit.loyersPct/100/crit.couvMin-ctx.mens)/a:Infinity;
  const Lproj=crit.couvMin>0?(c.rev*crit.loyersPct/100/crit.couvMin)/a:Infinity;   // les loyers retenus du bien couvrent ses propres mensualités
@@ -4889,6 +5164,11 @@ function conseilFinance(c,ctx,crit,cr){
  return {L,a,mens:L*a,apport,limite:(min===Lcouv||min===Lproj)?'couv':(min===Lcf?'cf':'std')};
 }
 // Premier mois où l'apport est finançable : trésorerie au-delà de la réserve, puis apports des associés
+// Que donnerait l'achat avec un apport donné (ex. 15 % du coût) ? Sert à expliquer pourquoi l'apport proposé diffère
+function conseilRef(c,ctx,crit,pct){
+ const a=annuite(c.b.taux,c.b.duree),L=Math.floor(Math.min(c.prix*crit.financeMax/100,c.cout*(1-pct/100))/1000)*1000,mens=L*a;
+ return {pct,L,apport:c.cout-L,mens,cf:c.rev-c.charges-mens,couvBien:mens>0?c.rev*crit.loyersPct/100/mens:null,couvPf:(ctx.mens+mens)>0?(ctx.rev+c.rev)*crit.loyersPct/100/(ctx.mens+mens):null};
+}
 function conseilDate(x,ctx,fwd,st,P,crit,mMin,Hmax){
  let last=null;
  for(let m=mMin;m<=Hmax;m++){
@@ -4915,7 +5195,7 @@ function conseilPlan(P){
   const parQ={};
   for(const c of cands){
    if(pickedQ.has(c.q))continue;
-   const f=conseilFinance(c,ctx,crit,cr);if(!f)continue;
+   const f=conseilFinance(c,ctx,crit,cr,P);if(!f)continue;
    if(!parQ[c.q]||c.rdtNet>parQ[c.q].c.rdtNet)parQ[c.q]={c,f};
   }
   const pool=Object.values(parQ).sort((x,y)=>y.c.rdtNet-x.c.rdtNet);
@@ -4951,7 +5231,8 @@ function conseilPlan(P){
   }
   best=choisi.x;const d=choisi.d,iso=choisi.iso,b=choisi.b,det=choisi.det;
   const alt=faisables.filter(x=>x.c.q!==best.c.q).sort((p,q)=>q.score-p.score).slice(0,3).map(x=>({q:x.c.q,zone:x.c.zone,etat:x.c.etat,S:x.c.S,mode:x.c.mode,prix:x.c.prix,rdt:x.c.rdtNet,m:x.d.m}));
-  plan.push({i:i+1,b,c:best.c,f:best.f,d,iso,an:y0+Math.floor((m0+d.m)/12),mois:((m0+d.m)%12)+1,...det,alt,mediane,
+  const ref=conseilRef(best.c,ctx,crit,P.apportPct);
+  plan.push({i:i+1,b,c:best.c,f:best.f,d,iso,ref,an:y0+Math.floor((m0+d.m)/12),mois:((m0+d.m)%12)+1,...det,alt,mediane,
    apport:{total:det.a.apport,treso:det.a.apportTreso,cca:det.a.apportCca,perAssoc:det.a.apportCca/(ASSOCIES.length||1)},sameZone:!!pickedZ[best.c.zone]});
   st.ccaUsed+=d.aC;lastM=d.m;pickedQ.add(best.c.q);pickedZ[best.c.zone]=1;
  }
@@ -4965,7 +5246,7 @@ function conseilSet(){
  const v=id=>{const el=document.getElementById(id);return el?el.value:'';};
  const chk=name=>[...document.querySelectorAll('input[name="'+name+'"]:checked')].map(x=>x.value);
  localStorage.setItem('sci_conseil',JSON.stringify({nbMax:v('cs-nbMax'),horizon:v('cs-horizon'),budgetMax:v('cs-budgetMax'),surfMin:v('cs-surfMin'),surfMax:v('cs-surfMax'),
-  etats:chk('cs-etat'),modes:chk('cs-mode'),zones:chk('cs-zone'),decote:v('cs-decote'),prudence:v('cs-prudence'),delaiMin:v('cs-delaiMin'),delaiPremier:v('cs-delaiPremier'),
+  etats:chk('cs-etat'),modes:chk('cs-mode'),apportMode:v('cs-apportMode'),apportPct:v('cs-apportPct'),zones:chk('cs-zone'),decote:v('cs-decote'),prudence:v('cs-prudence'),delaiMin:v('cs-delaiMin'),delaiPremier:v('cs-delaiPremier'),
   apportInit:v('cs-apportInit'),apportMensuel:v('cs-apportMensuel'),inclure:document.getElementById('cs-inclure')&&document.getElementById('cs-inclure').checked?1:0}));
  renderConseil();
 }
@@ -4994,6 +5275,8 @@ function renderConseil(){
  const params=`<div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:10px">Vos moyens et votre projet</div>
   <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">${inp('cs-apportInit','Apport immédiat des associés (comptes courants)',P.apportInit,500,'€')}${inp('cs-apportMensuel','Apport mensuel des associés',P.apportMensuel,50,'€/mois')}${inp('cs-delaiPremier','Délai avant le 1er achat',P.delaiPremier,1,'mois')}${inp('cs-nbMax','Nombre d\'achats maximum',P.nbMax,1,'')}${inp('cs-horizon','Horizon du plan',P.horizon,6,'mois')}${inp('cs-delaiMin','Délai entre deux achats',P.delaiMin,1,'mois')}</div>
   <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">${inp('cs-budgetMax','Prix maximum par bien',P.budgetMax,5000,'€')}${inp('cs-surfMin','Surface minimum',P.surfMin,5,'m²')}${inp('cs-surfMax','Surface maximum',P.surfMax,5,'m²')}${inp('cs-decote','Négociation visée sous le marché',P.decote,1,'%')}${inp('cs-prudence','Prudence sur les loyers',P.prudence,1,'%')}</div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px;align-items:flex-end"><label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Apport<select id="cs-apportMode" onchange="conseilSet()" style="padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px"><option value="cible"${P.apportMode==='cible'?' selected':''}>Apport visé (critères bancaires souples)</option><option value="criteres"${P.apportMode==='criteres'?' selected':''}>Apport ajusté pour respecter les critères bancaires</option></select></label>${inp('cs-apportPct','Apport visé',P.apportPct,1,'% du coût')}</div>
+  <div style="font-size:11px;color:var(--text3);line-height:1.5;margin-bottom:12px">Un apport de 10 à 15 % du coût d'acquisition (de quoi couvrir à peu près les frais de notaire) est un repère courant, mais cela dépend de la banque. <em>Visé</em> : l'emprunt est le coût moins cet apport, et les écarts aux critères bancaires sont signalés. <em>Ajusté</em> : l'emprunt est plafonné pour que les loyers retenus couvrent les mensualités et que le cash-flow reste dans vos critères, ce qui relève l'apport.</div>
   <div style="font-size:12px;color:var(--text2);margin-bottom:8px"><strong>État :</strong> ${['Ancien','Récent','Neuf'].map(x=>chk('cs-etat',x,x,P.etats.includes(x))).join('')}<br><strong>Location :</strong> ${[['C','Nue'],['A','Meublée'],['B','Airbnb']].map(([k,l])=>chk('cs-mode',k,l,P.modes.includes(k))).join('')}<label style="display:inline-flex;gap:4px;align-items:center;margin-left:12px"><input type="checkbox" id="cs-inclure" ${P.inclure?'checked':''} onchange="conseilSet()"> compter mes achats envisagés (Projection) comme déjà décidés</label></div>
   <details><summary style="cursor:pointer;font-size:12px;color:var(--text2)">Secteurs : ${P.zones.length?P.zones.length+' zone'+(P.zones.length>1?'s':'')+' sélectionnée'+(P.zones.length>1?'s':''):'toutes les zones de Marseille'}</summary><div style="margin-top:8px;font-size:12px;line-height:2">${zones.map(z=>chk('cs-zone',z,E(z),P.zones.includes(z))).join('')}</div></details>
   <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5">Critères utilisés (modifiables dans Projection) : rendement net ≥ ${String(D.cr.rdtNet).replace('.',',')} %, cash-flow ≥ ${euro(D.cr.cf,0)}/mois, couverture ≥ ${Math.round(crit.couvMin*100)} %, apport ≥ ${crit.apportMin} %, réserve ${crit.reserveMois} mois, durée ≤ ${crit.dureeMax} ans · taux ${String(D.taux).replace('.',',')} % sur ${Math.round(Math.min(BP_PARAMS.duree,crit.dureeMax*12)/12)} ans. <a onclick="conseilReset()" style="cursor:pointer;color:var(--accent)">Réinitialiser le conseil</a></div></div>`;
@@ -5006,18 +5289,24 @@ function renderConseil(){
   <div style="overflow-x:auto;margin-top:10px"><table class="jtable" style="font-size:12.5px"><thead><tr><th>Quand</th><th>Où</th><th>Quoi</th><th style="text-align:right">Prix cible</th><th style="text-align:right">Apport</th><th style="text-align:right">Mensualité</th><th style="text-align:right">Cash-flow</th><th style="text-align:right">Rdt net</th></tr></thead><tbody>${Rz.plan.map(x=>`<tr><td style="white-space:nowrap"><strong>${moisLong(x.an,x.mois)}</strong></td><td>${E(x.c.q)} <span style="color:var(--text3)">· ${E(x.c.zone)}</span></td><td>${E(x.b.type)} ${x.c.S} m² · ${E(x.c.etat)}</td><td style="text-align:right">${euro(x.c.prix,0)}</td><td style="text-align:right">${euro(x.apport.total,0)}</td><td style="text-align:right">${euro(x.a.mens,0)}</td><td style="text-align:right">${cfTxt(x.a.cf)}</td><td style="text-align:right">${pct1(x.a.rdtNet)}</td></tr>`).join('')}</tbody></table></div></div>`;
   plan+=Rz.plan.map(x=>{
    const ko=x.v.checks.filter(c=>!c.ok),why=[];
+   const pfKo=x.sci.couv!=null&&x.sci.couv<crit.couvMin-1e-9,vAff=(x.v.verdict==='pret'&&pfKo)?'consolider':x.v.verdict;   // le bien seul passe ses contrôles, mais pas toute la SCI
    why.push(`Rendement net estimé <strong>${pct1(x.a.rdtNet)}</strong>${Rz.mediane!=null?' contre '+pct1(Rz.mediane)+' en médiane sur les biens étudiés ('+(x.a.rdtNet>=Rz.mediane?'+':'−')+pct1(Math.abs(x.a.rdtNet-Rz.mediane))+' pt)':''}.`);
    why.push(`Prix cible ${euro(x.c.prix,0)}, soit ${P.decote} % sous le prix du marché (${euro(Math.round(x.c.prixM/100)*100,0)}) : ${m2Txt(x.c.prix/x.c.S)} dans ${E(x.c.q)}.`);
-   why.push(`Emprunt de ${euro(x.f.L,0)} : ${{couv:'plafonné pour que les loyers retenus couvrent les mensualités',cf:'plafonné pour respecter votre exigence de cash-flow',std:'au maximum permis par vos critères d\'apport et de financement'}[x.f.limite]}.`);
+   const pAp=x.apport.total/x.c.cout*100,pRef=x.ref;
+   if(x.f.limite==='cible')why.push(`Apport de <strong>${euro(x.apport.total,0)}</strong>, soit ${pct1(pAp)} du coût d'acquisition (frais de notaire ≈ ${euro(x.c.b.notaire,0)}), emprunt de ${euro(x.f.L,0)}.`);
+   else{
+    why.push(`Emprunt de ${euro(x.f.L,0)} : ${{couv:'plafonné pour que les loyers retenus couvrent les mensualités',cf:'plafonné pour respecter votre exigence de cash-flow',std:'au maximum permis par vos critères d\'apport et de financement'}[x.f.limite]}, d'où un apport de <strong>${euro(x.apport.total,0)}</strong> (${pct1(pAp)} du coût).`);
+    if(pAp>P.apportPct+1&&pRef)why.push(`Avec un apport habituel de ${P.apportPct} % (${euro(pRef.apport,0)}), emprunt de ${euro(pRef.L,0)} : les loyers retenus ne couvriraient que ${pRef.couvBien==null?'—':Math.round(pRef.couvBien*100)+' %'} de la mensualité du bien${pRef.couvPf==null?'':' ('+Math.round(pRef.couvPf*100)+' % pour toute la SCI'+(D.sci.couv!=null&&D.sci.couv<crit.couvMin?', déjà à '+Math.round(D.sci.couv*100)+' % avant cet achat':'')+')'} et le cash-flow serait de ${pRef.cf>=0?'+':'−'}${euro(Math.abs(pRef.cf),0)}/mois. Vous pouvez viser cet apport dans « Vos moyens et votre projet » : les écarts seront signalés.`);
+   }
    why.push(`Achat possible dès ${moisLong(x.an,x.mois)} : premier mois où l'apport est finançable en gardant ${crit.reserveMois} mois de mensualités en réserve.`);
    if(x.sameZone)why.push('Zone déjà présente dans le plan : à surveiller pour la diversification.');else if(Rz.plan.length>1)why.push('Quartier et zone différents des autres achats du plan.');
-   return `<div class="card" style="border-left:3px solid ${{pret:'var(--green)',consolider:'var(--amber)',fragile:'var(--red)'}[x.v.verdict]};margin-bottom:12px"><div class="card-header"><div><div style="font-weight:600;font-size:15px">n° ${x.i} · ${moisLong(x.an,x.mois)} — ${E(x.c.q)}</div><div style="font-size:12px;color:var(--text3);margin-top:2px">${E(x.b.type)} · ${x.c.S} m² · ${E(x.c.etat)} · ${E(x.c.zone)} · ${MODE_LABEL[x.c.mode]}</div></div>${projVerdictBanque(x.v.verdict)}</div>
+   return `<div class="card" style="border-left:3px solid ${{pret:'var(--green)',consolider:'var(--amber)',fragile:'var(--red)'}[vAff]};margin-bottom:12px"><div class="card-header"><div><div style="font-weight:600;font-size:15px">n° ${x.i} · ${moisLong(x.an,x.mois)} — ${E(x.c.q)}</div><div style="font-size:12px;color:var(--text3);margin-top:2px">${E(x.b.type)} · ${x.c.S} m² · ${E(x.c.etat)} · ${E(x.c.zone)} · ${MODE_LABEL[x.c.mode]}</div></div>${projVerdictBanque(vAff)}</div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:12px">
-   ${kp('Prix cible',euro(x.c.prix,0),'marché −'+P.decote+' %')}${kp('Apport',euro(x.apport.total,0),(x.apport.treso>0?'trésorerie '+euro(x.apport.treso,0):'')+(x.apport.treso>0&&x.apport.cca>0?' · ':'')+(x.apport.cca>0?'comptes courants '+euro(x.apport.cca,0)+' ('+euro(x.apport.perAssoc,0)+'/associé)':''))}
+   ${kp('Prix cible',euro(x.c.prix,0),'marché −'+P.decote+' %')}${kp('Apport',euro(x.apport.total,0),pct1(x.apport.total/x.c.cout*100)+' du coût · '+(x.apport.treso>0?'trésorerie '+euro(x.apport.treso,0):'')+(x.apport.treso>0&&x.apport.cca>0?' · ':'')+(x.apport.cca>0?'comptes courants '+euro(x.apport.cca,0)+' ('+euro(x.apport.perAssoc,0)+'/associé)':''))}
    ${kp('Prêt',euro(x.f.L,0),'sur '+Math.round(x.b.duree/12)+' ans à '+String(x.b.taux).replace('.',',')+' % · '+euro(x.a.mens,0)+'/mois')}${kp(x.c.mode==='B'?'Revenu estimé':'Loyer prévu',euro(x.a.rev,0)+'/mois',x.c.mode==='B'?'Airbnb '+euro(x.b.airbnb_nuit,0)+'/nuit':'marché −'+P.prudence+' %')}
    ${kp('Cash-flow',cfTxt(x.a.cf),'avant impôt')}${kp('Couverture après achat',x.sci.couv==null?'—':Math.round(x.sci.couv*100)+' %','portefeuille entier')}${kp('Tests de résistance',x.stress.tient+' / '+x.stress.total,'scénarios qui gardent « Intéressant »')}</div>
    <div style="font-size:12px;line-height:1.6"><strong>Pourquoi ce choix</strong><ul style="margin:4px 0 8px 18px">${why.map(w=>`<li>${w}</li>`).join('')}</ul>
-   ${ko.length?`<strong>À surveiller</strong><ul style="margin:4px 0 8px 18px">${ko.map(c=>`<li>${E(c.label)} : ${E(c.detail)}</li>`).join('')}</ul>`:'<div style="color:var(--green);font-weight:600;margin-bottom:8px">Tous les contrôles bancaires sont respectés pour cet achat.</div>'}
+   ${(ko.length||pfKo)?`<strong>À surveiller</strong><ul style="margin:4px 0 8px 18px">${ko.map(c=>`<li>${E(c.label)} : ${E(c.detail)}</li>`).join('')}${pfKo?`<li>Couverture de toute la SCI après cet achat : ${Math.round(x.sci.couv*100)} % (seuil ${Math.round(crit.couvMin*100)} %)${D.sci.couv!=null&&D.sci.couv<crit.couvMin?', alors qu\'elle est déjà à '+Math.round(D.sci.couv*100)+' % avant l\'achat':''}</li>`:''}</ul>`:'<div style="color:var(--green);font-weight:600;margin-bottom:8px">Tous les contrôles bancaires sont respectés pour cet achat.</div>'}
    ${x.alt.length?`<strong>Autres secteurs possibles</strong> : ${x.alt.map(a=>E(a.q)+' ('+E(a.etat)+' '+a.S+' m², '+euro(a.prix,0)+', '+pct1(a.rdt)+')').join(' · ')}`:''}</div></div>`;
   }).join('');
   plan+=`<div class="sl">Effet sur la SCI</div><div class="card" style="margin-bottom:14px"><div style="overflow-x:auto"><table class="jtable" style="font-size:13px"><thead><tr><th>Indicateur</th><th style="text-align:right">Aujourd'hui</th><th style="text-align:right">Après le plan</th></tr></thead><tbody>
@@ -5072,7 +5361,7 @@ function buildConseilHtml(){
  h+=`<h2>1. Situation de la SCI</h2><div class="callout ${D.verdict==='non'?'alert':(D.verdict==='conditions'?'':'info')}"><strong>${{oui:'La SCI peut envisager un achat.',conditions:'Un achat est possible, avec des précautions.',non:'Pas d\'achat tant que les points bloquants ne sont pas levés.'}[D.verdict]}</strong></div>`;
  h+=table(['Indicateur','Valeur'],[['Biens',s.n],['Trésorerie',euro(D.solde,0)],['Loyers / mois',euro(s.rev,0)],['Mensualités / mois',euro(s.mens,0)],['Cash-flow / mois',cfc(s.cf)],['Couverture bancaire (loyers retenus ÷ mensualités)',(s.couv==null?'—':Math.round(s.couv*100)+' %')+' · seuil '+Math.round(crit.couvMin*100)+' %'],['Endettement (capital dû ÷ valeur)',s.ltv==null?'—':pct1(s.ltv)],['Capacité d\'emprunt supplémentaire',D.cap&&D.cap.extra>0?euro(Math.round(D.cap.loan/1000)*1000,0):'aucune'],['Rendement total réel · prévu',(D.rentaReelle==null?'—':pct1(D.rentaReelle))+' · '+(D.rentaPrevue==null?'—':pct1(D.rentaPrevue))]]);
  h+=table(['Point relevé','Constat'],D.alertes.map(a=>[`<span class="${{crit:'ko',warn:'wa',ok:'ok',info:'muted'}[a.niveau]}">${{crit:'✗',warn:'!',ok:'✓',info:'i'}[a.niveau]}</span> ${E(a.titre)}`,E(a.texte)+(a.conseil?' → '+E(a.conseil):'')]));
- h+=`<h2>2. Hypothèses retenues</h2>`+table(['Hypothèse','Valeur'],[['Moyens des associés',euro(P.apportInit,0)+' immédiatement + '+euro(P.apportMensuel,0)+'/mois'],['Projet',P.nbMax+' achat'+(P.nbMax>1?'s':'')+' maximum sur '+P.horizon+' mois, '+euro(P.budgetMax,0)+' maximum par bien, '+P.surfMin+' à '+P.surfMax+' m²'],['État · location',P.etats.join(', ')+' · '+P.modes.map(m=>({C:'nue',A:'meublée',B:'Airbnb'}[m])).join(', ')],['Secteurs',P.zones.length?P.zones.join(', '):'toutes les zones'],['Négociation · prudence sur les loyers',P.decote+' % sous le marché · '+P.prudence+' % sur les loyers'],['Critères',`rendement net ≥ ${String(D.cr.rdtNet).replace('.',',')} %, cash-flow ≥ ${euro(D.cr.cf,0)}, couverture ≥ ${Math.round(crit.couvMin*100)} %, apport ≥ ${crit.apportMin} %, réserve ${crit.reserveMois} mois`]]);
+ h+=`<h2>2. Hypothèses retenues</h2>`+table(['Hypothèse','Valeur'],[['Moyens des associés',euro(P.apportInit,0)+' immédiatement + '+euro(P.apportMensuel,0)+'/mois'],['Projet',P.nbMax+' achat'+(P.nbMax>1?'s':'')+' maximum sur '+P.horizon+' mois, '+euro(P.budgetMax,0)+' maximum par bien, '+P.surfMin+' à '+P.surfMax+' m²'],['État · location',P.etats.join(', ')+' · '+P.modes.map(m=>({C:'nue',A:'meublée',B:'Airbnb'}[m])).join(', ')],['Secteurs',P.zones.length?P.zones.join(', '):'toutes les zones'],['Négociation · prudence sur les loyers',P.decote+' % sous le marché · '+P.prudence+' % sur les loyers'],['Apport',P.apportMode==='cible'?'visé à '+P.apportPct+' % du coût d\'acquisition (critères bancaires souples : écarts signalés)':'ajusté pour respecter les critères bancaires'],['Critères',`rendement net ≥ ${String(D.cr.rdtNet).replace('.',',')} %, cash-flow ≥ ${euro(D.cr.cf,0)}, couverture ≥ ${Math.round(crit.couvMin*100)} %, apport ≥ ${crit.apportMin} %, réserve ${crit.reserveMois} mois`]]);
  if(Rz.plan.length){
   h+=`<h2>3. Proposition d'achats</h2>`+table(['Quand · où','Quoi','Prix cible','Apport','Mensualité','Cash-flow','Rdt net'],Rz.plan.map(x=>[`<strong>${moisLong(x.an,x.mois)}</strong> · ${E(x.c.q)}`,E(x.b.type)+' '+x.c.S+' m² · '+E(x.c.etat),euro(x.c.prix,0),euro(x.apport.total,0),euro(x.a.mens,0),cfc(x.a.cf),pct1(x.a.rdtNet)]));
   Rz.plan.forEach(x=>{h+=`<h3>n° ${x.i} · ${moisLong(x.an,x.mois)} — ${E(x.c.q)} (${E(x.c.zone)}) <span class="tag ${x.v.verdict==='pret'?'ok':(x.v.verdict==='fragile'?'ko':'wa')}" style="float:right">${{pret:'Prêt pour la banque',consolider:'À consolider',fragile:'Fragile'}[x.v.verdict]}</span></h3>
