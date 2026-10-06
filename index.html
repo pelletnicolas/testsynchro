@@ -2951,7 +2951,22 @@ function bienDrawerContent(b){
  <span style="font-weight:500">Cash-flow net</span>
  <span style="font-weight:700;color:${cashflow>=0?'var(--green)':'var(--red)'}">${cashflow>=0?'+':''}${euro(cashflow,0)}/mois</span>
  </div>
- <div style="font-size:11px;color:var(--text3);padding:2px 0 6px">Loyer+charges − mensualité${chargesMoisBien>0?' − charges bien':''}</div>`:''}
+ <div style="font-size:11px;color:var(--text3);padding:2px 0 6px">${(b.modeLocation||'C')==='B'?'CA Airbnb moyen':((b.modeLocation||'C')==='A'?'CA moyen (bail + Airbnb d\'été)':'Loyer + charges locataire')} − mensualité${chargesMoisBien>0?' − charges du bien':''}</div>
+ <details style="margin:2px 0 8px"><summary style="cursor:pointer;font-size:12px;color:var(--text2)">Comment est calculé ce cash-flow ?</summary>
+ ${(()=>{
+  const mode=b.modeLocation||'C',rev=bienRevenuMensuel(b),ca=b.chargesAnnuelles||{},num=v=>Number(v)||0;
+  const revTxt=mode==='B'?'chiffre d\'affaires Airbnb annuel estimé '+euro(Math.round(bienCaAnnuel(b)),0)+' ÷ 12':(mode==='A'?'chiffre d\'affaires annuel estimé '+euro(Math.round(bienCaAnnuel(b)),0)+' ÷ 12 : 9 mois de bail à '+euro(loyer+charges,0)+' + Airbnb de juin à août':'loyer + charges locataire ('+euro(loyer,0)+' + '+euro(charges,0)+')');
+  const mensTxt=b.mensualiteManuelle&&Number(b.mensualiteManuelle)>0?'saisie à la main':'calculée d\'après le capital '+euro(capital,0)+', '+(Number(b.taux)||0)+' % sur '+duree+' mois';
+  const lignes=[['Copropriété',ca.copro],['Taxe foncière',ca.fonciere],['Assurance PNO',ca.assurpno],['Entretien',ca.entretien],['Autres',ca.autres]].filter(x=>num(x[1])>0);
+  return `<div style="font-size:12px;color:var(--text2);line-height:1.7;padding:6px 0">
+  <div style="display:flex;justify-content:space-between;gap:10px"><span>Revenu moyen par mois <span style="color:var(--text3)">(${revTxt})</span></span><strong style="white-space:nowrap">+${euro(rev,0)}</strong></div>
+  <div style="display:flex;justify-content:space-between;gap:10px"><span>Mensualité du crédit <span style="color:var(--text3)">(${mensTxt})</span></span><strong style="white-space:nowrap">−${euro(mens,0)}</strong></div>
+  <div style="display:flex;justify-content:space-between;gap:10px"><span>Charges du bien par mois <span style="color:var(--text3)">(${euro(bienChargesAn(b),0)} par an${lignes.length?' : '+lignes.map(x=>x[0].toLowerCase()+' '+euro(num(x[1]),0)).join(', '):' : aucune charge saisie'})</span></span><strong style="white-space:nowrap">−${euro(chargesMoisBien,0)}</strong></div>
+  <div style="display:flex;justify-content:space-between;gap:10px;border-top:0.5px solid var(--border);margin-top:4px;padding-top:4px"><span>Cash-flow avant impôt</span><strong style="white-space:nowrap">${cashflow>=0?'+':'−'}${euro(Math.abs(cashflow),0)}</strong></div>
+  ${mode==='A'||mode==='B'?`<div style="color:var(--text3);margin-top:4px">Le chiffre d'affaires Airbnb dépend du prix par nuit, des nuits louées, du taux d'occupation et du multiplicateur de chaque saison : réglez-les dans « ⚙ Hypothèses Airbnb » pour tester des hypothèses plus prudentes.</div>`:''}
+  <div style="color:var(--text3);margin-top:4px">Les charges de copropriété, la taxe foncière et l'assurance se saisissent <strong>par an</strong> dans la fiche. Ne sont pas comptés : l'impôt sur les sociétés, la CFE, les honoraires comptables et la vacance locative.</div></div>`;
+ })()}
+ </details>`:''}
  <div style="margin-top:8px">
  <div class="kpi-label" style="margin-bottom:4px">Remboursement — ${pct.toFixed(1)}%</div>
  <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
@@ -3734,7 +3749,10 @@ function bienCaAnnuel(b) {
 // Revenu mensuel affiché : loyer + charges (modes A et C). Pas de lissage avec l'Airbnb d'été en mode A.
 // Seul le mode B (full Airbnb, sans loyer) utilise la moyenne mensuelle du CA Airbnb annuel.
 function bienRevenuMensuel(b){
- if((b.modeLocation||'C')==='B')return bienCaAnnuel(b)/12;
+ const mode=b.modeLocation||'C';
+ // modes A (bail 9 mois + Airbnb de juin à août) et B (Airbnb toute l'année) : chiffre d'affaires annuel estimé ÷ 12, Airbnb compris.
+ // La prudence se règle dans « Hypothèses Airbnb » (nuits louées, taux d'occupation et multiplicateur de prix par saison).
+ if(mode==='A'||mode==='B')return bienCaAnnuel(b)/12;
  return Number(b.loyer||0)+Number(b.charges||0);
 }
 
@@ -4780,6 +4798,7 @@ function buildGuideHtml(){
   <p>Vue d'ensemble du patrimoine : nombre de biens, valeur estimée, capital restant dû, valeur nette de la SCI, trésorerie, mensualités et loyers encaissés. En dessous : alertes et statuts, derniers mouvements, et les graphiques (répartition de la valeur, par type de bien, cash-flow mensuel par bien, avancement des remboursements).</p>
   <h3>Biens</h3>
   <p>Le bouton ${U('+ Ajouter un bien')} ouvre le formulaire : identification, acquisition (prix, notaire, travaux), emprunt (capital, taux, durée, début), location, <strong>mode de gestion</strong>, charges annuelles (copropriété, taxe foncière, assurance PNO, entretien) et <strong>apports des associés</strong> en compte courant. Cliquez sur un bien pour ouvrir sa fiche, la modifier ou le supprimer.</p>
+  <p><strong>Le cash-flow d'un bien</strong> affiché dans la fiche est le revenu mensuel moins la mensualité du crédit moins les charges du bien (copropriété, taxe foncière, assurance, entretien, saisies <em>par an</em> dans la fiche et divisées par 12), avant impôt sur les sociétés, CFE, honoraires comptables et vacance. Le revenu est le loyer et les charges locataire (mode C), ou le <strong>chiffre d'affaires annuel estimé divisé par 12</strong> en mode A (9 mois de bail plus l'Airbnb de juin à août) et en mode B (Airbnb toute l'année). L'Airbnb est donc compté en entier : pour être plus prudent, réglez le prix par nuit, les nuits louées, le taux d'occupation et le multiplicateur de chaque saison dans ${U('⚙ Hypothèses Airbnb')}. Dans la fiche, la rubrique <em>Comment est calculé ce cash-flow ?</em> détaille chaque ligne et indique si la mensualité est saisie à la main ou calculée d'après le capital, le taux et la durée.</p>
   ${tab(['Mode de gestion','Principe','Revenu affiché'],[
    ['<strong>C</strong> — Longue durée','Loyer × 12 mois','Loyer + charges'],
    ['<strong>A</strong> — Bail meublé 9 mois + Airbnb été','Bail hors été, Airbnb en juin–août','Loyer + charges (l\'Airbnb d\'été est détaillé dans la fiche du bien)'],
