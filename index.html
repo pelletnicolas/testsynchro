@@ -788,8 +788,10 @@ canvas{max-width:100%;display:block}
  <option value="">Toutes les zones</option>
  </select>
  </div>
+ <button class="btn btn-sm" onclick="setAirbnbOkZone(true)" title="Autoriser l'Airbnb dans tous les quartiers de la zone affichée">Airbnb : tout autoriser</button>
+ <button class="btn btn-sm" onclick="setAirbnbOkZone(false)" title="Interdire l'Airbnb dans tous les quartiers de la zone affichée">Airbnb : tout interdire</button>
  <div style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:4px">
- <span id="bdd-modified-count" style="font-weight:600;color:var(--accent)">0</span> modifié(s)
+ <span id="bdd-modified-count" style="font-weight:600;color:var(--accent)">0</span> modifié(s) · <span id="bdd-airbnb-count" style="font-weight:600">0</span> sans Airbnb
  </div>
  </div>
  </div>
@@ -802,6 +804,7 @@ canvas{max-width:100%;display:block}
  <th>Zone</th>
  <th style="min-width:130px">Prix m² base</th>
  <th style="min-width:150px">Airbnb/nuit (40m²)</th>
+ <th style="min-width:120px" title="Décochez les quartiers où l'Airbnb n'est pas possible : aucun revenu Airbnb n'y sera retenu (simulation, Conseil, classement)">Airbnb possible</th>
  <th style="min-width:150px">Loyer nu 40m²</th>
  </tr>
  </thead>
@@ -3737,7 +3740,7 @@ function bienCaMoisBrut(mode,loyerTotal,airbnb,m){
 
 // CA mensuel d'un bien réel selon son mode de gestion (A/B/C) et la saisonnalité
 function bienCaMensuel(b, annee, mois) {
- return bienCaMoisBrut(b.modeLocation||'C', Number(b.loyer||0)+Number(b.charges||0), b.airbnb_nuit, mois);
+ return bienCaMoisBrut(bienModeEff(b), Number(b.loyer||0)+Number(b.charges||0), b.airbnb_nuit, mois);
 }
 
 // CA annuel estimé d'un bien réel (loyer + charges locataire inclus)
@@ -3749,7 +3752,7 @@ function bienCaAnnuel(b) {
 // Revenu mensuel affiché : loyer + charges (modes A et C). Pas de lissage avec l'Airbnb d'été en mode A.
 // Seul le mode B (full Airbnb, sans loyer) utilise la moyenne mensuelle du CA Airbnb annuel.
 function bienRevenuMensuel(b){
- const mode=b.modeLocation||'C';
+ const mode=bienModeEff(b);
  // modes A (bail 9 mois + Airbnb de juin à août) et B (Airbnb toute l'année) : chiffre d'affaires annuel estimé ÷ 12, Airbnb compris.
  // La prudence se règle dans « Hypothèses Airbnb » (nuits louées, taux d'occupation et multiplicateur de prix par saison).
  if(mode==='A'||mode==='B')return bienCaAnnuel(b)/12;
@@ -4227,7 +4230,7 @@ function projMarche(b){
  const ab=(mode==='A'&&abNuitM&&Number(b.airbnb_nuit)>0)?{mien:Number(b.airbnb_nuit),marche:abNuitM,ecart:Number(b.airbnb_nuit)/abNuitM-1}:null;
  const rdtM=prixM>0?((mode==='B'?abAnM:(mode==='A'?meubleM*12:nuM*12))/prixM*100):null;
  return {complet:true,q,zone:MARKET.zones[q]||'',typ,S,renover,prix,trav,prixM,pm2M:prixM/S,pm2B:prix>0?prix/S:null,
-  ecartPrix,ecartPrixTrav,ecartRef,baseLabel:renover?'prix + travaux':'prix',ref,ecartLoyer,ab,rdtM,abNuitM,abAnM};
+  ecartPrix,ecartPrixTrav,ecartRef,baseLabel:renover?'prix + travaux':'prix',ref,ecartLoyer,ab,rdtM,abNuitM,abAnM,airbnbOk:marcheAirbnbOk(q)};
 }
 function projAnalyse(b){
  const prix=Number(b.prix)||0;
@@ -4505,6 +4508,7 @@ function projMarcheBlock(b,a){
  ];
  if(mk.renover&&mk.trav>0)tiles.push(tile('Travaux compris '+marcheBadge(mk.ecartPrixTrav),euro(mk.prix+mk.trav,0),ecTxt(mk.ecartPrixTrav)+' vs le marché (bien à rénover : comparé travaux inclus)'));
  if(mk.ref&&mk.ref.mien>0&&mk.ref.marche>0)tiles.push(tile(mk.ref.label[0].toUpperCase()+mk.ref.label.slice(1)+' '+(mk.ecartLoyer>=0.05?'<span class="badge badge-warn">Au-dessus du marché</span>':(mk.ecartLoyer<=-0.05?'<span class="badge badge-ok">Prudent</span>':'<span class="badge badge-info">Dans le marché</span>')),euro(mk.ref.mien,0)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+euro(Math.round(mk.ref.marche),0)+' '+mk.ref.unit,ecTxt(mk.ecartLoyer)+(mk.ecartLoyer>0.05?' · loyer plus ambitieux que le marché':'')));
+ if(mk.airbnbOk===false&&(b.modeLocation==='A'||b.modeLocation==='B'))tiles.push(tile('Airbnb <span class="badge badge-warn">Non possible</span>','Quartier sans Airbnb','ce bien est calculé en location longue durée, au loyer saisi : le revenu Airbnb est ignoré'));
  if(mk.ab)tiles.push(tile('Airbnb / nuit',euro(mk.ab.mien,0)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+euro(mk.ab.marche,0),ecTxt(mk.ab.ecart)));
  if(mk.rdtM!=null&&a.rdtBrut!=null)tiles.push(tile('Rendement brut',pct1(a.rdtBrut)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+pct1(mk.rdtM),'rendement du marché pour ce quartier'));
  return wrap(`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div style="font-weight:600;font-size:13px">Positionnement par rapport au marché <span style="font-weight:400;color:var(--text3);font-size:12px">— ${escH(mk.q)}${mk.zone?' ('+escH(mk.zone)+')':''} · ${escH(mk.typ)} · ${mk.S} m²</span></div>${a.okMarche===null?'':(a.okMarche?'<span class="badge badge-ok">Critère marché respecté</span>':'<span class="badge badge-red">Critère marché non respecté</span>')}</div>
@@ -4910,7 +4914,7 @@ function buildGuideHtml(){
   <p>L'espace ${U('Marché')} regroupe les données de prix et de loyers de ${MARKET.quartiers.length} quartiers.</p>
   <ul><li>${U('Analyse quartier')} : choisissez un quartier, une surface et un type (Ancien, Récent, Neuf) pour obtenir le prix d'achat estimé, les loyers nu et meublé, l'Airbnb, les rendements bruts et un comparatif par type. ${U('Simuler un achat ici →')} en fait un bien fictif.</li>
   <li>${U('Classement rentabilité')} : les quartiers classés par rendement.</li>
-  <li>${U('Base de données')} : les prix par quartier, modifiables si vous disposez de meilleures références.</li>
+  <li>${U('Base de données')} : les prix par quartier, modifiables si vous disposez de meilleures références. La colonne <strong>Airbnb possible</strong> est une case à cocher : <strong>décochez les quartiers où l'Airbnb n'est pas possible</strong> (ou autorisé). Dans un quartier sans Airbnb, plus aucun revenu Airbnb n'est retenu nulle part : la fiche du Marché et le classement l'indiquent (« non éligible »), le Conseil ne propose ces quartiers qu'en location nue, et dans la simulation d'un bien fictif les modes A et B sont désactivés (un bien déjà enregistré dans un tel quartier est calculé en location longue durée, au loyer saisi). Les boutons « Airbnb : tout autoriser » et « Airbnb : tout interdire » s'appliquent à la zone affichée. Le prix de nuit saisi est conservé : en recochant, il revient. Le réglage est partagé entre associés.</li>
   <li>${U('Paramètres')} : indices de marché (multiplicateurs par type de bien, coefficients de surface, ratio meublé / nu, coefficients Airbnb, saisonnalité). ${U('↺ Réinitialiser')} remet les valeurs d'origine.</li></ul>
   ${co('Les valeurs modifiées dans le Marché alimentent <strong>toute l\'application</strong> : comparaison au marché des biens fictifs, Airbnb de la Gestion et de la Projection, et propositions du Conseil d\'achat.','info')}`);
  // ---- 9
@@ -5148,6 +5152,7 @@ function conseilCandidats(P){
     if(prix>P.budgetMax||prix<30000)return;
     const nuit=rec.airbnb_nuit?Math.round(rec.airbnb_nuit*(S/40)*marcheCoefAirbnb(S)):0;
     P.modes.forEach(mode=>{
+     if((mode==='A'||mode==='B')&&!marcheAirbnbOk(q))return;   // quartier sans Airbnb : location nue seulement
      let loyer=0,airbnb=0,loyerM=0;
      if(mode==='C'||mode==='A'){const v=marcheInterp(rec,S,mode==='C'?'nu':'meuble');if(!(v>0))return;loyerM=Math.round(v);loyer=Math.round(v*(1-P.prudence/100));if(mode==='A')airbnb=Math.round(nuit*(1-P.prudence/100));}   // prudence : loyer ET prix de la nuit Airbnb
      else{if(!(nuit>0))return;airbnb=Math.round(nuit*(1-P.prudence/100));}
@@ -5351,7 +5356,7 @@ function renderConseil(){
   }
   plan+='</div>';
  }
- const note=`<div style="font-size:11px;color:var(--text3);line-height:1.6;margin:6px 0 20px"><strong>Comment ce plan est construit.</strong> Les prix et loyers viennent de votre onglet Marché (quartier, état, surface), avec ${P.decote} % de négociation sur le prix et ${P.prudence} % de prudence sur les loyers ; frais de notaire de 8 % (3 % dans le neuf) ; charges par défaut des Hypothèses. Pour chaque achat, l'emprunt est le plus élevé qui respecte vos critères bancaires, la couverture par les loyers retenus et votre exigence de cash-flow ; la date est le premier mois où l'apport est finançable avec la trésorerie (au-delà de la réserve) puis les apports des associés. Les rendements nets supérieurs à 12 % sont écartés (données jugées peu fiables). Les achats sont classés par rendement net, légèrement pénalisé par le délai, avec un quartier différent à chaque fois.<br><strong>Limites.</strong> Il s'agit d'une simulation indicative, pas d'un conseil financier. Elle ne connaît ni l'état réel d'un bien, ni sa copropriété, ni la demande locative d'une rue : vérifiez chaque bien sur annonces et faites-le estimer. Les règles locales sur la location meublée touristique peuvent limiter le mode Airbnb.</div>`;
+ const note=`<div style="font-size:11px;color:var(--text3);line-height:1.6;margin:6px 0 20px"><strong>Comment ce plan est construit.</strong> Les prix et loyers viennent de votre onglet Marché (quartier, état, surface ; les quartiers sans Airbnb dans la base de données ne sont étudiés qu'en location nue), avec ${P.decote} % de négociation sur le prix et ${P.prudence} % de prudence sur les loyers ; frais de notaire de 8 % (3 % dans le neuf) ; charges par défaut des Hypothèses. Pour chaque achat, l'emprunt est le plus élevé qui respecte vos critères bancaires, la couverture par les loyers retenus et votre exigence de cash-flow ; la date est le premier mois où l'apport est finançable avec la trésorerie (au-delà de la réserve) puis les apports des associés. Les rendements nets supérieurs à 12 % sont écartés (données jugées peu fiables). Les achats sont classés par rendement net, légèrement pénalisé par le délai, avec un quartier différent à chaque fois.<br><strong>Limites.</strong> Il s'agit d'une simulation indicative, pas d'un conseil financier. Elle ne connaît ni l'état réel d'un bien, ni sa copropriété, ni la demande locative d'une rue : vérifiez chaque bien sur annonces et faites-le estimer. Les règles locales sur la location meublée touristique peuvent limiter le mode Airbnb.</div>`;
  el.innerHTML=`<div class="page-header"><div class="page-title">Conseil d'achat</div><div class="btn-group"><button class="btn btn-sm" onclick="openConseilPdf()">Note de conseil (PDF)</button></div></div>
   <div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-bottom:14px">Cet outil analyse la situation de la SCI (trésorerie, loyers, dette, couverture bancaire) puis propose <strong>où, quand et comment acheter</strong>, d'après les données de l'onglet Marché. Ajustez vos moyens et votre projet : le plan se recalcule.</div>${diag}${params}${plan}${note}`;
  if(Rz.plan.length)conseilChart(Rz,A2);
@@ -5664,7 +5669,20 @@ function openEditProjBien(id){
  updatePbPreview();
  openModal('modal-add-proj-bien');
 }
+// Quartier sans Airbnb (base de données du Marché) : modes A et B indisponibles, prix de nuit vide
+function pbAirbnbGuard(){
+ const modeEl=document.getElementById('pb-mode'),abEl=document.getElementById('pb-airbnb'),qEl=document.getElementById('pb-quartier');
+ if(!modeEl||!qEl)return;
+ const q=qEl.value,off=!!q&&!marcheAirbnbOk(q);
+ [...modeEl.options].forEach(o=>{if(o.value==='A'||o.value==='B')o.disabled=off;});
+ if(off&&(modeEl.value==='A'||modeEl.value==='B'))modeEl.value='C';
+ if(abEl){abEl.disabled=off;if(off)abEl.value='';}
+ let note=document.getElementById('pb-airbnb-note');
+ if(!note){note=document.createElement('div');note.id='pb-airbnb-note';note.style.cssText='font-size:11px;color:var(--red);margin-top:4px;line-height:1.4';modeEl.parentNode.appendChild(note);}
+ note.textContent=off?'Airbnb non possible dans le quartier « '+q+' » (base de données du Marché) : seule la location longue durée est proposée.':'';
+}
 function updatePbPreview(){
+ pbAirbnbGuard();
  const b=pbFormBien();
  const a=projAnalyse(b);
  const mpEl=document.getElementById('pb-mens-preview');
@@ -5782,7 +5800,7 @@ function bienToProj(b) {
  credit: Number(b.capital)||0,
  frais: Number(b.notaire||0) + Number(b.courtier||0) + Number(b.travaux||0),
  chargesAnnuelles: b.chargesAnnuelles || {},
- mode: b.modeLocation || 'C', // mode de gestion A/B/C du bien
+ mode: bienModeEff(b), // mode de gestion A/B/C du bien (C si le quartier n'autorise pas l'Airbnb)
  airbnb_nuit: Number(b.airbnb_nuit)||0, // prix Airbnb / nuit (modes A et B)
  chargesMult: Number(b._chargesMult)||1, // multiplicateur de charges (tests de résistance)
  apportMode: b.apportMode, apportTreso: b.apportTreso, apportAssocs: b.apportAssocs, apportRepart: b.apportRepart, apportParts: b.apportParts, // financement de l'apport (bien fictif)
@@ -7428,6 +7446,7 @@ function renderMarche(){
  <div class="status-row" style="border:none"><span style="font-size:11px;color:var(--text3)">${saisonDesc} · Coef ×${coefAirbnb(s)} · ${NUITS_POND.toFixed(1)} n. pond./an</span></div>
  `;
  
+ if(!marcheAirbnbOk(q))document.getElementById('m-airbnb').innerHTML=`<div class="status-row" style="border:none"><span style="color:var(--red);font-weight:600">Airbnb non possible dans ce quartier</span></div><div style="font-size:11px;color:var(--text3);line-height:1.5">Réglage de la base de données du Marché (colonne « Airbnb possible »). Aucun revenu Airbnb n'est retenu ici : ni dans les simulations, ni dans le Conseil.</div>`;
  // Rendements
  const rdtNu = (prix && nu) ? (nu*12/prix) : null;
  const rdtMeuble = (prix && meuble) ? (meuble*12/prix) : null;
@@ -7552,7 +7571,7 @@ function renderClassement(){
  const rdtMeuble = (prix&&meuble) ? meuble*12/prix : null;
  const rdtAirbnb = (prix&&airbnbAn) ? airbnbAn/prix : null;
  const pm2 = rec.pm2_base;
- rows.push({q, z, prix, pm2, meuble, rdtMeuble, airbnbNuit, airbnbAn, rdtAirbnb});
+ rows.push({q, z, prix, pm2, meuble, rdtMeuble, airbnbNuit, airbnbAn, rdtAirbnb, abOff:!marcheAirbnbOk(q)});
  });
 
  // Tri
@@ -7599,7 +7618,7 @@ function renderClassement(){
  <span style="color:${rdtColor(r.rdtMeuble)};font-weight:600">${r.rdtMeuble ? (r.rdtMeuble*100).toFixed(2).replace('.',',')+' %' : '—'}</span>
  ${rdtBar(r.rdtMeuble)}
  </td>
- <td style="color:var(--text2)">${r.airbnbNuit ? euro(r.airbnbNuit)+'/nuit' : '—'}</td>
+ <td style="color:var(--text2)">${r.airbnbNuit ? euro(r.airbnbNuit)+'/nuit' : (r.abOff?'<span style="color:var(--red);font-size:11px;font-weight:600">non éligible</span>':'—')}</td>
  <td>${r.airbnbAn ? euro(r.airbnbAn)+'/an' : '—'}</td>
  <td>
  <span style="color:${rdtColor(r.rdtAirbnb)};font-weight:600">${r.rdtAirbnb ? (r.rdtAirbnb*100).toFixed(2).replace('.',',')+' %' : '—'}</span>
@@ -7624,6 +7643,43 @@ let MARKET_OVERRIDES = {};
 
 function saveMarketOverrides() {
  try { localStorage.setItem('sci_market_overrides', JSON.stringify(MARKET_OVERRIDES)); } catch(e){}
+}
+
+// ---- Éligibilité Airbnb d'un quartier ----
+// Un quartier « sans Airbnb » (case décochée dans la base de données) a un prix de nuit nul : il n'est plus proposé en mode A ni B,
+// et un bien fictif qui s'y trouve est calculé en location longue durée au loyer saisi.
+function marcheAirbnbOk(q){
+ if(!q)return true;
+ const ov=MARKET_OVERRIDES[q];if(ov&&ov.airbnb_off)return false;
+ const rec=MARKET.data[q+'|Ancien']||MARKET.data[q+'|Récent']||MARKET.data[q+'|Neuf'];
+ if(!rec)return true;                                   // quartier inconnu du Marché : on ne restreint pas
+ return Number(rec.airbnb_nuit)>0;
+}
+function bienModeEff(b){const m=b.modeLocation||'C';return ((m==='A'||m==='B')&&b.quartier&&!marcheAirbnbOk(b.quartier))?'C':m;}
+function marcheRefreshAll(){
+ try{renderBddTable();}catch(e){}
+ try{renderMarche();}catch(e){}
+ try{if(document.getElementById('cl-body'))renderClassement();}catch(e){}
+ try{renderProjAll();}catch(e){}
+ try{updatePbPreview();}catch(e){}
+ try{renderConseil();}catch(e){}
+}
+function marcheAirbnbMaj(q,ok){
+ if(ok){if(MARKET_OVERRIDES[q]){delete MARKET_OVERRIDES[q].airbnb_off;if(!Object.keys(MARKET_OVERRIDES[q]).length)delete MARKET_OVERRIDES[q];}}
+ else{(MARKET_OVERRIDES[q]=MARKET_OVERRIDES[q]||{}).airbnb_off=1;}
+}
+function setAirbnbOk(q,ok){
+ if(!MARKET.data[q+'|Ancien'])return;
+ marcheAirbnbMaj(q,!!ok);
+ saveMarketOverrides();applyMarketOverrides();marcheRefreshAll();
+}
+function setAirbnbOkZone(ok){
+ const zone=(document.getElementById('bdd-zone-filter')||{}).value||'';
+ const qs=MARKET.quartiers.filter(q=>!zone||MARKET.zones[q]===zone);
+ if(!zone&&!confirm((ok?'Autoriser':'Interdire')+' l\'Airbnb dans les '+qs.length+' quartiers ?'))return;
+ qs.forEach(q=>marcheAirbnbMaj(q,ok));
+ saveMarketOverrides();applyMarketOverrides();marcheRefreshAll();
+ showToast((ok?'Airbnb autorisé':'Airbnb interdit')+' dans '+qs.length+' quartier'+(qs.length>1?'s':''));
 }
 
 // Applique les surcharges au MARKET.data en recalculant toutes les valeurs dérivées
@@ -7657,7 +7713,7 @@ function applyMarketOverrides() {
 
  // --- Prix m² et Airbnb ---
  const pm2 = ov.pm2_base !== undefined ? ov.pm2_base : rec._pm2_orig;
- const airbnbNuit = ov.airbnb_nuit !== undefined ? ov.airbnb_nuit : rec._airbnb_orig;
+ const airbnbNuit = ov.airbnb_off ? 0 : (ov.airbnb_nuit !== undefined ? ov.airbnb_nuit : rec._airbnb_orig);   // quartier sans Airbnb : aucun revenu Airbnb
  rec.pm2_base = pm2;
  rec.airbnb_nuit = airbnbNuit;
 
@@ -7684,7 +7740,7 @@ function applyMarketOverrides() {
 
  // Airbnb annuel : via ratioAirbnb
  if(rec[sk]._airbnb_orig !== null)
- rec[sk].airbnb_an = Math.round(rec[sk]._airbnb_orig * ratioAirbnb);
+ rec[sk].airbnb_an = ov.airbnb_off ? 0 : Math.round(rec[sk]._airbnb_orig * ratioAirbnb);
 
  // Loyers : override loyer_nu OU ratio pm2
  if(hasLoyerOv && nuAncien40Orig) {
@@ -7737,6 +7793,7 @@ function renderBddTable() {
  const airbnbOrig = rec._airbnb_orig !== undefined ? rec._airbnb_orig : rec.airbnb_nuit;
  const loyerNuOrig = rec.s40._nu_orig !== undefined ? rec.s40._nu_orig : rec.s40.nu;
 
+ const abOk = marcheAirbnbOk(q);
  const ovPm2 = MARKET_OVERRIDES[q] && MARKET_OVERRIDES[q].pm2_base !== undefined ? MARKET_OVERRIDES[q].pm2_base : pm2Orig;
  const ovAirbnb = MARKET_OVERRIDES[q] && MARKET_OVERRIDES[q].airbnb_nuit !== undefined ? MARKET_OVERRIDES[q].airbnb_nuit : airbnbOrig;
  const ovLoyerNu = MARKET_OVERRIDES[q] && MARKET_OVERRIDES[q].loyer_nu !== undefined ? MARKET_OVERRIDES[q].loyer_nu : loyerNuOrig;
@@ -7763,12 +7820,15 @@ function renderBddTable() {
  <td>
  <div style="display:flex;align-items:center;gap:6px">
  <input type="number" class="bdd-input ${airbnbModified?'modified':''}" id="bnb-${qId}"
- value="${ovAirbnb}" min="0" max="1000" step="1"
+ value="${ovAirbnb}" min="0" max="1000" step="1" ${abOk?'':'disabled style="opacity:.45"'}
  onchange="updateMarketValue('${q}','airbnb_nuit',this)"
  oninput="updateMarketValue('${q}','airbnb_nuit',this)">
  <span style="font-size:11px;color:var(--text3)">€/nuit</span>
  ${airbnbModified ? `<span style="font-size:10px;color:var(--text3)">(orig: ${airbnbOrig})</span>` : ''}
  </div>
+ </td>
+ <td>
+ <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="abok-${qId}" data-q="${escH(q)}" ${abOk?'checked':''} onchange="setAirbnbOk(this.dataset.q,this.checked)"><span style="font-size:12px;font-weight:600;color:${abOk?'var(--green)':'var(--red)'}">${abOk?'Oui':'Non'}</span></label>
  </td>
  <td>
  <div style="display:flex;align-items:center;gap:6px">
@@ -7785,6 +7845,7 @@ function renderBddTable() {
  }).join('');
 
  document.getElementById('bdd-modified-count').textContent = Object.keys(MARKET_OVERRIDES).length;
+ const nAb=document.getElementById('bdd-airbnb-count');if(nAb)nAb.textContent=MARKET.quartiers.filter(q=>!marcheAirbnbOk(q)).length;
 }
 
 function updateMarketValue(quartier, field, input) {
@@ -7974,7 +8035,7 @@ applyMarketOverrides = function() {
  });
 
  const pm2 = ov.pm2_base !== undefined ? ov.pm2_base : rec._pm2_orig;
- const airbnbNuit = ov.airbnb_nuit !== undefined ? ov.airbnb_nuit : rec._airbnb_orig;
+ const airbnbNuit = ov.airbnb_off ? 0 : (ov.airbnb_nuit !== undefined ? ov.airbnb_nuit : rec._airbnb_orig);   // quartier sans Airbnb : aucun revenu Airbnb
  rec.pm2_base = pm2;
  rec.airbnb_nuit = airbnbNuit;
 
@@ -7996,7 +8057,7 @@ applyMarketOverrides = function() {
  rec[sk].achat = Math.round(rec[sk]._achat_orig * ratioPm2);
 
  if(rec[sk]._airbnb_orig !== null)
- rec[sk].airbnb_an = Math.round(rec[sk]._airbnb_orig * ratioAirbnb);
+ rec[sk].airbnb_an = ov.airbnb_off ? 0 : Math.round(rec[sk]._airbnb_orig * ratioAirbnb);
 
  if(hasLoyerOv && nuAncien40Orig) {
  const nuAncien40New = ov.loyer_nu;
