@@ -468,6 +468,7 @@ canvas{max-width:100%;display:block}
  </div>
  </div>
  <div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.5">Les lignes classées « Compte courant associé » dans la Comptabilité sont transférées ici automatiquement (étiquette « Compta »). Un montant reçu est un apport, un montant versé est un remboursement.</div>
+ <div id="cca-doublons"></div>
  <div class="three-col" id="assoc-kpis" style="margin-bottom:14px"></div>
  <div class="card">
  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">
@@ -2427,7 +2428,7 @@ function fbSave(subPath,data){return enqueueOp({type:'patch',subPath,data},' Mod
 function fbRemove(subPath){return enqueueOp({type:'delete',subPath},' Supprimé');}
 
 // ---- Réglages stockés en localStorage (BP, marché, projection) synchronisés via Firebase ----
-const SYNC_KEYS=['sci_bp_params','sci_conseil','sci_renta_avant','sci_renta_etal','sci_renta_autoacq','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url','sci_proj_criteres','sci_banque_crit','sci_assoc_fin','sci_aff_rules'];
+const SYNC_KEYS=['sci_bp_params','sci_conseil','sci_renta_avant','sci_renta_etal','sci_renta_autoacq','sci_cca_ignore','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url','sci_proj_criteres','sci_banque_crit','sci_assoc_fin','sci_aff_rules'];
 const _lsSet=Storage.prototype.setItem;
 const _lsRemove=Storage.prototype.removeItem;
 const dirtySettings=new Set();
@@ -3536,6 +3537,69 @@ function renderTresorerie(){
 // ============================================================
 // RENDER — ASSOCIES
 // ============================================================
+// ---- Doublons probables dans les comptes courants ----
+// 1. une écriture issue de la Comptabilité (étiquette « Compta ») ET une écriture saisie à part (fiche d'un bien ou « + Mouvement CCA »), même associé, même montant, même sens ;
+// 2. deux écritures saisies à part strictement identiques ; 3. une écriture saisie à part égale à la somme de plusieurs écritures de la Comptabilité.
+// Ce sont des doublons PROBABLES : l'utilisateur confirme (deux apports de même montant peuvent être légitimes).
+function ccaIgnore(){try{const v=JSON.parse(localStorage.getItem('sci_cca_ignore')||'[]');return Array.isArray(v)?v:[];}catch(e){return [];}}
+function ccaDoublons(){
+ const ign=ccaIgnore(),liste=ccaList(),out=[],vus=new Set();
+ liste.forEach(c=>{
+  if(!c.mvtId)return;
+  liste.forEach(o=>{
+   if(o.id===c.id||o.mvtId||vus.has(o.id))return;
+   if(o.assoc!==c.assoc||Number(o.apport)!==Number(c.apport)||Number(o.remb)!==Number(c.remb))return;
+   const key=[c.id,o.id].sort().join('|');if(ign.includes(key))return;
+   out.push({a:c,b:o,key,type:'compta'});vus.add(o.id);
+  });
+ });
+ // 3. une écriture saisie à part égale à la SOMME de plusieurs écritures de la Comptabilité du même associé (ex. 585 € saisis, 500 € + 85 € importés)
+ liste.forEach(f=>{
+  if(f.mvtId||vus.has(f.id)||!(Number(f.apport)>0)||Number(f.remb))return;
+  const t0=new Date(f.date).getTime();
+  const lies=liste.filter(c=>c.mvtId&&!vus.has(c.id)&&c.assoc===f.assoc&&Number(c.apport)>0&&!Number(c.remb)&&(!c.bienId||c.bienId===f.bienId))
+   .sort((x,y)=>Math.abs(new Date(x.date)-t0)-Math.abs(new Date(y.date)-t0));
+  const sub=ccaSousEnsemble(lies,Number(f.apport),2);
+  if(!sub)return;
+  const key=[f.id,...sub.map(c=>c.id)].sort().join('|');if(ign.includes(key))return;
+  out.push({a:sub[0],subset:sub,b:f,key,type:'somme'});vus.add(f.id);sub.forEach(c=>vus.add(c.id));
+ });
+ const seen={};
+ liste.forEach(c=>{
+  if(c.mvtId||vus.has(c.id))return;
+  const k=[c.date,c.assoc,c.apport,c.remb,c.libelle].join('|');
+  if(seen[k]){const key=[seen[k].id,c.id].sort().join('|');if(!ign.includes(key)){out.push({a:seen[k],b:c,key,type:'identique'});vus.add(c.id);}}
+  else seen[k]=c;
+ });
+ return out;
+}
+async function ccaFusionner(keys){
+ const todo=ccaDoublons().filter(x=>keys.includes(x.key));if(!todo.length)return;
+ const patch={},del=[];
+ todo.forEach(x=>{
+  const b=DATA.cca[x.b.id];if(!b)return;
+  (x.subset||[x.a]).forEach(a0=>{const a=DATA.cca[a0.id];if(!a)return;if(b.bienId&&!a.bienId)a.bienId=b.bienId;patch[a.id]=a;});   // les écritures conservées gardent le rattachement au bien
+  delete DATA.cca[b.id];del.push(b.id);
+ });
+ renderAll();
+ if(Object.keys(patch).length)await fbSave('cca',patch);
+ await Promise.all(del.map(id=>fbRemove('cca/'+id)));
+ showToast(del.length+' doublon'+(del.length>1?'s':'')+' fusionné'+(del.length>1?'s':''));
+}
+function ccaIgnorer(key){const l=ccaIgnore();if(!l.includes(key))l.push(key);localStorage.setItem('sci_cca_ignore',JSON.stringify(l));renderAssocies();}
+function renderCcaDoublons(){
+ const el=document.getElementById('cca-doublons');if(!el)return;
+ const D=ccaDoublons();
+ if(!D.length){el.innerHTML='';return;}
+ const imp=D.reduce((t,x)=>t+(Number(x.b.apport)||0)-(Number(x.b.remb)||0),0);
+ const descA=x=>x.subset?x.subset.map(desc).join('<br>'):desc(x.a);
+ const desc=c=>`${fdate(c.date)} · ${escH(c.libelle)} · ${euro(Number(c.apport)||Number(c.remb),2)}${c.mvtId?' <span class="badge" style="background:#EFE3EB;color:#714B67;font-size:9px;padding:2px 7px">Compta</span>':(c.bienId&&DATA.biens[c.bienId]?' <span style="color:var(--text3)">(apport du bien '+escH(bienNom(DATA.biens[c.bienId]))+')</span>':' <span style="color:var(--text3)">(saisie à part)</span>')}`;
+ el.innerHTML=`<div class="card" style="border-left:3px solid var(--amber);margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:2px">${D.length} doublon${D.length>1?'s':''} probable${D.length>1?'s':''} dans les comptes courants</div>
+  <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:10px">Un même apport semble enregistré deux fois : une fois depuis la Comptabilité, une fois à part (fiche d'un bien ou saisie manuelle). Fusionner conserve une seule écriture (celle de la Comptabilité) et le rattachement au bien. Impact sur les soldes si tout est fusionné : <strong>${imp>=0?'−':'+'}${euro(Math.abs(imp),2)}</strong> au total.</div>
+  <div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><tbody>${D.map(x=>`<tr><td><strong>${escH(x.a.assoc)}</strong><div style="font-size:11px;color:var(--text3)">${x.subset?'apport de '+euro(Number(x.b.apport),2):(Number(x.a.apport)>0?'apport ':'remboursement ')+'de '+euro(Number(x.a.apport)||Number(x.a.remb),2)}</div></td><td style="font-size:12px">${descA(x)}<br><span style="color:var(--text3)">${x.subset?'équivaut à la somme des '+x.subset.length+' écritures ci-dessus :':'même montant que :'}</span><br>${desc(x.b)}</td><td style="text-align:right;white-space:nowrap"><button class="btn btn-sm btn-primary" onclick="ccaFusionner(['${x.key}'])">Fusionner</button> <button class="btn btn-sm" onclick="ccaIgnorer('${x.key}')">Deux apports distincts</button></td></tr>`).join('')}</tbody></table></div>
+  ${D.length>1?`<div style="margin-top:10px"><button class="btn btn-sm btn-primary" onclick="ccaFusionner(ccaDoublons().map(x=>x.key))">Tout fusionner (${D.length})</button></div>`:''}</div>`;
+}
+
 function renderAssocies(){
  const assocs=ASSOCIES.map(a=>({n:a.n,av:a.av,init:a.init}));
  const soldes=assocZero();
@@ -3548,6 +3612,7 @@ function renderAssocies(){
  return ((soldes[assoc]||0)/totalCCA*100).toFixed(1);
  }
 
+ renderCcaDoublons();
  document.getElementById('assoc-kpis').innerHTML=assocs.map(a=>{
  const p=pct(a.n);
  const sol=soldes[a.n]||0;
@@ -4526,6 +4591,7 @@ function buildGuideHtml(){
  // ---- 5
  h+=sec(5,'Associés : comptes courants et noms',`
   <p>L'onglet ${U('Associés')} (Gestion) affiche le solde du compte courant de chaque associé, sa part des apports, et le journal des mouvements. Les écritures viennent de la saisie des apports d'un bien, de ${U('+ Mouvement CCA')}, ou de la Comptabilité (étiquette <em>Compta</em>). Chaque écriture peut être modifiée ou supprimée.</p>
+  <p><strong>Pas de doublon.</strong> Un apport saisi dans la fiche d'un bien et le même apport importé de la Comptabilité se rattachent l'un à l'autre au lieu de s'additionner, quel que soit l'ordre de saisie, y compris lorsque le total saisi pour un associé équivaut à la somme de plusieurs lignes (par exemple 500 € + 85 € = 585 €). Dans la fiche d'un bien, le montant d'un associé est son <em>total</em> sur ce bien : la part issue de la Comptabilité n'est jamais supprimée ni modifiée à votre insu. Si un doublon existe déjà, un bandeau « doublons probables » en haut de l'onglet liste chaque paire avec les boutons <em>Fusionner</em> (on garde l'écriture de la Comptabilité et le rattachement au bien), <em>Deux apports distincts</em> (la paire n'est plus signalée) et <em>Tout fusionner</em>.</p>
   <h3>Renommer ou ajouter un associé</h3>
   <p>Le bouton ${U('⚙ Gérer les associés')} permet de <strong>renommer</strong> un associé (son historique suit automatiquement) ou d'<strong>en ajouter</strong>. Les nouveaux associés apparaissent partout : listes, apports par bien, soldes. Contraintes : nom unique, 30 caractères maximum, sans les caractères <code>' " \ &lt; &gt; &amp; $</code>, et un nom ne doit pas être contenu dans un autre. Il n'est pas possible de supprimer un associé.</p>
   ${co('Pour ajouter une personne qui doit aussi se <strong>connecter</strong>, il faut en plus créer son compte (voir la partie administration).','info')}`);
@@ -6302,6 +6368,26 @@ function openAddBienModal() {
  openModal('modal-add-bien');
 }
 
+// Apport déjà présent dans les comptes courants (saisi à la main ou issu d'une ligne de la Comptabilité) et pas encore rattaché à un bien :
+// on le rattache au bien au lieu de créer un doublon
+// Plus petit groupe d'écritures dont la somme des apports est exactement le montant visé (ex. 500 € + 85 € = 585 €)
+function ccaSousEnsemble(cands,cible,minN){
+ const arr=cands.slice(0,14);let best=null;
+ for(let mask=1;mask<(1<<arr.length);mask++){
+  let sum=0,n=0;for(let i=0;i<arr.length;i++)if(mask&(1<<i)){sum+=Number(arr[i].apport);n++;}
+  if(n>=(minN||1)&&Math.abs(sum-cible)<0.005&&(!best||n<best.length))best=arr.filter((_,i)=>mask&(1<<i));
+ }
+ return best;
+}
+// Écritures de compte courant libres (sans bien) d'un associé, de la plus proche à la plus éloignée de la date visée
+function ccaLibres(assoc,date){
+ const t0=new Date(date).getTime();
+ return Object.values(DATA.cca).filter(c=>!c.bienId&&c.assoc===assoc&&Number(c.apport)>0&&!Number(c.remb))
+  .sort((x,y)=>Math.abs(new Date(x.date)-t0)-Math.abs(new Date(y.date)-t0));
+}
+// Le montant d'apport d'un associé pour un bien est déjà enregistré (en une ou plusieurs écritures) : on les rattache au bien au lieu de les recréer
+function ccaApportsLibres(assoc,montant,date){return ccaSousEnsemble(ccaLibres(assoc,date),Number(montant))||[];}
+
 async function saveBien(){
  const id='bien_'+uid();
  const b={
@@ -6348,9 +6434,11 @@ async function saveBien(){
  // Rien n'est écrit dans la Comptabilité (alimentée par Odoo) : aucun doublon possible.
  const dateApport=b.dateAchat||new Date().toISOString().split('T')[0];
  const apports=Object.fromEntries(ASSOCIES.map(a=>[a.n,Number(document.getElementById('nb-cca-'+a.k).value)||0]));
- const ccaToSave={};
+ const ccaToSave={};let rattaches=0;
  for(const [assoc,montant] of Object.entries(apports)){
  if(montant>0){
+ const libres=ccaApportsLibres(assoc,montant,dateApport);   // déjà enregistré (Comptabilité ou saisie manuelle), en une ou plusieurs écritures : on le rattache, on ne le recrée pas
+ if(libres.length){libres.forEach(l=>{l.bienId=id;DATA.cca[l.id]=l;ccaToSave[l.id]=l;});rattaches+=libres.length;continue;}
  const cid='c_'+uid();
  const entry={id:cid,date:dateApport,libelle:`Apport CCA — acquisition ${b.adresse}`,assoc,apport:montant,remb:0,bienId:id};
  DATA.cca[cid]=entry;
@@ -6362,6 +6450,7 @@ async function saveBien(){
  await fbSave('biens',{[id]:b});
  if(Object.keys(ccaToSave).length>0) await fbSave('cca',ccaToSave);
  renderAll();
+ if(rattaches)showToast(rattaches+' apport'+(rattaches>1?'s':'')+' déjà présent'+(rattaches>1?'s':'')+' dans les comptes courants : rattaché'+(rattaches>1?'s':'')+' au bien, sans doublon',6500);
 }
 
 async function detachMvtsFromCca(ccaIds){
@@ -6508,39 +6597,37 @@ async function updateBien(){
  const nouvMontants = Object.fromEntries(ASSOCIES.map(a=>[a.n,g2('eb-cca-'+a.k)]));
  const dateApport = b.dateAchat || new Date().toISOString().split('T')[0];
 
- // Trouver les entrées CCA existantes pour ce bien (1 par associé, on prend la première)
+ // Apports du bien : le montant saisi pour un associé est son TOTAL sur ce bien.
+ // - rien ne change si le total est inchangé (aucune écriture supprimée ni modifiée) ;
+ // - la part issue d'une ligne de la Comptabilité reste intacte ; seule la part saisie à part s'ajuste ;
+ // - un apport déjà présent dans les comptes courants est rattaché au bien au lieu d'être recréé.
  const bienCCA = ccaList().filter(c => c.bienId === id || (!c.bienId && c.libelle && c.libelle.includes(b.adresse)));
- const entreeParAssoc = {};
- bienCCA.forEach(c => { if(!entreeParAssoc[c.assoc]) entreeParAssoc[c.assoc] = c; });
-
  const ccaToSave = {};
  const ccaToDelete = [];
-
- for(const [assoc, montant] of Object.entries(nouvMontants)){
- const existing = entreeParAssoc[assoc];
- // Regrouper toutes les lignes de cet associé sur ce bien en une seule
- const autresLignes = bienCCA.filter(c => c.assoc === assoc && c !== existing);
- autresLignes.forEach(c => { delete DATA.cca[c.id]; ccaToDelete.push(c.id); });
-
- if(existing){
- if(montant === 0){
- // Supprimer l'apport CCA (la Comptabilité n'est pas touchée)
- delete DATA.cca[existing.id];
- ccaToDelete.push(existing.id);
- } else {
- // Mettre à jour l'apport CCA
- existing.apport = montant;
- existing.remb = 0;
- existing.bienId = id;
- ccaToSave[existing.id] = existing;
- }
- } else if(montant > 0){
- // Créer l'apport CCA (aucune ligne créée dans la Comptabilité)
- const cid = 'c_' + uid();
- const entry = {id:cid, date:dateApport, libelle:`Apport CCA — ${b.adresse}`, assoc, apport:montant, remb:0, bienId:id};
- DATA.cca[cid] = entry;
- ccaToSave[cid] = entry;
- }
+ let rattaches = 0;
+ for(const a of ASSOCIES){
+  const montant = nouvMontants[a.n] || 0;
+  const siens = bienCCA.filter(c => c.assoc === a.n && Number(c.apport) > 0 && !Number(c.remb));
+  const lies = siens.filter(c => c.mvtId), libres = siens.filter(c => !c.mvtId);
+  const sommeActuelle = siens.reduce((t,c) => t + Number(c.apport), 0);
+  if(Math.abs(montant - sommeActuelle) < 0.005) continue;
+  const sommeLiee = lies.reduce((t,c) => t + Number(c.apport), 0), reste = montant - sommeLiee;
+  if(reste > 0.005){
+   if(libres.length){
+    const e = libres[0]; e.apport = reste; e.remb = 0; e.bienId = id; ccaToSave[e.id] = e;
+    libres.slice(1).forEach(c => { delete DATA.cca[c.id]; ccaToDelete.push(c.id); });
+   } else {
+    const orphs = ccaApportsLibres(a.n, reste, dateApport);
+    if(orphs.length){ orphs.forEach(o => { o.bienId = id; DATA.cca[o.id] = o; ccaToSave[o.id] = o; }); rattaches += orphs.length; }
+    else{
+     const cid = 'c_' + uid();
+     const entry = {id:cid, date:dateApport, libelle:`Apport CCA — ${b.adresse}`, assoc:a.n, apport:reste, remb:0, bienId:id};
+     DATA.cca[cid] = entry; ccaToSave[cid] = entry;
+    }
+   }
+  } else {
+   libres.forEach(c => { delete DATA.cca[c.id]; ccaToDelete.push(c.id); });
+  }
  }
 
  // Fusionner les libellés mis à jour dans les objets à sauvegarder (évite les écrasements)
@@ -6551,7 +6638,7 @@ async function updateBien(){
  if(Object.keys(ccaToSave).length > 0) await fbSave('cca', ccaToSave);
  await Promise.all(ccaToDelete.map(cid => fbRemove(`cca/${cid}`)));
  renderAll();
- showToast(' Bien mis à jour');
+ showToast(rattaches?(' Bien mis à jour · '+rattaches+' apport'+(rattaches>1?'s':'')+' déjà présent'+(rattaches>1?'s':'')+' rattaché'+(rattaches>1?'s':'')+' sans doublon'):' Bien mis à jour',rattaches?6500:3000);
 }
 
 async function deleteBien(){
