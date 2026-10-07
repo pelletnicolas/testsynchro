@@ -314,10 +314,12 @@ canvas{max-width:100%;display:block}
  <button class="subnav-btn" id="sub-associes" onclick="showSubPage('associes',this)">Associés</button>
  <button class="subnav-btn" id="sub-emprunt" onclick="showSubPage('emprunt',this)">Emprunt</button>
  <button class="subnav-btn" id="sub-locataires" onclick="showSubPage('locataires',this)">Locataires</button>
+ <button class="subnav-btn" id="sub-loyers" onclick="showSubPage('loyers',this)">Loyers</button>
  </div>
  <div class="subnav-bar" id="subnav-conseil">
  <button class="subnav-btn active" id="conseil-sub-achat" onclick="showConseilPage('conseil',this)">Achat</button>
  <button class="subnav-btn" id="conseil-sub-gestion" onclick="showConseilPage('conseil-gestion',this)">Gestion</button>
+ <button class="subnav-btn" id="conseil-sub-distrib" onclick="showConseilPage('conseil-distrib',this)">Distribution</button>
  </div>
  <div class="subnav-bar" id="subnav-projection">
  <button class="subnav-btn active" id="proj-sub-dashboard" onclick="showProjPage('proj-dashboard',this)">Analyse d'achat</button>
@@ -338,6 +340,7 @@ canvas{max-width:100%;display:block}
  <div class="page active" id="page-dashboard">
  <div id="dash-loading" class="loading-overlay"><div class="spinner"></div> Chargement…</div>
  <div id="dash-content" style="display:none">
+ <div id="dash-loyers-alert"></div>
  <div class="kpi-grid" id="dash-kpis"></div>
  <!-- GRAPHIQUES RÉPARTITION -->
  <div class="two-col" style="margin-bottom:14px">
@@ -511,6 +514,14 @@ canvas{max-width:100%;display:block}
  <div class="page-title">Locataires</div>
  </div>
  <div id="locataires-content"></div>
+ </div>
+
+ <!-- LOYERS : encaissements et impayés -->
+ <div class="page" id="page-loyers">
+ <div class="page-header">
+ <div class="page-title">Loyers</div>
+ </div>
+ <div id="loyers-content"></div>
  </div>
 
 
@@ -913,6 +924,13 @@ canvas{max-width:100%;display:block}
  </div>
 
  <!-- CONSEIL DE GESTION : obligations fiscales et administratives -->
+ <div class="page" id="page-conseil-distrib">
+ <div class="page-header">
+ <div class="page-title">Distribution : comptes courants ou dividendes</div>
+ </div>
+ <div id="conseil-distrib-content"></div>
+ </div>
+
  <div class="page" id="page-conseil-gestion">
  <div class="page-header">
  <div class="page-title">Conseil de gestion</div>
@@ -1280,6 +1298,15 @@ canvas{max-width:100%;display:block}
 </div>
 
 <input type="file" id="ech-file" accept="application/pdf,.pdf" style="display:none" onchange="echFichierChoisi(this)">
+<div class="modal-bg" id="modal-relance">
+ <div class="modal" style="max-width:620px">
+ <div class="modal-title">Relance de loyer</div>
+ <textarea id="relance-texte" rows="14" style="width:100%;padding:10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:inherit;font-size:13px;line-height:1.55"></textarea>
+ <div style="font-size:11px;color:var(--text3);line-height:1.55;margin-top:8px">Courrier de relance amiable, à adapter. Si la situation persiste, les étapes habituelles sont une mise en demeure par lettre recommandée, puis les recours prévus par le bail (assurance loyers impayés, commissaire de justice). Vérifiez les conditions de votre bail.</div>
+ <div class="modal-footer"><button class="btn" onclick="closeModal('modal-relance')">Fermer</button><button class="btn btn-primary" onclick="loyersCopier()">Copier le texte</button></div>
+ </div>
+</div>
+
 <div class="modal-bg" id="modal-ech">
  <div class="modal" style="max-width:880px">
  <div class="modal-title" id="ech-titre">Tableau d'amortissement de la banque</div>
@@ -2468,7 +2495,7 @@ function fbSave(subPath,data){return enqueueOp({type:'patch',subPath,data},' Mod
 function fbRemove(subPath){return enqueueOp({type:'delete',subPath},' Supprimé');}
 
 // ---- Réglages stockés en localStorage (BP, marché, projection) synchronisés via Firebase ----
-const SYNC_KEYS=['sci_bp_params','sci_conseil','sci_renta_avant','sci_renta_etal','sci_renta_autoacq','sci_cca_ignore','sci_gestion','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url','sci_proj_criteres','sci_banque_crit','sci_assoc_fin','sci_aff_rules'];
+const SYNC_KEYS=['sci_bp_params','sci_conseil','sci_renta_avant','sci_renta_etal','sci_renta_autoacq','sci_cca_ignore','sci_gestion','sci_loyers','sci_distrib','sci_market_overrides','sci_marche_params','sci_proj_biens','sci_odoo_url','sci_proj_criteres','sci_banque_crit','sci_assoc_fin','sci_aff_rules'];
 const _lsSet=Storage.prototype.setItem;
 const _lsRemove=Storage.prototype.removeItem;
 const dirtySettings=new Set();
@@ -2748,7 +2775,7 @@ function showMainTab(tab) {
   document.getElementById('page-' + currentMarchePage).classList.add('active');
  } else if (tab === 'conseil') {
   document.getElementById('page-'+currentConseilPage).classList.add('active');
-  if(currentConseilPage==='conseil-gestion')renderConseilGestion();else renderConseil();
+  if(currentConseilPage==='conseil-gestion')renderConseilGestion();else if(currentConseilPage==='conseil-distrib')renderConseilDistrib();else renderConseil();
  } else if (tab === 'projection') {
   document.getElementById('page-' + currentProjPage).classList.add('active');
   renderProjAll();
@@ -2793,6 +2820,7 @@ function showSubPage(id, btn) {
  document.querySelectorAll('.subnav-btn').forEach(b => b.classList.remove('active'));
  if (btn) btn.classList.add('active');
  updateWide();
+ if(id==='loyers')renderLoyers();
 }
 
 // Alias pour compatibilité (renderAll, etc.)
@@ -4106,6 +4134,8 @@ function gestionVigilance(today,P){
  if(cca>0)add('info','Comptes courants d\'associés : '+euro(cca,0),'Si vous les rémunérez, prévoyez une convention écrite et un taux qui ne dépasse pas le plafond de déductibilité publié chaque trimestre (taux maximum des intérêts déductibles, sur impots.gouv.fr) : l\'excédent n\'est pas déductible. Sans convention, vos apports ne produisent pas d\'intérêts.');
  const naf=(typeof affNonAffectees==='function')?affNonAffectees().length:0;
  if(naf>0)add('warn',naf+' ligne'+(naf>1?'s':'')+' de la Comptabilité à affecter','L\'expert-comptable a besoin de lignes classées et affectées pour clôturer : traitez-les avant la clôture (Comptabilité, filtre « À affecter »).');
+ const LS=loyersSuivi(today);
+ if(LS.nRetard>0)add('crit','Loyers impayés : '+euro(LS.arrieres,0)+' d\'arriérés','Biens concernés : '+E(LS.biens.filter(r=>r.enRetard).map(r=>nom(r.b)+' ('+euro(r.arrieres,0)+')').join(', '))+'. Détail et courrier de relance dans Gestion ▸ Loyers : plus la relance est rapide, plus le recouvrement est facile.');
  const dernier=mvtsList().reduce((m,x)=>x.date>m?x.date:m,'');
  if(dernier&&gAddDays(dernier,45)<today)add('warn','Comptabilité pas à jour','Le dernier mouvement importé date du '+gFr(dernier)+'. Importez régulièrement le relevé bancaire (Odoo) : un relevé manquant fausse le résultat et l\'impôt.');
  const recents=biens.filter(b=>b.dateEntree&&b.dateEntree>=gAddMois(today,-12));
@@ -4219,7 +4249,7 @@ function showConseilPage(id,btn){
  document.getElementById('page-'+id).classList.add('active');
  document.querySelectorAll('#subnav-conseil .subnav-btn').forEach(b=>b.classList.remove('active'));
  if(btn)btn.classList.add('active');
- if(id==='conseil-gestion')renderConseilGestion();else renderConseil();
+ if(id==='conseil-gestion')renderConseilGestion();else if(id==='conseil-distrib')renderConseilDistrib();else renderConseil();
  updateWide();
 }
 
@@ -4496,6 +4526,225 @@ function echDrawerContent(b){
   ${R.res.map(x=>`<tr${x.r.date>T?'':' style="background:var(--surface2)"'}><td style="color:var(--text3)">${x.r.n}</td><td>${gFr(x.r.date)}</td><td style="text-align:right">${euro(x.r.capDu,0)}</td><td style="text-align:right;font-weight:600">${euro(x.r.echeance,2)}</td><td style="text-align:right;color:var(--red)">${euro(x.r.interets,2)}</td><td style="text-align:right;color:var(--green)">${x.r.capital>0?euro(x.r.capital,2):'<span style="color:var(--text3)" title="Différé : intérêts et assurance seuls">différé</span>'}</td><td style="text-align:right">${euro(x.r.assurance,2)}</td><td>${stat[x.statut](x)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
+// ================= SUIVI DES LOYERS ENCAISSÉS ET DES IMPAYÉS =================
+// Chaque mois, le loyer attendu d'un bien loué (loyer + charges locataire) est comparé aux lignes « Loyers » de la Comptabilité.
+function loyersParams(){
+ let c={};try{c=JSON.parse(localStorage.getItem('sci_loyers')||'{}')||{};}catch(e){}
+ const n=(v,d,lo,hi)=>{v=Number(v);return isFinite(v)&&v>=lo&&v<=hi?v:d;};
+ return {delai:Math.round(n(c.delai,10,0,28)),tol:n(c.tol,5,0,30)};
+}
+function loyersSet(){
+ const v=id=>(document.getElementById(id)||{}).value;
+ localStorage.setItem('sci_loyers',JSON.stringify({delai:v('loy-delai'),tol:v('loy-tol')}));
+ renderLoyers();renderDashboard();
+}
+const ymAdd=(ym,n)=>{const t=+ym.slice(0,4)*12+(+ym.slice(5,7)-1)+n;return Math.floor(t/12)+'-'+String(t%12+1).padStart(2,'0');};
+const ymCourt=ym=>['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'][+ym.slice(5,7)-1]+' '+ym.slice(2,4);
+// loyer + charges locataire attendus pour un mois (« AAAA-MM »), au prorata si le locataire entre en cours de mois ; 0 si le bien n'est pas loué en longue durée
+function loyerAttenduMois(b,ym){
+ if(b.modeLocation==='B'||b.statut!=='Bail signé - loué')return 0;
+ const tot=(Number(b.loyer)||0)+(Number(b.charges)||0);if(!(tot>0))return 0;
+ const y=+ym.slice(0,4),m=+ym.slice(5,7);
+ if(b.modeLocation==='A'&&m>=6&&m<=8)return 0;                      // mode A : Airbnb de juin à août, pas de loyer fixe
+ const nj=gDerJour(y,m),debut=b.dateEntree||b.dateAchat||'',d1=ym+'-01',d2=ym+'-'+String(nj).padStart(2,'0');
+ if(debut&&debut>d2)return 0;
+ const j1=(debut&&debut>d1)?+debut.slice(8,10):1;
+ return tot*(nj-j1+1)/nj;
+}
+function loyersSuivi(today){
+ const P=loyersParams(),T=today||gToday(),ymNow=T.slice(0,7),jourNow=+T.slice(8,10);
+ const biens=biensList().filter(b=>b.modeLocation!=='B'&&b.statut==='Bail signé - loué'&&((Number(b.loyer)||0)+(Number(b.charges)||0))>0);
+ const debutCompta=mvtsList().reduce((m,x)=>(!m||x.date<m)?x.date:m,'');
+ const mois=[];for(let i=12;i>=0;i--)mois.push(ymAdd(ymNow,-i));
+ const lignes=mvtsList().filter(m=>m.cat==='loyers'&&Number(m.montant)>0);
+ const parBien={},auto=[],libres=[];biens.forEach(b=>{parBien[b.id]=[];});
+ lignes.forEach(m=>{
+  const a=mvtAff(m),ym=m.date.slice(0,7);
+  if(a&&parBien[a]){parBien[a].push({m,auto:false});return;}
+  if(a)return;                                                       // affectée à un autre bien, à la SCI ou « hors rentabilité » : ne concerne pas ce suivi
+  const mt=Number(m.montant),c=biens.filter(b=>{const E=loyerAttenduMois(b,ym),F=(Number(b.loyer)||0)+(Number(b.charges)||0);return F>0&&(Math.abs(mt-E)<=Math.max(1,E*0.02)||Math.abs(mt-F)<=Math.max(1,F*0.02));});
+  if(c.length===1){parBien[c[0].id].push({m,auto:true});auto.push({m,b:c[0]});}
+  else libres.push(m);                                               // plusieurs biens possibles ou montant inconnu
+ });
+ const res=biens.map(b=>{
+  const tot=(Number(b.loyer)||0)+(Number(b.charges)||0),L=parBien[b.id];
+  const cells=mois.map(ym=>{
+   const E=loyerAttenduMois(b,ym),ls=L.filter(x=>x.m.date.slice(0,7)===ym),R=ls.reduce((t,x)=>t+Number(x.m.montant),0);
+   const fin=ym+'-'+String(gDerJour(+ym.slice(0,4),+ym.slice(5,7))).padStart(2,'0');
+   const due=ym<ymNow||(ym===ymNow&&jourNow>P.delai);
+   let st;
+   if(!(E>0))st='na';
+   else if(debutCompta&&fin<debutCompta)st='avant';
+   else if(R>E*(1+P.tol/100))st='sup';
+   else if(R>=E*(1-P.tol/100))st='ok';
+   else st=!due?'encours':(R>0?'partiel':'impaye');
+   return {ym,E,R,st,due,lignes:ls};
+  });
+  const suivi=cells.filter(c=>c.E>0&&c.st!=='avant'&&c.due);
+  const arrieres=Math.round(suivi.reduce((t,c)=>t+(c.E-c.R),0)*100)/100;
+  const dern=L.reduce((d,x)=>x.m.date>d?x.m.date:d,'');
+  return {b,tot,cells,arrieres,enRetard:arrieres>Math.max(1,tot*0.1),dernier:dern,nAuto:L.filter(x=>x.auto).length,nImpayes:cells.filter(c=>c.st==='impaye'||c.st==='partiel').length};
+ });
+ const att=res.reduce((t,r)=>t+r.cells.filter(c=>c.E>0&&c.st!=='avant'&&c.due).reduce((u,c)=>u+c.E,0),0),rec=res.reduce((t,r)=>t+r.cells.filter(c=>c.E>0&&c.st!=='avant'&&c.due).reduce((u,c)=>u+c.R,0),0);
+ return {P,mois,biens:res,auto,libres,att,rec,taux:att>0?Math.min(100,rec/att*100):null,arrieres:res.reduce((t,r)=>t+Math.max(0,r.arrieres),0),nRetard:res.filter(r=>r.enRetard).length};
+}
+async function loyersAffecter(){
+ const S=loyersSuivi(),ids=[];
+ S.auto.forEach(x=>{const m=DATA.mouvements[x.m.id];if(m&&!m.aff){m.aff=x.b.id;ids.push(m.id);}});
+ renderAll();
+ for(let k=0;k<ids.length;k+=200){const ch={};ids.slice(k,k+200).forEach(i=>{ch[i]=DATA.mouvements[i];});await fbSave('mouvements',ch);}
+ showToast(ids.length+' ligne'+(ids.length>1?'s':'')+' de loyer affectée'+(ids.length>1?'s':'')+' à son bien');
+}
+function renderLoyers(){
+ const el=document.getElementById('loyers-content'),pg=document.getElementById('page-loyers');
+ if(!el||!pg||!pg.classList.contains('active'))return;
+ const S=loyersSuivi(),E=escH,P=S.P;
+ const cellInfo={ok:['✓','var(--green-light)','var(--green)','Payé'],partiel:['◐','var(--amber-light)','var(--amber)','Paiement partiel'],impaye:['✗','var(--red-light)','var(--red)','Impayé'],sup:['+','var(--blue-light)','var(--blue)','Supérieur au loyer attendu (régularisation, révision ?)'],encours:['…','var(--surface2)','var(--text3)','En cours (délai de tolérance)'],na:['·','transparent','var(--text3)','Pas de loyer attendu'],avant:['–','transparent','var(--text3)','Avant l\'historique de la Comptabilité']};
+ const kpi=(l,v,c)=>`<div class="kpi"><div class="kpi-label">${l}</div><div class="kpi-val ${c||''}">${v}</div></div>`;
+ const grille=S.biens.length?`<div style="overflow-x:auto"><table class="jtable" style="font-size:12px"><thead><tr><th>Bien</th>${S.mois.map(ym=>`<th style="text-align:center;white-space:nowrap">${ymCourt(ym)}</th>`).join('')}<th style="text-align:right">Arriérés</th></tr></thead><tbody>${S.biens.map(r=>`<tr><td style="white-space:nowrap"><strong>${E(bienNom(r.b))}</strong><div style="font-size:11px;color:var(--text3)">${E(r.b.locataire||'locataire non renseigné')} · ${euro(r.tot,0)}/mois</div></td>${r.cells.map(c=>{const i=cellInfo[c.st];const tip=`${ymCourt(c.ym)} : ${i[3]}${c.E>0?' · attendu '+euro(c.E,2)+' · reçu '+euro(c.R,2):''}`;return `<td style="text-align:center;background:${i[1]};color:${i[2]};font-weight:600;padding:5px 4px" title="${E(tip)}">${c.st==='partiel'?Math.round(c.R/c.E*100)+'%':i[0]}</td>`;}).join('')}<td style="text-align:right;font-weight:600;color:${r.enRetard?'var(--red)':(r.arrieres<-1?'var(--blue)':'var(--text2)')}">${r.arrieres>1?euro(r.arrieres,0):(r.arrieres<-1?'avance '+euro(-r.arrieres,0):'—')}</td></tr>`).join('')}</tbody></table></div><div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-top:8px">${['ok','partiel','impaye','sup','encours','na'].map(k=>`<span><span style="display:inline-block;min-width:18px;text-align:center;background:${cellInfo[k][1]};color:${cellInfo[k][2]};font-weight:600;border-radius:3px">${cellInfo[k][0]}</span> ${cellInfo[k][3]}</span>`).join('')}</div>`:'<div class="empty-state">Aucun bien loué en longue durée à suivre. Renseignez le statut « Bail signé - loué », le loyer et la date d\'entrée dans la fiche d\'un bien.</div>';
+ const retards=S.biens.filter(r=>r.enRetard);
+ const detailRetard=retards.map(r=>{
+  const mm=r.cells.filter(c=>c.st==='impaye'||c.st==='partiel');
+  return `<div class="card" style="border-left:3px solid var(--red);margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div style="font-weight:600">${E(bienNom(r.b))} · ${euro(r.arrieres,2)} d'arriérés</div><div style="font-size:12px;color:var(--text2);margin-top:2px">${mm.map(c=>ymCourt(c.ym)+(c.st==='partiel'?' (partiel : reçu '+euro(c.R,0)+' sur '+euro(c.E,0)+')':' (impayé)')).join(' · ')||'écart cumulé sur la période'} · dernier paiement ${r.dernier?gFr(r.dernier):'—'}</div></div><button class="btn btn-sm btn-primary" onclick="loyersRelance('${r.b.id}')">Rédiger une relance</button></div></div>`;}).join('');
+ const detailMois=S.biens.map(r=>`<details style="margin-bottom:6px"><summary style="cursor:pointer;font-size:12.5px"><strong>${E(bienNom(r.b))}</strong> — détail mois par mois</summary><div style="overflow-x:auto;margin-top:6px"><table class="jtable" style="font-size:12px"><thead><tr><th>Mois</th><th style="text-align:right">Attendu</th><th style="text-align:right">Reçu</th><th style="text-align:right">Écart</th><th>Lignes de la Comptabilité</th></tr></thead><tbody>${r.cells.filter(c=>c.E>0||c.R>0).map(c=>`<tr><td>${ymCourt(c.ym)}</td><td style="text-align:right">${c.E>0?euro(c.E,2):'—'}</td><td style="text-align:right">${euro(c.R,2)}</td><td style="text-align:right;color:${c.R-c.E<-0.5?'var(--red)':'var(--text2)'}">${c.E>0?(c.R-c.E>=0?'+':'')+euro(c.R-c.E,2):''}</td><td style="font-size:11px;color:var(--text3)">${c.lignes.map(x=>gFr(x.m.date).slice(0,5)+' '+euro(x.m.montant,2)+(x.auto?' (non affectée)':'')).join(' · ')}</td></tr>`).join('')}</tbody></table></div></details>`).join('');
+ el.innerHTML=`
+ <div class="kpi-grid" style="margin-bottom:14px">${kpi('Taux d\'encaissement',S.taux==null?'—':S.taux.toFixed(1).replace('.',',')+' %',S.taux!=null&&S.taux<95?'kpi-neg':'kpi-pos')}${kpi('Loyers encaissés',euro(S.rec,0))}${kpi('Loyers attendus',euro(S.att,0))}${kpi('Arriérés',euro(S.arrieres,0),S.arrieres>1?'kpi-neg':'kpi-pos')}${kpi('Biens en retard',S.nRetard,S.nRetard?'kpi-neg':'kpi-pos')}</div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:2px">Loyers des 12 derniers mois</div><div style="font-size:12px;color:var(--text3);margin-bottom:10px">Loyer attendu = loyer + charges de la fiche du bien, comparé aux lignes « Loyers » de la Comptabilité du mois (plusieurs virements, par exemple locataire et aide au logement, sont additionnés).</div>${grille}</div>
+ ${retards.length?`<div style="font-weight:600;font-size:14px;margin:0 0 8px">Loyers en retard</div>${detailRetard}`:(S.biens.length?'<div class="note" style="background:var(--green-light);color:var(--green);margin-bottom:14px"><strong>Aucun retard :</strong> tous les loyers attendus ont été encaissés.</div>':'')}
+ ${S.auto.length?`<div class="note" style="margin-bottom:14px;line-height:1.55">${S.auto.length} ligne${S.auto.length>1?'s':''} de loyer non affectée${S.auto.length>1?'s':''} ${S.auto.length>1?'sont comptées':'est comptée'} pour le bien dont le loyer correspond. <button class="btn btn-sm" style="margin-left:6px" onclick="loyersAffecter()">Les affecter à leur bien</button></div>`:''}
+ ${S.libres.length?`<div class="note" style="background:var(--amber-light);color:var(--amber);margin-bottom:14px;line-height:1.55">${S.libres.length} ligne${S.libres.length>1?'s':''} de loyer non affectée${S.libres.length>1?'s':''} ne ${S.libres.length>1?'sont':'est'} pas comptée${S.libres.length>1?'s':''} (montant qui ne correspond à aucun loyer, ou plusieurs biens possibles) : affectez-les à un bien dans la Comptabilité pour qu'elles comptent. <button class="btn btn-sm" style="margin-left:6px" onclick="affShowUnassigned()">Voir dans la Comptabilité</button></div>`:''}
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:8px">Réglages</div><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end"><label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Délai de tolérance (jour du mois après lequel un loyer non reçu est en retard)<input id="loy-delai" type="number" min="0" max="28" value="${P.delai}" onchange="loyersSet()" style="width:90px;padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)"></label><label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Écart accepté avec le loyer attendu (%, révision du loyer)<input id="loy-tol" type="number" min="0" max="30" step="0.5" value="${P.tol}" onchange="loyersSet()" style="width:90px;padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)"></label></div></div>
+ <div style="margin-bottom:24px">${detailMois}</div>`;
+}
+function loyersRelance(id){
+ const S=loyersSuivi(),r=S.biens.find(x=>x.b.id===id);if(!r)return;
+ const b=r.b,mm=r.cells.filter(c=>c.st==='impaye'||c.st==='partiel').map(c=>gMoisNom(c.ym+'-01'));
+ const txt=`Objet : loyer en retard — ${b.adresse||bienNom(b)}
+
+Madame, Monsieur${b.locataire?' '+b.locataire:''},
+
+Sauf erreur de notre part, nous n'avons pas reçu le règlement du loyer de ${mm.length?mm.join(', '):'la période écoulée'} pour le logement situé ${b.adresse||bienNom(b)}. Le montant restant dû s'élève à ${euro(r.arrieres,2).replace(/[\u202f\u00a0]/g,' ')} (loyer et charges : ${euro(r.tot,2).replace(/[\u202f\u00a0]/g,' ')} par mois).
+
+Nous vous remercions de bien vouloir régulariser cette situation dans les meilleurs délais, ou de nous contacter si vous rencontrez une difficulté, afin que nous trouvions ensemble une solution.
+
+Si votre règlement a été effectué entre-temps, merci de ne pas tenir compte de ce courrier.
+
+Cordialement,
+La gérance de la SCI PERIPE`;
+ document.getElementById('relance-texte').value=txt;openModal('modal-relance');
+}
+async function loyersCopier(){const t=document.getElementById('relance-texte');try{await navigator.clipboard.writeText(t.value);showToast('Texte copié');}catch(e){t.select();document.execCommand('copy');showToast('Texte copié');}}
+function dashLoyersAlert(){
+ const el=document.getElementById('dash-loyers-alert');if(!el)return;
+ const S=loyersSuivi();
+ el.innerHTML=S.nRetard>0?`<div class="note" style="background:var(--red-light);color:var(--red);margin-bottom:14px;cursor:pointer;line-height:1.5" onclick="showSubPage('loyers',document.getElementById('sub-loyers'))"><strong>Loyers impayés :</strong> ${euro(S.arrieres,0)} d'arriérés sur ${S.nRetard} bien${S.nRetard>1?'s':''}. Voir le détail et rédiger une relance →</div>`:'';
+}
+
+// ================= CONSEIL ▸ DISTRIBUTION : rembourser les comptes courants ou verser un dividende ? =================
+// Taux vérifiés en octobre 2026 (service-public.fr, BOFiP) : dividendes d'une personne physique soumis par défaut au prélèvement forfaitaire unique de 31,4 %
+// (12,8 % d'impôt sur le revenu + 18,6 % de prélèvements sociaux) ; sur option, barème progressif avec abattement de 40 % ; la société prélève à la source
+// 12,8 % (sauf dispense sous conditions de revenu) et 18,6 %, déclarés sur le formulaire 2777 avant le 15 du mois suivant.
+const DIV_PFU={ir:12.8,ps:18.6};
+function divTaxe(G,tmi,dispense){
+ const pfu=G*(DIV_PFU.ir+DIV_PFU.ps)/100;
+ const bareme=G*DIV_PFU.ps/100+(tmi/100)*G*(0.6-0.068);          // abattement de 40 %, CSG déductible de 6,8 % ; estimation à taux marginal constant
+ const aSource=G*(dispense?0:DIV_PFU.ir/100)+G*DIV_PFU.ps/100;     // retenue de la société au versement
+ const best=bareme<pfu?'bareme':'pfu',taxe=Math.min(pfu,bareme);
+ return {pfu,bareme,best,taxe,aSource,netVersement:G-aSource,net:G-taxe};
+}
+function distribParams(){
+ let c={};try{c=JSON.parse(localStorage.getItem('sci_distrib')||'{}')||{};}catch(e){}
+ const n=(v,d)=>{if(v===undefined||v===null||v==='')return d;v=Number(v);return isFinite(v)?v:d;};
+ const o={parts:{},tmi:{},dispense:{},apport:Math.max(0,n(c.apport,0)),report:n(c.report,0),benef:(c.benef===undefined||c.benef===null||c.benef==='')?null:n(c.benef,null),isRestant:(c.isRestant===undefined||c.isRestant===null||c.isRestant==='')?null:Math.max(0,n(c.isRestant,0)),reserve:(c.reserve===undefined||c.reserve===null||c.reserve==='')?null:Math.max(0,n(c.reserve,0)),
+  mode:c.mode==='manuel'?'manuel':'reco',cca:Math.max(0,n(c.cca,0)),div:Math.max(0,n(c.div,0))};
+ ASSOCIES.forEach(a=>{o.parts[a.k]=Math.max(0,n((c.parts||{})[a.k],100/ASSOCIES.length));o.tmi[a.k]=[0,11,30,41,45].includes(Number((c.tmi||{})[a.k]))?Number(c.tmi[a.k]):30;o.dispense[a.k]=!!(c.dispense||{})[a.k];});
+ return o;
+}
+function distribSave(o){localStorage.setItem('sci_distrib',JSON.stringify(o));}
+function distribSet(src){
+ const o=distribParams(),v=id=>(document.getElementById(id)||{}).value;
+ const num=id=>{const x=v(id);return x===''||x===undefined?null:Number(x);};
+ ASSOCIES.forEach(a=>{o.parts[a.k]=Math.max(0,Number(v('dv-part-'+a.k))||0);o.tmi[a.k]=Number(v('dv-tmi-'+a.k))||0;o.dispense[a.k]=!!(document.getElementById('dv-disp-'+a.k)||{}).checked;});
+ o.apport=Math.max(0,num('dv-apport')||0);o.report=num('dv-report')||0;o.benef=num('dv-benef');o.isRestant=num('dv-is');o.reserve=num('dv-reserve');
+ if(src==='dv-cca'||src==='dv-div'){o.mode='manuel';o.cca=Math.max(0,num('dv-cca')||0);o.div=Math.max(0,num('dv-div')||0);}   // seule la saisie d'un montant passe en mode « à la main »
+ distribSave(o);renderConseilDistrib();
+}
+function distribReco(){const o=distribParams();o.mode='reco';distribSave(o);renderConseilDistrib();}
+function distribApportConseil(){
+ try{const Z=conseilPlan(conseilParams());const a=Z.plan&&Z.plan[0]?Z.plan[0].apport.total:0;const o=distribParams();o.apport=Math.round(a);distribSave(o);renderConseilDistrib();showToast(a>0?'Apport du 1er achat du Conseil repris : '+euro(a,0):'Le Conseil ne propose pas d\'achat avec les paramètres actuels');}
+ catch(e){showToast('Calcul du Conseil indisponible');}
+}
+function distribCalc(today){
+ const T=today||gToday(),P=distribParams(),Gp=gestionParams(),ex=gExercice(T,Gp.mois);
+ const soldes=computeSoldes(),treso=soldes.length?soldes[soldes.length-1].solde:0;
+ const biens=biensList(),bq=banqueCrit();
+ const mensuel=biens.reduce((t,b)=>t+bienMensualite(b)+projChargesMois(bienToProj(b)),0);
+ const reserveAuto=Math.round(bq.reserveMois*mensuel),reserve=P.reserve!==null?P.reserve:reserveAuto;
+ const isCur=gestionIsEstime(+ex.fin.slice(0,4)),isRef=gestionIsEstime(+ex.precFin.slice(0,4));
+ const premier=Gp.creation&&Gp.creation>ex.precFin,dispAcompte=isRef.is<=3000||premier;
+ let nAcomptes=0;[...new Set([+ex.debut.slice(0,4),+ex.fin.slice(0,4)])].forEach(y=>['03-15','06-15','09-15','12-15'].forEach(md=>{const d0=y+'-'+md;if(d0>=ex.debut&&d0<=ex.fin&&gOuvre(d0)<=T)nAcomptes++;}));   // acomptes d'IS de l'exercice dont l'échéance est passée
+ const acomptes=dispAcompte?0:nAcomptes*isRef.is/4,isAuto=Math.max(0,Math.round(isCur.is-acomptes)),isRestant=P.isRestant!==null?P.isRestant:isAuto;
+ const benefAuto=Math.max(0,Math.round(isCur.resultat-isCur.is)),benef=(P.benef!==null?P.benef:benefAuto)+P.report;
+ const solde={};ccaList().forEach(c=>{solde[c.assoc]=(solde[c.assoc]||0)+(Number(c.apport)||0)-(Number(c.remb)||0);});
+ const assoc=ASSOCIES.map(a=>({a,part:P.parts[a.k],cca:Math.round((solde[a.n]||0)*100)/100,tmi:P.tmi[a.k],dispense:P.dispense[a.k]}));
+ const sumParts=assoc.reduce((t,x)=>t+x.part,0),sumCca=assoc.reduce((t,x)=>t+Math.max(0,x.cca),0);
+ const dispo=Math.max(0,Math.round(treso-reserve-isRestant-P.apport));
+ // recommandation : d'abord rembourser les comptes courants (non imposable), puis, dans la limite du bénéfice distribuable, un dividende
+ const recoCca=Math.min(dispo,Math.round(sumCca)),recoDiv=Math.min(Math.max(0,dispo-recoCca),Math.round(Math.max(0,benef)));
+ const cca=P.mode==='manuel'?P.cca:recoCca,div=P.mode==='manuel'?P.div:recoDiv;
+ const scen=(c,dv)=>{
+  const lignes=assoc.map(x=>{
+   const rb=sumCca>0?Math.min(Math.max(0,x.cca),c*Math.max(0,x.cca)/sumCca):0,G=sumParts>0?dv*x.part/sumParts:0,tx=divTaxe(G,x.tmi,x.dispense);
+   return {...x,rb,G,tx,netTotal:rb+tx.net,cashVerse:rb+tx.netVersement,ccaApres:x.cca-rb};
+  });
+  const tot=k=>lignes.reduce((t,l)=>t+k(l),0);
+  return {c,dv,lignes,verse:c+dv,impots:tot(l=>l.tx.taxe),aSource:tot(l=>l.tx.aSource),net:tot(l=>l.netTotal),tresoApres:treso-c-dv,ccaRestant:sumCca-tot(l=>l.rb)};
+ };
+ return {T,P,ex,treso,reserve,reserveAuto,isRestant,isAuto,isCur,isRef,benef,benefAuto,assoc,sumParts,sumCca,dispo,recoCca,recoDiv,cca,div,
+  courant:scen(cca,div),A:scen(Math.min(dispo,Math.round(sumCca)),0),B:scen(0,Math.min(dispo,Math.round(Math.max(0,benef)))),C:scen(recoCca,recoDiv)};
+}
+function renderConseilDistrib(){
+ const el=document.getElementById('conseil-distrib-content'),pg=document.getElementById('page-conseil-distrib');
+ if(!el||!pg||!pg.classList.contains('active'))return;
+ const D=distribCalc(),P=D.P,E=escH,S=D.courant;
+ const inp=(id,v,ph,w)=>`<input id="${id}" type="number" value="${v===null||v===undefined?'':v}" placeholder="${ph||''}" onchange="distribSet(this.id)" style="width:${w||110}px;padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);text-align:right">`;
+ const kp=(l,v,sub,c)=>`<div class="kpi"><div class="kpi-label">${l}</div><div class="kpi-val ${c||''}">${v}</div>${sub?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${sub}</div>`:''}</div>`;
+ const alertes=[];
+ if(Math.abs(D.sumParts-100)>0.01)alertes.push(['crit','Les parts des associés totalisent '+D.sumParts.toFixed(1).replace('.',',')+' % : un dividende se partage au prorata des parts (100 % au total).']);
+ if(S.dv>Math.max(0,D.benef)+0.5)alertes.push(['crit','Le dividende ('+euro(S.dv,0)+') dépasse le bénéfice distribuable ('+euro(Math.max(0,D.benef),0)+') : il ne peut être versé que dans cette limite.']);
+ if(S.c>D.sumCca+0.5)alertes.push(['crit','Le remboursement ('+euro(S.c,0)+') dépasse les comptes courants créditeurs ('+euro(D.sumCca,0)+').']);
+ if(S.tresoApres<D.reserve+D.isRestant+P.apport-0.5)alertes.push([S.tresoApres<0?'crit':'warn','Après cette distribution, la trésorerie ('+euro(S.tresoApres,0)+') passe sous la réserve de sécurité, l\'impôt à prévoir et l\'apport à conserver ('+euro(D.reserve+D.isRestant+P.apport,0)+').']);
+ if(D.assoc.some(x=>x.cca<-0.5))alertes.push(['warn','Un associé a un compte courant débiteur : il doit de l\'argent à la SCI. Régularisez-le avant toute distribution.']);
+ const alertHtml=alertes.map(a=>`<div class="note" style="background:var(--${a[0]==='crit'?'red':'amber'}-light);color:var(--${a[0]==='crit'?'red':'amber'});margin-bottom:8px;line-height:1.5">${E(a[1])}</div>`).join('');
+ const exIS=D.isCur.resultat>0?(D.isCur.is/D.isCur.resultat*100):15;
+ const net100=100*(1-exIS/100)*(1-0.314);
+ const rowsAssoc=D.assoc.map(x=>`<tr><td><strong>${E(x.a.n)}</strong></td><td style="text-align:right">${inp('dv-part-'+x.a.k,P.parts[x.a.k],'',70)} %</td><td style="text-align:right;color:${x.cca<-0.5?'var(--red)':'var(--text)'}">${euro(x.cca,0)}</td><td><select id="dv-tmi-${x.a.k}" onchange="distribSet(this.id)" style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)">${[0,11,30,41,45].map(t=>`<option value="${t}"${t===x.tmi?' selected':''}>${t} %</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" id="dv-disp-${x.a.k}" ${x.dispense?'checked':''} onchange="distribSet(this.id)" title="Dispense du prélèvement de 12,8 % à la source (revenu fiscal de référence sous 50 000 € seul, 75 000 € en couple)"></td></tr>`).join('');
+ const rowsSim=S.lignes.map(l=>`<tr><td><strong>${E(l.a.n)}</strong></td><td style="text-align:right">${euro(l.rb,0)}</td><td style="text-align:right">${euro(l.G,0)}</td><td style="text-align:right;color:var(--text2)">${euro(l.tx.aSource,0)}</td><td style="text-align:right;color:var(--text2)">${euro(l.tx.taxe,0)} <span style="font-size:10px;color:var(--text3)">${l.G>0?(l.tx.best==='pfu'?'PFU':'barème'):''}</span></td><td style="text-align:right;font-weight:600">${euro(l.netTotal,0)}</td><td style="text-align:right">${euro(l.ccaApres,0)}</td></tr>`).join('');
+ const sc=(nom,x,sel)=>`<tr${sel?' style="background:var(--surface2);font-weight:600"':''}><td>${nom}</td><td style="text-align:right">${euro(x.verse,0)}</td><td style="text-align:right">${euro(x.impots,0)}</td><td style="text-align:right;font-weight:600">${euro(x.net,0)}</td><td style="text-align:right">${euro(x.tresoApres,0)}</td><td style="text-align:right">${euro(x.ccaRestant,0)}</td></tr>`;
+ el.innerHTML=`
+ <div class="note" style="margin-bottom:14px;line-height:1.55"><strong>Simulation indicative.</strong> Fiscalité des dividendes vérifiée en octobre 2026 (service-public.fr, BOFiP) : prélèvement forfaitaire unique de ${pc1(DIV_PFU.ir+DIV_PFU.ps)} % (${pc1(DIV_PFU.ir)} % d'impôt + ${pc1(DIV_PFU.ps)} % de prélèvements sociaux), ou option pour le barème avec abattement de 40 %. Le remboursement d'un compte courant n'est pas imposable. Les règles de votre SCI (statuts) et la situation fiscale de chaque associé peuvent changer le résultat.</div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:8px">Ce que la SCI peut distribuer sans se fragiliser</div>
+  <div class="kpi-grid" style="margin-bottom:12px">${kp('Trésorerie',euro(D.treso,0),'solde de la Comptabilité')}${kp('Réserve de sécurité',euro(D.reserve,0),P.reserve!==null?'saisie':D.reserveAuto?'critère bancaire : mensualités et charges':'')}${kp('Impôt à prévoir',euro(D.isRestant,0),P.isRestant!==null?'saisi':'IS estimé de l\'exercice − acomptes')}${kp('Apport à conserver',euro(P.apport,0),'projet d\'achat')}${kp('Disponible',euro(D.dispo,0),'sans toucher à ces réserves',D.dispo>0?'kpi-pos':'kpi-neg')}</div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;font-size:11px;color:var(--text3)">
+   <label style="display:flex;flex-direction:column;gap:3px">Réserve de sécurité (€)${inp('dv-reserve',P.reserve,String(D.reserveAuto))}</label>
+   <label style="display:flex;flex-direction:column;gap:3px">Impôt (IS) restant à payer (€)${inp('dv-is',P.isRestant,String(D.isAuto))}</label>
+   <label style="display:flex;flex-direction:column;gap:3px">Apport à conserver pour un achat (€)${inp('dv-apport',P.apport,'0')}</label>
+   <button class="btn btn-sm" onclick="distribApportConseil()">Reprendre l'apport du 1er achat du Conseil</button></div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;font-size:11px;color:var(--text3);margin-top:12px">
+   <label style="display:flex;flex-direction:column;gap:3px">Bénéfice distribuable de l'exercice, après IS (€) <span>estimation d'après les fiches : ${euro(D.benefAuto,0)} — remplacez-la par le chiffre de votre comptabilité</span>${inp('dv-benef',P.benef,String(D.benefAuto),140)}</label>
+   <label style="display:flex;flex-direction:column;gap:3px">Report à nouveau (€)${inp('dv-report',P.report||'','0')}</label>
+   <div style="font-size:12px;color:var(--text2)">Bénéfice distribuable retenu : <strong>${euro(Math.max(0,D.benef),0)}</strong></div></div></div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:8px">Les associés</div><div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><thead><tr><th>Associé</th><th style="text-align:right">Parts</th><th style="text-align:right">Compte courant</th><th>Tranche marginale d'impôt</th><th style="text-align:center" title="Dispense du prélèvement de 12,8 % à la source">Dispense 12,8 %</th></tr></thead><tbody>${rowsAssoc}</tbody></table></div></div>
+ ${alertHtml}
+ <div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><div style="font-weight:600;font-size:14px">Simulation ${P.mode==='reco'?'<span class="badge badge-ok">recommandée</span>':'<span class="badge badge-warn">saisie à la main</span>'}</div>${P.mode==='manuel'?'<button class="btn btn-sm" onclick="distribReco()">Rétablir la recommandation</button>':''}</div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;font-size:11px;color:var(--text3);margin-bottom:12px"><label style="display:flex;flex-direction:column;gap:3px">Remboursement des comptes courants (€)${inp('dv-cca',Math.round(S.c),'0')}</label><label style="display:flex;flex-direction:column;gap:3px">Dividende brut (€)${inp('dv-div',Math.round(S.dv),'0')}</label></div>
+  <div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><thead><tr><th>Associé</th><th style="text-align:right">Compte courant remboursé</th><th style="text-align:right">Dividende brut</th><th style="text-align:right" title="Retenu par la SCI au versement : 12,8 % (sauf dispense) + 18,6 %">Retenu à la source</th><th style="text-align:right" title="Impôt et prélèvements sociaux définitifs, au mieux entre PFU et barème">Impôt total estimé</th><th style="text-align:right">Net pour l'associé</th><th style="text-align:right">Compte courant restant</th></tr></thead><tbody>${rowsSim}<tr style="background:var(--surface2);font-weight:600"><td>Total</td><td style="text-align:right">${euro(S.c,0)}</td><td style="text-align:right">${euro(S.dv,0)}</td><td style="text-align:right">${euro(S.aSource,0)}</td><td style="text-align:right">${euro(S.impots,0)}</td><td style="text-align:right">${euro(S.net,0)}</td><td style="text-align:right">${euro(S.ccaRestant,0)}</td></tr></tbody></table></div>
+  <div style="font-size:12px;color:var(--text2);margin-top:8px;line-height:1.55">Trésorerie de la SCI après versement : <strong>${euro(S.tresoApres,0)}</strong>. L'impôt de l'associé est estimé à taux marginal constant ; l'option pour le barème s'applique à tous ses revenus du capital de l'année.</div></div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:8px">Comparer trois façons d'utiliser les ${euro(D.dispo,0)} disponibles</div><div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><thead><tr><th>Scénario</th><th style="text-align:right">Versé</th><th style="text-align:right">Impôts des associés</th><th style="text-align:right">Net reçu</th><th style="text-align:right">Trésorerie SCI après</th><th style="text-align:right">Comptes courants restants</th></tr></thead><tbody>${sc('Rembourser les comptes courants seulement',D.A)}${sc('Verser un dividende seulement',D.B)}${sc('Comptes courants d\'abord, puis dividende (recommandé)',D.C,true)}</tbody></table></div>
+  <div style="font-size:12px;color:var(--text2);margin-top:8px;line-height:1.55">Un dividende supporte d'abord l'impôt sur les sociétés de la SCI, puis le prélèvement des associés : sur 100 € de bénéfice avant impôt, il reste environ <strong>${net100.toFixed(0)} €</strong> après un IS d'environ ${exIS.toFixed(0)} % et le PFU de 31,4 %. Un compte courant remboursé n'est pas taxé : c'est de l'argent que les associés ont avancé.</div></div>
+ <div class="card" style="margin-bottom:24px"><div style="font-weight:600;font-size:14px;margin-bottom:6px">Avant de verser un dividende</div><ul style="margin:0 0 0 18px;font-size:12.5px;line-height:1.7;color:var(--text2)"><li>La distribution se décide par les associés, en principe après l'approbation des comptes de l'exercice, dans la limite du bénéfice distribuable : vérifiez vos statuts.</li><li>Le dividende se partage au prorata des parts (sauf clause contraire des statuts).</li><li>La SCI retient à la source 12,8 % d'impôt (sauf dispense : revenu fiscal de référence inférieur à 50 000 € seul ou 75 000 € en couple, demandée par l'associé avant le 30 novembre de l'année précédente) et 18,6 % de prélèvements sociaux.</li><li>Ces retenues se déclarent et se paient avec le formulaire 2777, avant le 15 du mois suivant le versement ; le dividende figure aussi sur la déclaration annuelle de l'associé.</li><li>Avant un remboursement de compte courant : vérifiez que la trésorerie couvre l'impôt, les échéances de prêt et la réserve, et pensez à enregistrer le virement dans la Comptabilité (il se rapproche du compte courant de l'associé).</li></ul></div>`;
+}
+
 function renderAll(){
  refreshCapitalRestant();
  quartierOptions('eb-quartier');quartierOptions('nb-quartier');
@@ -4508,6 +4757,7 @@ function renderAll(){
  renderEmprunt();
  renderLocataires();
  if(typeof renderConseilGestion==='function')renderConseilGestion();
+ renderLoyers();dashLoyersAlert();renderConseilDistrib();
 }
 
 // ============================================================
@@ -5181,6 +5431,13 @@ function buildGuideHtml(){
   <p><strong>Prêts avec différé</strong> (au début, seuls les intérêts et l'assurance sont payés, capital = 0) : le tableau les reconnaît et l'indique. La <strong>mensualité retenue</strong> est alors celle de la première échéance qui rembourse du capital (et non l'échéance d'intérêts seuls) ; le début et la durée du prêt dans la fiche sont ceux de l'<em>amortissement</em>, hors mois de différé ; le taux est déduit d'une échéance qui rembourse du capital. Pendant le différé, l'onglet Emprunt précise ce que la banque prélève réellement ce mois-ci, et le rapprochement avec Odoo compare chaque paiement à l'échéance réelle (intérêts seuls). Le cash-flow et les projections utilisent la mensualité retenue, donc le montant le plus élevé : choix prudent. À l'import, la fiche du bien passe en mode de remboursement <em>Tableau de la banque importé</em> et sa <strong>mensualité est mise à jour</strong> avec l'échéance du mois du tableau (le champ « Mensualité manuelle » est alors grisé). Ce choix figure dans la liste « Mode de remboursement » de la fiche, à côté de l'annuité constante et de l'amortissement constant : il n'est proposé que si un tableau est importé. Si vous choisissez un autre mode, le tableau reste enregistré mais n'est plus utilisé, et un bouton « Utiliser le tableau de la banque » le réactive. Une fois le tableau utilisé : l'<strong>échéance du mois</strong> (assurance comprise) alimente le cash-flow, le <strong>capital restant dû</strong> se calcule seul à partir de la date du jour, et l'<strong>impôt estimé</strong> utilise les intérêts et l'assurance réels. Chaque ligne « Remboursement emprunt » importée d'Odoo est <strong>rapprochée de son échéance</strong> (même montant à 0,5 % près, à 20 jours près) : l'appli indique les échéances sans paiement retrouvé, les paiements sans échéance, et sépare chaque paiement en <strong>intérêts, capital et assurance</strong>. Ces montants sont repris dans la carte « Résultat de la SCI » de la Rentabilité et dans le pré-bilan pour l'expert-comptable. Le bouton « Affecter à ce bien … » rattache au bien les lignes rapprochées qui n'étaient pas affectées.</p></p>
   <h3>Locataires</h3>
   <p>Situation de chaque bien : loué, bail signé en attente, non loué ou Airbnb, avec le total encaissable.</p>
+  <h3>Loyers : encaissements et impayés</h3>
+  <p>L'onglet ${U('Loyers')} (Gestion) compare, <strong>mois par mois</strong>, le loyer attendu de chaque bien loué en longue durée (loyer plus charges locataire de la fiche) aux lignes « Loyers » de la Comptabilité. Un bien est suivi s'il est au statut « Bail signé - loué » avec un loyer renseigné ; la date d'entrée du locataire sert de début (le premier mois est calculé au prorata), à défaut la date d'achat. En mode A, rien n'est attendu de juin à août (Airbnb) ; les biens en Airbnb toute l'année ne sont pas suivis. Plusieurs virements d'un même mois (locataire et aide au logement) sont additionnés.</p>
+  <ul><li>Une grille de 13 mois indique pour chaque case : payé, paiement partiel (pourcentage reçu), impayé, supérieur au loyer attendu (régularisation ou révision), en cours ou sans loyer attendu.</li>
+  <li>Le <strong>délai de tolérance</strong> (10 jours par défaut) laisse au locataire le début du mois ; l'<strong>écart accepté</strong> (5 % par défaut) évite de signaler une révision de loyer comme un impayé. Les deux se règlent sur la page.</li>
+  <li>Les <strong>arriérés</strong> cumulés (loyers attendus moins reçus) sont calculés par bien : un mois impayé suivi d'un double paiement se compense. Une carte par bien en retard indique les mois concernés et le dernier paiement, avec le bouton <em>Rédiger une relance</em> qui prépare un courrier de relance amiable à copier.</li>
+  <li>Une ligne « Loyers » non affectée est comptée pour le bien dont le loyer correspond exactement ; sinon elle est signalée et ne compte qu'une fois affectée dans la Comptabilité. Les mois antérieurs à votre premier mouvement importé ne sont jamais comptés comme impayés.</li>
+  <li>Les arriérés s'affichent aussi sur le dashboard et dans les points de vigilance de Conseil ▸ Gestion.</li></ul>
   <h3>Rentabilité par bien</h3>
   <p>L'onglet ${U('Rentabilité')} (Gestion) montre ce que rapporte <strong>réellement</strong> chaque bien, d'après les lignes de la Comptabilité qui lui sont affectées. Choisissez la période : 12 derniers mois, depuis l'origine, ou une année. Pour chaque bien, le tableau donne :</p>
   <ul><li>le <strong>coût total d'acquisition</strong> (prix + travaux + frais de notaire, de courtage et de banque) et la part des frais ;</li>
@@ -5304,6 +5561,13 @@ function buildGuideHtml(){
   <h3>Après la proposition</h3>
   <ul><li>${U('Ajouter ces achats à la Projection')} crée les achats comme biens fictifs (quartier, état, prix, loyer, prêt, date, financement de l\'apport) : vous pouvez ensuite les analyser un par un, tester les scénarios et préparer le dossier banque. Un nouvel ajout remplace ceux qui venaient du Conseil ; vos autres achats envisagés sont conservés.</li>
   <li>${U('Note de conseil (PDF)')} produit un document pour une réunion d'associés : diagnostic, hypothèses, proposition détaillée avec les contrôles bancaires, effet sur la SCI.</li></ul>
+  <h3>Distribution : comptes courants ou dividendes (sous-onglet Distribution)</h3>
+  <p>Le sous-onglet ${U('Distribution')} aide à décider comment utiliser la trésorerie de la SCI. Il calcule d'abord ce qui est <strong>disponible sans se fragiliser</strong> : trésorerie moins la réserve de sécurité (nombre de mois du critère bancaire × mensualités et charges), l'impôt sur les sociétés restant à payer et l'apport à conserver pour un achat. Chacun de ces trois montants se corrige à la main.</p>
+  <ul><li><strong>Recommandation</strong> : rembourser d'abord les comptes courants des associés (somme avancée, non imposable), puis, dans la limite du <strong>bénéfice distribuable</strong>, verser un dividende. Le bénéfice distribuable est une estimation d'après les fiches des biens : remplacez-la par le chiffre de votre comptabilité, et ajoutez le report à nouveau si besoin.</li>
+  <li>Le dividende se partage au prorata des <strong>parts</strong> que vous renseignez ; pour chaque associé, sa tranche marginale d'impôt permet de choisir le mieux-disant entre le prélèvement forfaitaire unique de 31,4 % (2026 : 12,8 % d'impôt et 18,6 % de prélèvements sociaux) et l'option pour le barème avec abattement de 40 %. Une case indique une dispense du prélèvement de 12,8 % à la source.</li>
+  <li>Le tableau montre, par associé, le compte courant remboursé, le dividende brut, ce que la SCI retient à la source, l'impôt total estimé, le net perçu et le compte courant restant. Trois scénarios sont comparés : comptes courants seuls, dividende seul, et la combinaison recommandée. Des alertes signalent un dividende supérieur au bénéfice distribuable, des parts qui ne font pas 100 %, un remboursement supérieur au compte courant, un compte courant débiteur ou une trésorerie qui passerait sous les réserves.</li>
+  <li>Une liste « Avant de verser un dividende » rappelle les formalités : décision des associés (en principe après l'approbation des comptes), retenues à la source, dispense à demander avant le 30 novembre de l'année précédente, déclaration et paiement avec le formulaire 2777 avant le 15 du mois suivant.</li></ul>
+  ${co('<strong>Simulation indicative :</strong> les taux ont été vérifiés en octobre 2026 sur service-public.fr et le BOFiP. L\'impôt de l\'associé est estimé à taux marginal constant. Vos statuts et la situation fiscale de chaque associé peuvent modifier le résultat.','alert')}
   <h3>Conseil de gestion (sous-onglet Gestion)</h3>
   <p>Le sous-onglet <strong>Gestion</strong> du Conseil joue le rôle d'un aide-mémoire d'expert-comptable pour une SCI à l'impôt sur les sociétés. Renseignez le mois de clôture de l'exercice (et, si vous le souhaitez, la date de création de la SCI) : l'outil calcule vos échéances.</p>
   <ul><li><strong>À faire maintenant</strong> : les échéances en retard et celles des 60 prochains jours, avec la date, le montant estimé, l'explication et l'endroit où faire la démarche. Cochez ce qui est fait : l'état est enregistré et partagé entre associés.</li>
