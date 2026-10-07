@@ -121,6 +121,9 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
 #tres-table th,#tres-table td{white-space:nowrap}
 #tres-table td:nth-child(3){white-space:normal;min-width:260px}
 #renta-wrap table{min-width:1050px}
+.loy-grid{width:100%;min-width:1000px}
+.loy-grid th,.loy-grid td{white-space:nowrap;padding:6px 5px}
+.loy-grid th:first-child,.loy-grid td:first-child{min-width:170px}
 .cat-warn{background-color:var(--amber-light);color:var(--amber);box-shadow:0 0 0 1.5px var(--amber)}
 .cat-loyers{background-color:var(--green-light);color:var(--green)}
 .cat-loyers_airbnb{background-color:var(--blue-light);color:var(--blue)}
@@ -2811,7 +2814,7 @@ function showMarchePage(id, btn) {
 function updateWide(){
  const m=document.querySelector('.main');if(!m)return;
  const g=document.getElementById('nav-gestion');
- m.classList.toggle('wide',!!(g&&g.classList.contains('active')&&(currentSubPage==='tresorerie'||currentSubPage==='rentabilite')));
+ m.classList.toggle('wide',!!(g&&g.classList.contains('active')&&(currentSubPage==='tresorerie'||currentSubPage==='rentabilite'||currentSubPage==='loyers')));
 }
 function showSubPage(id, btn) {
  currentSubPage = id;
@@ -4601,7 +4604,7 @@ function renderLoyers(){
  const S=loyersSuivi(),E=escH,P=S.P;
  const cellInfo={ok:['✓','var(--green-light)','var(--green)','Payé'],partiel:['◐','var(--amber-light)','var(--amber)','Paiement partiel'],impaye:['✗','var(--red-light)','var(--red)','Impayé'],sup:['+','var(--blue-light)','var(--blue)','Supérieur au loyer attendu (régularisation, révision ?)'],encours:['…','var(--surface2)','var(--text3)','En cours (délai de tolérance)'],na:['·','transparent','var(--text3)','Pas de loyer attendu'],avant:['–','transparent','var(--text3)','Avant l\'historique de la Comptabilité']};
  const kpi=(l,v,c)=>`<div class="kpi"><div class="kpi-label">${l}</div><div class="kpi-val ${c||''}">${v}</div></div>`;
- const grille=S.biens.length?`<div style="overflow-x:auto"><table class="jtable" style="font-size:12px"><thead><tr><th>Bien</th>${S.mois.map(ym=>`<th style="text-align:center;white-space:nowrap">${ymCourt(ym)}</th>`).join('')}<th style="text-align:right">Arriérés</th></tr></thead><tbody>${S.biens.map(r=>`<tr><td style="white-space:nowrap"><strong>${E(bienNom(r.b))}</strong><div style="font-size:11px;color:var(--text3)">${E(r.b.locataire||'locataire non renseigné')} · ${euro(r.tot,0)}/mois</div></td>${r.cells.map(c=>{const i=cellInfo[c.st];const tip=`${ymCourt(c.ym)} : ${i[3]}${c.E>0?' · attendu '+euro(c.E,2)+' · reçu '+euro(c.R,2):''}`;return `<td style="text-align:center;background:${i[1]};color:${i[2]};font-weight:600;padding:5px 4px" title="${E(tip)}">${c.st==='partiel'?Math.round(c.R/c.E*100)+'%':i[0]}</td>`;}).join('')}<td style="text-align:right;font-weight:600;color:${r.enRetard?'var(--red)':(r.arrieres<-1?'var(--blue)':'var(--text2)')}">${r.arrieres>1?euro(r.arrieres,0):(r.arrieres<-1?'avance '+euro(-r.arrieres,0):'—')}</td></tr>`).join('')}</tbody></table></div><div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-top:8px">${['ok','partiel','impaye','sup','encours','na'].map(k=>`<span><span style="display:inline-block;min-width:18px;text-align:center;background:${cellInfo[k][1]};color:${cellInfo[k][2]};font-weight:600;border-radius:3px">${cellInfo[k][0]}</span> ${cellInfo[k][3]}</span>`).join('')}</div>`:'<div class="empty-state">Aucun bien loué en longue durée à suivre. Renseignez le statut « Bail signé - loué », le loyer et la date d\'entrée dans la fiche d\'un bien.</div>';
+ const grille=S.biens.length?`<div style="overflow-x:auto"><table class="jtable loy-grid" style="font-size:12px"><thead><tr><th>Bien</th>${S.mois.map(ym=>`<th style="text-align:center;white-space:nowrap">${ymCourt(ym)}</th>`).join('')}<th style="text-align:right">Arriérés</th></tr></thead><tbody>${S.biens.map(r=>`<tr><td style="white-space:nowrap"><strong>${E(bienNom(r.b))}</strong><div style="font-size:11px;color:var(--text3)">${E(r.b.locataire||'locataire non renseigné')} · ${euro(r.tot,0)}/mois</div></td>${r.cells.map(c=>{const i=cellInfo[c.st];const tip=`${ymCourt(c.ym)} : ${i[3]}${c.E>0?' · attendu '+euro(c.E,2)+' · reçu '+euro(c.R,2):''}`;return `<td style="text-align:center;background:${i[1]};color:${i[2]};font-weight:600;padding:5px 4px" title="${E(tip)}">${c.st==='partiel'?Math.round(c.R/c.E*100)+'%':i[0]}</td>`;}).join('')}<td style="text-align:right;font-weight:600;color:${r.enRetard?'var(--red)':(r.arrieres<-1?'var(--blue)':'var(--text2)')}">${r.arrieres>1?euro(r.arrieres,0):(r.arrieres<-1?'avance '+euro(-r.arrieres,0):'—')}</td></tr>`).join('')}</tbody></table></div><div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-top:8px">${['ok','partiel','impaye','sup','encours','na'].map(k=>`<span><span style="display:inline-block;min-width:18px;text-align:center;background:${cellInfo[k][1]};color:${cellInfo[k][2]};font-weight:600;border-radius:3px">${cellInfo[k][0]}</span> ${cellInfo[k][3]}</span>`).join('')}</div>`:'<div class="empty-state">Aucun bien loué en longue durée à suivre. Renseignez le statut « Bail signé - loué », le loyer et la date d\'entrée dans la fiche d\'un bien.</div>';
  const retards=S.biens.filter(r=>r.enRetard);
  const detailRetard=retards.map(r=>{
   const mm=r.cells.filter(c=>c.st==='impaye'||c.st==='partiel');
