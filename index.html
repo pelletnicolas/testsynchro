@@ -959,9 +959,10 @@ canvas{max-width:100%;display:block}
  <div class="modal-title">Ajouter un bien</div>
  <div class="fg"><label>Nom du bien <span style="color:var(--text3);font-weight:400">(identifiant affiché partout)</span></label><input id="nb-nom" type="text" placeholder="ex: Studio Centre, T2 Nord"></div>
  <div class="two-col">
- <div class="fg"><label>Adresse</label><input id="nb-adresse" type="text" placeholder="ex: 12 rue de la République"></div>
- <div class="fg"><label>Ville / CP</label><input id="nb-ville" type="text" placeholder="ex: Ville, code postal"></div>
+ <div class="fg"><label>Adresse (n° et rue)</label><input id="nb-adresse" type="text" placeholder="ex: 12 rue de la République"></div>
+ <div class="fg"><label>Code postal</label><input id="nb-cp" type="text" inputmode="numeric" maxlength="5" placeholder="13001"></div>
  </div>
+ <div class="fg"><label>Ville</label><input id="nb-ville" type="text" placeholder="ex: Marseille"></div>
  <div class="two-col">
  <div class="fg"><label>Type</label><select id="nb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option><option>Parking</option></select></div>
  <div class="fg"><label>Surface (m²)</label><input id="nb-surface" type="number" placeholder="20"></div>
@@ -1132,8 +1133,9 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Nom du bien <span style="color:var(--text3);font-weight:400">(identifiant affiché partout)</span></label><input id="eb-nom" type="text" placeholder="ex: Studio Centre, T2 Nord"></div>
  <div class="two-col">
  <div class="fg"><label>Adresse (n° et rue)</label><input id="eb-adresse" type="text"></div>
- <div class="fg"><label>Ville / CP</label><input id="eb-ville" type="text"></div>
+ <div class="fg"><label>Code postal</label><input id="eb-cp" type="text" inputmode="numeric" maxlength="5" placeholder="13001"></div>
  </div>
+ <div class="fg"><label>Ville</label><input id="eb-ville" type="text" placeholder="ex: Marseille"></div>
  <div class="two-col">
  <div class="fg"><label>Type</label><select id="eb-type"><option>Studio</option><option>T2</option><option>T3</option><option>T4+</option><option>Maison</option><option>Parking</option></select></div>
  <div class="fg"><label>Surface (m²)</label><input id="eb-surface" type="number"></div>
@@ -4763,8 +4765,14 @@ function facEnsure(){
  if(!facState.ym)facState.ym=+T.slice(8,10)>=20?ymAdd(T.slice(0,7),1):T.slice(0,7);
 }
 function locNomComplet(b){return [b.locatairePrenom,b.locataire].filter(Boolean).join(' ');}
+function villeCpSplit(b){   // anciennes fiches : « Ville · code postal » dans un seul champ
+ let v=String(b.ville||'').trim(),cp=String(b.cp||'').trim();
+ if(cp&&v.includes(cp))v=v.replace(cp,'').replace(/[·,;()]/g,' ').replace(/\s+/g,' ').trim();
+ if(!cp){const m=v.match(/\b(\d{5})\b/);if(m){cp=m[1];v=v.replace(m[1],'').replace(/[·,;()]/g,' ').replace(/\s+/g,' ').trim();}}
+ return {cp,ville:v};
+}
 function bienAdresseLignes(b){
- const a=(b.adresse||'').trim(),v=String(b.ville||'').replace(/[·,;\n()]/g,' ').replace(/\s+/g,' ').trim();
+ const a=(b.adresse||'').trim(),sp=villeCpSplit(b),v=((sp.cp?sp.cp+' ':'')+sp.ville).replace(/[·,;\n()]/g,' ').replace(/\s+/g,' ').trim();
  if(!v)return a?[a]:[bienNom(b)];
  const m=v.match(/\b(\d{5})\b/),ligne=m?(m[1]+' '+v.replace(m[1],'').replace(/\s+/g,' ').trim()).trim():v;
  if(m&&a.includes(m[1]))return facAdr(a);
@@ -5737,7 +5745,7 @@ function buildGuideHtml(){
   <p><strong>Loyer payé en fin de mois pour le mois suivant.</strong> Trois niveaux, du plus automatique au plus précis. (1) Dans la fiche du bien, le champ <em>Loyer payé d'avance : virements à partir du jour</em> (par exemple 25) : un virement reçu à partir de ce jour compte pour le mois suivant, et la page Loyers propose de l'activer quand elle repère des virements de fin de mois. (2) Le <strong>libellé</strong> : « LOYER NOVEMBRE » est reconnu et compte pour novembre, quelle que soit la date du virement. (3) Le choix <strong>ligne par ligne</strong> : le lien <em>détail du loyer</em>, dans la Comptabilité et dans le détail de la page Loyers, ouvre une fenêtre pour choisir le mois couvert. La priorité est : choix sur la ligne, puis libellé, puis règle du bien, puis mois de la date. La grille s'étend d'un mois quand un virement paie déjà le mois suivant.</p>
   <p><strong>Dépôt de garantie dans un virement.</strong> Dans la même fenêtre, indiquez la part du virement qui est un dépôt de garantie (par exemple 1 250 € dont 600 €). Le loyer pris en compte est le virement moins le dépôt ; le dépôt est exclu de la Rentabilité (ce n'est pas un produit : il figure parmi les lignes « hors rentabilité » comme dépôt de garantie reçu) et suivi dans une carte <em>Dépôts de garantie</em> qui compare le montant attendu de la fiche au montant reçu.</p>
   <h3>Factures de loyer</h3>
-  <p>Sur la même page ${U('Loyers')}, la carte <strong>Factures de loyer</strong> établit les factures mensuelles au modèle de la SCI (en-tête avec logo, bailleur, locataire, désignation, total dû, modalités de paiement, mention de TVA). Choisissez la <strong>période facturée</strong> et la <strong>date d'émission</strong> : l'application liste les biens loués en longue durée avec leur loyer et leurs provisions sur charges, lus dans la fiche du bien. Renseignez aussi dans la fiche l'<strong>adresse</strong> et le champ <strong>Ville / CP</strong> du logement, ainsi que le <strong>nom</strong> et le <strong>prénom</strong> du locataire : ils figurent sur la facture et sur les relances.</p>
+  <p>Sur la même page ${U('Loyers')}, la carte <strong>Factures de loyer</strong> établit les factures mensuelles au modèle de la SCI (en-tête avec logo, bailleur, locataire, désignation, total dû, modalités de paiement, mention de TVA). Choisissez la <strong>période facturée</strong> et la <strong>date d'émission</strong> : l'application liste les biens loués en longue durée avec leur loyer et leurs provisions sur charges, lus dans la fiche du bien. Renseignez aussi dans la fiche l'<strong>adresse</strong>, le <strong>code postal</strong> et la <strong>ville</strong> du logement, ainsi que le <strong>nom</strong> et le <strong>prénom</strong> du locataire : ils figurent sur la facture et sur les relances.</p>
   <ul><li><strong>Numéro</strong> : <em>année-mois-rang</em>, par exemple 2026-09-001. L'année et le mois sont ceux de la <strong>date d'émission</strong> ; le rang est la position du bien dans la liste des biens (001 pour le premier). Le numéro reste donc le même pour un bien d'un mois à l'autre ; il peut être modifié dans la fenêtre de la facture.</li>
   <li>La colonne <strong>Refact. eau / élec.</strong> permet de saisir le montant à refacturer au locataire, <strong>avec 2 mois de décalage</strong> : sur la facture de loyer de novembre, on refacture les charges de septembre (la ligne de la facture le précise). Le montant est mémorisé pour chaque mois facturé. Le paragraphe de détail de la refacturation est alors ajouté à la facture (pensez à joindre les justificatifs).</li>
   <li>Le bouton <em>Facture…</em> ouvre une fenêtre pour ajuster une facture (locataire, adresse, objet, montants, rappel du dépôt de garantie) puis génère le PDF ; <em>Toutes les factures du mois</em> produit un PDF unique, une facture par page. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF ».</li>
@@ -7685,7 +7693,7 @@ async function saveBien(){
  id,
  nom:document.getElementById('nb-nom').value.trim(),
  adresse:document.getElementById('nb-adresse').value.trim(),
- ville:document.getElementById('nb-ville').value.trim(),
+ ville:document.getElementById('nb-ville').value.trim(),cp:document.getElementById('nb-cp').value.trim(),
  type:document.getElementById('nb-type').value,
  surface:Number(document.getElementById('nb-surface').value)||0,
  prix:Number(document.getElementById('nb-prix').value)||0,
@@ -7755,7 +7763,7 @@ function openEditBien(id){
  document.getElementById('eb-id').value=id;
  document.getElementById('eb-nom').value=b.nom||'';
  document.getElementById('eb-adresse').value=b.adresse||'';
- document.getElementById('eb-ville').value=b.ville||'';
+ {const sp=villeCpSplit(b);document.getElementById('eb-cp').value=sp.cp;document.getElementById('eb-ville').value=sp.ville;}
  document.getElementById('eb-type').value=b.type||'Studio';
  document.getElementById('eb-surface').value=b.surface||'';
  document.getElementById('eb-prix').value=b.prix||'';
@@ -7831,7 +7839,7 @@ async function updateBien(){
  const ancienneAdresse = b.adresse;
  b.nom=g('eb-nom').value.trim()||b.nom;
  b.adresse=g('eb-adresse').value.trim()||b.adresse;
- b.ville=g('eb-ville').value.trim();
+ b.ville=g('eb-ville').value.trim();{const cp=g('eb-cp').value.trim();if(cp)b.cp=cp;else delete b.cp;}
  b.type=g('eb-type').value;
  b.surface=gn('eb-surface')??b.surface;
  b.prix=gn('eb-prix')??b.prix;
