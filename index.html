@@ -1226,7 +1226,7 @@ canvas{max-width:100%;display:block}
  </div>
  <div class="two-col">
  <div class="fg"><label>Dépôt de garantie (€)</label><input id="eb-depot" type="number" placeholder="0"></div>
- <div></div>
+ <div class="fg"><label>Loyer payé d'avance : virements à partir du jour</label><input id="eb-loyer-avance" type="number" min="1" max="31" step="1" placeholder="ex. 25"><div style="font-size:11px;color:var(--text3);margin-top:3px;line-height:1.4">Les virements reçus à partir de ce jour du mois comptent pour le loyer du mois suivant (ex. 25 : un virement du 31 paie le mois suivant). Vide : le mois de la date.</div></div>
  </div>
  <div class="sl">Charges annuelles du bien (€/an)</div>
  <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Seront proratisées en trésorerie mensuelle (÷ 12).</div>
@@ -1301,6 +1301,18 @@ canvas{max-width:100%;display:block}
 </div>
 
 <input type="file" id="ech-file" accept="application/pdf,.pdf" style="display:none" onchange="echFichierChoisi(this)">
+<div class="modal-bg" id="modal-loyer-ligne">
+ <div class="modal" style="max-width:560px">
+ <div class="modal-title">Détail du loyer</div>
+ <div id="ll-info" style="font-size:12.5px;color:var(--text2);margin-bottom:12px;line-height:1.55"></div>
+ <div class="fg"><label>Mois couvert par ce virement</label><select id="ll-mois"></select></div>
+ <div class="fg"><label>Dont dépôt de garantie (€)</label><input id="ll-depot" type="number" min="0" step="0.01" placeholder="0" oninput="loyerLigneApercu()"></div>
+ <div id="ll-apercu" style="font-size:12.5px;color:var(--text2);margin-top:6px"></div>
+ <div style="font-size:11px;color:var(--text3);line-height:1.55;margin-top:10px">Laissez « Automatique » pour un virement du mois : le mois est lu dans le libellé (« loyer novembre ») ou déduit de la règle « payé d'avance » de la fiche du bien. Le dépôt de garantie est retiré du loyer attendu et de la rentabilité.</div>
+ <div class="modal-footer"><button class="btn" onclick="closeModal('modal-loyer-ligne')">Annuler</button><button class="btn btn-primary" onclick="loyerLigneSave()">Enregistrer</button></div>
+ </div>
+</div>
+
 <div class="modal-bg" id="modal-relance">
  <div class="modal" style="max-width:620px">
  <div class="modal-title">Relance de loyer</div>
@@ -3305,8 +3317,11 @@ function rentaCalc(d1,d2,opt){
  });
  mvtsList().forEach(m=>{
   if(m.date<d1||m.date>d2)return;
-  const mt=Number(m.montant)||0;mouvTotal+=mt;
+  const mtFull=Number(m.montant)||0;mouvTotal+=mtFull;
+  const dep=(CATS_PRODUIT.includes(m.cat)&&Number(m.depot)>0)?Math.min(Number(m.depot),Math.max(0,mtFull)):0;   // part du virement qui est un dépôt de garantie : ni produit, ni loyer
+  const mt=mtFull-dep;
   if(m.cat==='apport'){exclu.apport.n++;exclu.apport.net+=mt;return;}              // comptes courants d'associés
+  if(dep>0){exclu.hors.n++;exclu.hors.entrees+=dep;exclu.hors.lines.push({m,val:dep,pct:100,acq:null,acqAuto:false,depot:true});if(!(mt>0))return;}
   const a0=mvtAff(m),parts=a0==='custom'?affPartsValides(m):[{a:a0,pct:100}];
   // parts « Hors rentabilité » : exclues (achat, notaire, déblocage de prêt…), quelle que soit la catégorie
   parts.filter(p=>p.a===AFF_HORS||isAcq(p.a)).forEach(p=>{const v=mt*p.pct/100;exclu.hors.n++;if(v>=0)exclu.hors.entrees+=v;else exclu.hors.sorties-=v;exclu.hors.lines.push({m,val:v,pct:p.pct,acq:acqLine[m.id]?acqLine[m.id].bien:(isAcq(p.a)?p.a.slice(4):null),acqAuto:acqLine[m.id]?acqLine[m.id].auto:false});});
@@ -3598,7 +3613,7 @@ function renderRentabilite(){
   ${hxAcq>0?`<tr><td style="padding-left:18px">dont frais d'acquisition comptés dans le rendement total${hxAuto>0?' (dont '+euro(hxAuto,0)+' détectés d\'après le libellé)':''}</td><td></td><td style="text-align:right">${euro(hxAcq,2)}</td><td>notaire, courtage, frais bancaires : rattachés au bien, ${etalPhrase()}</td></tr>`:''}`:''}
   </tbody></table></div>
   <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--text2)">Voir les lignes concernées (${Cm.lines.length+Hx.lines.length})</summary><div style="overflow-x:auto;margin-top:8px"><table class="jtable" style="font-size:12px"><thead><tr><th>Date</th><th>Libellé</th><th>Type</th><th>Répartition entre les biens</th><th style="text-align:right">Montant</th></tr></thead><tbody>
-  ${Cm.lines.concat(Hx.lines).sort((a,b)=>b.m.date.localeCompare(a.m.date)).slice(0,300).map(x=>`<tr><td style="white-space:nowrap">${fdate(x.m.date)}</td><td>${E(x.m.libelle)}</td><td>${Hx.lines.includes(x)?'Hors rentabilité'+(x.acq?' · frais d\'acquisition de '+E(DATA.biens[x.acq]?bienNom(DATA.biens[x.acq]):'?')+(x.acqAuto?' (détecté)':''):''):'Frais commun'}${x.perso||x.pct&&x.pct<100?' <span style="color:var(--text3)">('+pc1(x.perso||x.pct)+' % de la ligne)</span>':''}</td><td>${Hx.lines.includes(x)?'—':lignesRep(x)}</td><td style="text-align:right">${x.val>=0?'+':'−'}${euro(Math.abs(x.val),2)}</td></tr>`).join('')}
+  ${Cm.lines.concat(Hx.lines).sort((a,b)=>b.m.date.localeCompare(a.m.date)).slice(0,300).map(x=>`<tr><td style="white-space:nowrap">${fdate(x.m.date)}</td><td>${E(x.m.libelle)}</td><td>${Hx.lines.includes(x)?'Hors rentabilité'+(x.depot?' · dépôt de garantie reçu':x.acq?' · frais d\'acquisition de '+E(DATA.biens[x.acq]?bienNom(DATA.biens[x.acq]):'?')+(x.acqAuto?' (détecté)':''):''):'Frais commun'}${x.perso||x.pct&&x.pct<100?' <span style="color:var(--text3)">('+pc1(x.perso||x.pct)+' % de la ligne)</span>':''}</td><td>${Hx.lines.includes(x)?'—':lignesRep(x)}</td><td style="text-align:right">${x.val>=0?'+':'−'}${euro(Math.abs(x.val),2)}</td></tr>`).join('')}
   </tbody></table></div></details></div>`:'';
  const shares=rows.map(r=>E(bienNom(r.b))+' '+part(r)+' %').join(' · ');
  const X=R.exclu,eur=v=>euro(Math.abs(v),0);
@@ -3661,7 +3676,7 @@ function renderTresorerie(){
   <input type="text" id="tres-edit-input" maxlength="200" value="${escH(tresEdit.val)}" oninput="tresEdit.val=this.value" onkeydown="tresEditKey(event)" style="flex:1;min-width:150px;padding:5px 8px;border:1px solid var(--accent);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text)">
   <button class="btn btn-sm btn-primary" title="Enregistrer (Entrée)" onclick="tresEditSave()">✓</button>
   <button class="btn btn-sm" title="Annuler (Échap)" onclick="tresEditCancel()">✕</button>
-  </div></td>`:`<td><span title="Cliquer pour modifier le libellé" style="cursor:text" onclick="tresEditStart('${m.id}')">${escH(m.libelle)}</span>${badge[kind(m)]}</td>`}
+  </div></td>`:`<td><span title="Cliquer pour modifier le libellé" style="cursor:text" onclick="tresEditStart('${m.id}')">${escH(m.libelle)}</span>${badge[kind(m)]}${loyerBadges(m)}</td>`}
  <td><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
  <select class="cat-sel cat-${escH(m.cat)}" title="Modifier la catégorie" onchange="setMvtCat('${m.id}',this.value)">${mvtCatOptions(m.cat)}</select>
  ${m.cat==='apport'?`<select class="cat-sel ${mvtAssocK(m)?'cat-apport':'cat-warn'}" title="Associé concerné : la ligne est transférée dans son compte courant" onchange="setMvtAssoc('${m.id}',this.value)"><option value="">Choisir l'associé…</option>${ASSOCIES.map(a=>`<option value="${a.k}"${a.k===mvtAssocK(m)?' selected':''}>${escH(a.n)}</option>`).join('')}</select>`:''}
@@ -4554,25 +4569,81 @@ function loyerAttenduMois(b,ym){
  const j1=(debut&&debut>d1)?+debut.slice(8,10):1;
  return tot*(nj-j1+1)/nj;
 }
+// ---- Mois couvert par un virement et dépôt de garantie ----
+// Un virement de loyer peut couvrir un autre mois que celui de sa date (payé d'avance) et contenir un dépôt de garantie.
+// Priorité : mois choisi sur la ligne > mois lu dans le libellé (« loyer novembre ») > règle du bien (« payé d'avance à partir du jour N ») > mois de la date.
+const LOY_MOIS=['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+function moisDuLibelle(m){
+ const t=impNorm(m.libelle||''),r=t.match(/\bloyers?\s+(?:de\s+|du\s+mois\s+de\s+|mois\s+de\s+)?(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)(?:\s+(20\d\d))?\b/);
+ if(!r)return null;
+ const mm=LOY_MOIS.indexOf(r[1])+1,t0=new Date(m.date+'T12:00:00').getTime();
+ let y=r[2]?+r[2]:[+m.date.slice(0,4)-1,+m.date.slice(0,4),+m.date.slice(0,4)+1].sort((a,b)=>Math.abs(new Date(a,mm-1,15)-t0)-Math.abs(new Date(b,mm-1,15)-t0))[0];   // année la plus proche du virement
+ return y+'-'+String(mm).padStart(2,'0');
+}
+function loyerMoisLigne(m,b){
+ if(m.moisLoyer&&/^\d{4}-\d{2}$/.test(m.moisLoyer))return m.moisLoyer;
+ const l=moisDuLibelle(m);if(l)return l;
+ const ym=m.date.slice(0,7),seuil=b&&Number(b.loyerAvance)>=1?Number(b.loyerAvance):0;
+ return (seuil&&+m.date.slice(8,10)>=seuil)?ymAdd(ym,1):ym;
+}
+const loyerNet=m=>Math.max(0,(Number(m.montant)||0)-(Number(m.depot)||0));            // loyer = virement − dépôt de garantie
+function loyerOrigine(m,b){return (m.moisLoyer&&/^\d{4}-\d{2}$/.test(m.moisLoyer))?'manuel':(moisDuLibelle(m)?'libellé':((b&&Number(b.loyerAvance)>=1&&+m.date.slice(8,10)>=Number(b.loyerAvance))?'règle du bien':''));}
+function loyerBadges(m){
+ if(m.cat!=='loyers'||!(Number(m.montant)>0))return '';
+ const a=mvtAff(m),b=DATA.biens[a]||null,ym=loyerMoisLigne(m,b),dec=ym!==m.date.slice(0,7),or=loyerOrigine(m,b);
+ return `${dec?` <span class="badge badge-info" style="font-size:10px;padding:1px 7px" title="Mois du loyer couvert par ce virement${or?' ('+or+')':''}">→ ${ymCourt(ym)}</span>`:''}${Number(m.depot)>0?` <span class="badge badge-warn" style="font-size:10px;padding:1px 7px" title="Part du virement qui est un dépôt de garantie, exclue du loyer et de la rentabilité">dont dépôt ${euro(m.depot,0)}</span>`:''} <a href="#" style="font-size:10.5px;color:var(--text3)" onclick="openLoyerLigne('${m.id}');return false">détail du loyer</a>`;
+}
+let loyerLigneId=null;
+function openLoyerLigne(id){
+ const m=DATA.mouvements[id];if(!m)return;loyerLigneId=id;
+ const b=DATA.biens[mvtAff(m)]||null,T=gToday(),auto=moisDuLibelle(m)||(b&&Number(b.loyerAvance)>=1&&+m.date.slice(8,10)>=Number(b.loyerAvance)?ymAdd(m.date.slice(0,7),1):m.date.slice(0,7));
+ const liste=[];for(let i=-24;i<=2;i++)liste.push(ymAdd(T.slice(0,7),i));
+ if(m.moisLoyer&&!liste.includes(m.moisLoyer))liste.push(m.moisLoyer);
+ liste.sort();
+ document.getElementById('ll-info').innerHTML=`Virement du <strong>${gFr(m.date)}</strong> de <strong>${euro(m.montant,2)}</strong> · ${escH(m.libelle)}${b?' · '+escH(bienNom(b)):' · bien non affecté'}`;
+ document.getElementById('ll-mois').innerHTML=`<option value="">Automatique (${gMoisNom(auto+'-01')}${moisDuLibelle(m)?', lu dans le libellé':(b&&Number(b.loyerAvance)>=1?', règle du bien : payé d\'avance à partir du jour '+b.loyerAvance:'')})</option>`+liste.map(y=>`<option value="${y}"${m.moisLoyer===y?' selected':''}>${gMoisNom(y+'-01')}</option>`).join('');
+ document.getElementById('ll-depot').value=Number(m.depot)>0?m.depot:'';
+ loyerLigneApercu();openModal('modal-loyer-ligne');
+}
+function loyerLigneApercu(){
+ const m=DATA.mouvements[loyerLigneId];if(!m)return;
+ const d=Math.max(0,Number(document.getElementById('ll-depot').value)||0),el=document.getElementById('ll-apercu');
+ el.innerHTML=d>Number(m.montant)?'<span style="color:var(--red)">Le dépôt de garantie ne peut pas dépasser le montant du virement.</span>':`Loyer pris en compte : <strong>${euro(Number(m.montant)-d,2)}</strong>${d>0?' · dépôt de garantie : <strong>'+euro(d,2)+'</strong> (exclu du loyer et de la rentabilité)':''}`;
+}
+async function loyerLigneSave(){
+ const m=DATA.mouvements[loyerLigneId];if(!m)return;
+ const d=Math.max(0,Number(document.getElementById('ll-depot').value)||0),mois=document.getElementById('ll-mois').value;
+ if(d>Number(m.montant)){loyerLigneApercu();return;}
+ if(mois)m.moisLoyer=mois;else delete m.moisLoyer;
+ if(d>0)m.depot=d;else delete m.depot;
+ closeModal('modal-loyer-ligne');renderAll();
+ await fbSave('mouvements',{[m.id]:m});showToast('Détail du loyer enregistré');
+}
+async function loyersActiverAvance(id,jour){
+ const b=DATA.biens[id];if(!b)return;b.loyerAvance=jour;renderAll();await fbSave('biens',{[id]:b});
+ showToast('Loyer payé d\'avance à partir du jour '+jour+' : les virements de fin de mois comptent pour le mois suivant');
+}
 function loyersSuivi(today){
  const P=loyersParams(),T=today||gToday(),ymNow=T.slice(0,7),jourNow=+T.slice(8,10);
  const biens=biensList().filter(b=>b.modeLocation!=='B'&&b.statut==='Bail signé - loué'&&((Number(b.loyer)||0)+(Number(b.charges)||0))>0);
  const debutCompta=mvtsList().reduce((m,x)=>(!m||x.date<m)?x.date:m,'');
- const mois=[];for(let i=12;i>=0;i--)mois.push(ymAdd(ymNow,-i));
  const lignes=mvtsList().filter(m=>m.cat==='loyers'&&Number(m.montant)>0);
  const parBien={},auto=[],libres=[];biens.forEach(b=>{parBien[b.id]=[];});
  lignes.forEach(m=>{
-  const a=mvtAff(m),ym=m.date.slice(0,7);
+  const a=mvtAff(m);
   if(a&&parBien[a]){parBien[a].push({m,auto:false});return;}
   if(a)return;                                                       // affectée à un autre bien, à la SCI ou « hors rentabilité » : ne concerne pas ce suivi
-  const mt=Number(m.montant),c=biens.filter(b=>{const E=loyerAttenduMois(b,ym),F=(Number(b.loyer)||0)+(Number(b.charges)||0);return F>0&&(Math.abs(mt-E)<=Math.max(1,E*0.02)||Math.abs(mt-F)<=Math.max(1,F*0.02));});
+  const net=loyerNet(m),c=biens.filter(b=>{const ym=loyerMoisLigne(m,b),E=loyerAttenduMois(b,ym),F=(Number(b.loyer)||0)+(Number(b.charges)||0);return F>0&&(Math.abs(net-E)<=Math.max(1,E*0.02)||Math.abs(net-F)<=Math.max(1,F*0.02));});
   if(c.length===1){parBien[c[0].id].push({m,auto:true});auto.push({m,b:c[0]});}
   else libres.push(m);                                               // plusieurs biens possibles ou montant inconnu
  });
+ // 13 mois se terminant au mois courant, ou au mois suivant si un paiement d'avance le couvre déjà
+ let ymFin=ymNow;biens.forEach(b=>parBien[b.id].forEach(x=>{const y=loyerMoisLigne(x.m,b);if(y>ymFin&&y<=ymAdd(ymNow,1))ymFin=y;}));
+ const mois=[];for(let i=12;i>=0;i--)mois.push(ymAdd(ymFin,-i));
  const res=biens.map(b=>{
   const tot=(Number(b.loyer)||0)+(Number(b.charges)||0),L=parBien[b.id];
   const cells=mois.map(ym=>{
-   const E=loyerAttenduMois(b,ym),ls=L.filter(x=>x.m.date.slice(0,7)===ym),R=ls.reduce((t,x)=>t+Number(x.m.montant),0);
+   const E=loyerAttenduMois(b,ym),ls=L.filter(x=>loyerMoisLigne(x.m,b)===ym),R=ls.reduce((t,x)=>t+loyerNet(x.m),0);
    const fin=ym+'-'+String(gDerJour(+ym.slice(0,4),+ym.slice(5,7))).padStart(2,'0');
    const due=ym<ymNow||(ym===ymNow&&jourNow>P.delai);
    let st;
@@ -4586,7 +4657,11 @@ function loyersSuivi(today){
   const suivi=cells.filter(c=>c.E>0&&c.st!=='avant'&&c.due);
   const arrieres=Math.round(suivi.reduce((t,c)=>t+(c.E-c.R),0)*100)/100;
   const dern=L.reduce((d,x)=>x.m.date>d?x.m.date:d,'');
-  return {b,tot,cells,arrieres,enRetard:arrieres>Math.max(1,tot*0.1),dernier:dern,nAuto:L.filter(x=>x.auto).length,nImpayes:cells.filter(c=>c.st==='impaye'||c.st==='partiel').length};
+  // virements de fin de mois qui semblent payer le mois suivant : à proposer comme règle du bien
+  const fins=L.filter(x=>!x.m.moisLoyer&&+x.m.date.slice(8,10)>=25&&Math.abs(loyerNet(x.m)-tot)<=Math.max(1,tot*0.02));
+  const depotRecu=L.reduce((t,x)=>t+(Number(x.m.depot)||0),0);
+  return {b,tot,cells,arrieres,enRetard:arrieres>Math.max(1,tot*0.1),dernier:dern,nAuto:L.filter(x=>x.auto).length,nImpayes:cells.filter(c=>c.st==='impaye'||c.st==='partiel').length,
+   avanceSuggeree:(!(Number(b.loyerAvance)>=1)&&fins.length>=2)?fins.length:0,depotAttendu:Number(b.depot)||0,depotRecu};
  });
  const att=res.reduce((t,r)=>t+r.cells.filter(c=>c.E>0&&c.st!=='avant'&&c.due).reduce((u,c)=>u+c.E,0),0),rec=res.reduce((t,r)=>t+r.cells.filter(c=>c.E>0&&c.st!=='avant'&&c.due).reduce((u,c)=>u+c.R,0),0);
  return {P,mois,biens:res,auto,libres,att,rec,taux:att>0?Math.min(100,rec/att*100):null,arrieres:res.reduce((t,r)=>t+Math.max(0,r.arrieres),0),nRetard:res.filter(r=>r.enRetard).length};
@@ -4609,13 +4684,15 @@ function renderLoyers(){
  const detailRetard=retards.map(r=>{
   const mm=r.cells.filter(c=>c.st==='impaye'||c.st==='partiel');
   return `<div class="card" style="border-left:3px solid var(--red);margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div style="font-weight:600">${E(bienNom(r.b))} · ${euro(r.arrieres,2)} d'arriérés</div><div style="font-size:12px;color:var(--text2);margin-top:2px">${mm.map(c=>ymCourt(c.ym)+(c.st==='partiel'?' (partiel : reçu '+euro(c.R,0)+' sur '+euro(c.E,0)+')':' (impayé)')).join(' · ')||'écart cumulé sur la période'} · dernier paiement ${r.dernier?gFr(r.dernier):'—'}</div></div><button class="btn btn-sm btn-primary" onclick="loyersRelance('${r.b.id}')">Rédiger une relance</button></div></div>`;}).join('');
- const detailMois=S.biens.map(r=>`<details style="margin-bottom:6px"><summary style="cursor:pointer;font-size:12.5px"><strong>${E(bienNom(r.b))}</strong> — détail mois par mois</summary><div style="overflow-x:auto;margin-top:6px"><table class="jtable" style="font-size:12px"><thead><tr><th>Mois</th><th style="text-align:right">Attendu</th><th style="text-align:right">Reçu</th><th style="text-align:right">Écart</th><th>Lignes de la Comptabilité</th></tr></thead><tbody>${r.cells.filter(c=>c.E>0||c.R>0).map(c=>`<tr><td>${ymCourt(c.ym)}</td><td style="text-align:right">${c.E>0?euro(c.E,2):'—'}</td><td style="text-align:right">${euro(c.R,2)}</td><td style="text-align:right;color:${c.R-c.E<-0.5?'var(--red)':'var(--text2)'}">${c.E>0?(c.R-c.E>=0?'+':'')+euro(c.R-c.E,2):''}</td><td style="font-size:11px;color:var(--text3)">${c.lignes.map(x=>gFr(x.m.date).slice(0,5)+' '+euro(x.m.montant,2)+(x.auto?' (non affectée)':'')).join(' · ')}</td></tr>`).join('')}</tbody></table></div></details>`).join('');
+ const detailMois=S.biens.map(r=>`<details style="margin-bottom:6px"><summary style="cursor:pointer;font-size:12.5px"><strong>${E(bienNom(r.b))}</strong> — détail mois par mois</summary><div style="overflow-x:auto;margin-top:6px"><table class="jtable" style="font-size:12px"><thead><tr><th>Mois</th><th style="text-align:right">Attendu</th><th style="text-align:right">Reçu</th><th style="text-align:right">Écart</th><th>Lignes de la Comptabilité</th></tr></thead><tbody>${r.cells.filter(c=>c.E>0||c.R>0).map(c=>`<tr><td>${ymCourt(c.ym)}</td><td style="text-align:right">${c.E>0?euro(c.E,2):'—'}</td><td style="text-align:right">${euro(c.R,2)}</td><td style="text-align:right;color:${c.R-c.E<-0.5?'var(--red)':'var(--text2)'}">${c.E>0?(c.R-c.E>=0?'+':'')+euro(c.R-c.E,2):''}</td><td style="font-size:11px;color:var(--text3)">${c.lignes.map(x=>`<a href="#" style="color:inherit;text-decoration:underline dotted" title="Détail du loyer : mois concerné, dépôt de garantie" onclick="openLoyerLigne('${x.m.id}');return false">${gFr(x.m.date).slice(0,5)+' '+euro(x.m.montant,2)}</a>${Number(x.m.depot)>0?' (dont dépôt '+euro(x.m.depot,0)+')':''}${x.m.date.slice(0,7)!==c.ym?' → loyer de '+ymCourt(c.ym):''}${x.auto?' (non affectée)':''}`).join(' · ')}</td></tr>`).join('')}</tbody></table></div></details>`).join('');
  el.innerHTML=`
  <div class="kpi-grid" style="margin-bottom:14px">${kpi('Taux d\'encaissement',S.taux==null?'—':S.taux.toFixed(1).replace('.',',')+' %',S.taux!=null&&S.taux<95?'kpi-neg':'kpi-pos')}${kpi('Loyers encaissés',euro(S.rec,0))}${kpi('Loyers attendus',euro(S.att,0))}${kpi('Arriérés',euro(S.arrieres,0),S.arrieres>1?'kpi-neg':'kpi-pos')}${kpi('Biens en retard',S.nRetard,S.nRetard?'kpi-neg':'kpi-pos')}</div>
- <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:2px">Loyers des 12 derniers mois</div><div style="font-size:12px;color:var(--text3);margin-bottom:10px">Loyer attendu = loyer + charges de la fiche du bien, comparé aux lignes « Loyers » de la Comptabilité du mois (plusieurs virements, par exemple locataire et aide au logement, sont additionnés).</div>${grille}</div>
+ <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:2px">Loyers des 12 derniers mois</div><div style="font-size:12px;color:var(--text3);margin-bottom:10px">Loyer attendu = loyer + charges de la fiche du bien, comparé aux lignes « Loyers » de la Comptabilité du mois (plusieurs virements, par exemple locataire et aide au logement, sont additionnés). Un virement de fin de mois qui paie le mois suivant, ou qui comprend un dépôt de garantie, se règle avec « détail du loyer » (ou la règle « payé d'avance » de la fiche du bien).</div>${grille}</div>
  ${retards.length?`<div style="font-weight:600;font-size:14px;margin:0 0 8px">Loyers en retard</div>${detailRetard}`:(S.biens.length?'<div class="note" style="background:var(--green-light);color:var(--green);margin-bottom:14px"><strong>Aucun retard :</strong> tous les loyers attendus ont été encaissés.</div>':'')}
  ${S.auto.length?`<div class="note" style="margin-bottom:14px;line-height:1.55">${S.auto.length} ligne${S.auto.length>1?'s':''} de loyer non affectée${S.auto.length>1?'s':''} ${S.auto.length>1?'sont comptées':'est comptée'} pour le bien dont le loyer correspond. <button class="btn btn-sm" style="margin-left:6px" onclick="loyersAffecter()">Les affecter à leur bien</button></div>`:''}
+ ${S.biens.filter(r=>r.avanceSuggeree).map(r=>`<div class="note" style="margin-bottom:14px;line-height:1.55"><strong>${E(bienNom(r.b))} : loyer payé d'avance ?</strong> ${r.avanceSuggeree} virements de la bonne somme sont arrivés à partir du 25 du mois. Si ce locataire paie en fin de mois le loyer du mois suivant, activez la règle : les virements reçus à partir du jour 25 compteront pour le mois suivant. <button class="btn btn-sm" style="margin-left:6px" onclick="loyersActiverAvance('${r.b.id}',25)">Activer pour ce bien</button></div>`).join('')}
  ${S.libres.length?`<div class="note" style="background:var(--amber-light);color:var(--amber);margin-bottom:14px;line-height:1.55">${S.libres.length} ligne${S.libres.length>1?'s':''} de loyer non affectée${S.libres.length>1?'s':''} ne ${S.libres.length>1?'sont':'est'} pas comptée${S.libres.length>1?'s':''} (montant qui ne correspond à aucun loyer, ou plusieurs biens possibles) : affectez-les à un bien dans la Comptabilité pour qu'elles comptent. <button class="btn btn-sm" style="margin-left:6px" onclick="affShowUnassigned()">Voir dans la Comptabilité</button></div>`:''}
+ ${S.biens.some(r=>r.depotAttendu>0||r.depotRecu>0)?`<div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:2px">Dépôts de garantie</div><div style="font-size:12px;color:var(--text3);margin-bottom:8px">Le dépôt de garantie reçu avec un loyer (« détail du loyer » sur la ligne) est exclu du loyer et de la rentabilité : ce n'est pas un produit.</div><div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><thead><tr><th>Bien</th><th style="text-align:right">Attendu (fiche)</th><th style="text-align:right">Reçu</th><th>Situation</th></tr></thead><tbody>${S.biens.filter(r=>r.depotAttendu>0||r.depotRecu>0).map(r=>`<tr><td>${E(bienNom(r.b))}</td><td style="text-align:right">${r.depotAttendu>0?euro(r.depotAttendu,0):'—'}</td><td style="text-align:right">${euro(r.depotRecu,0)}</td><td>${r.depotAttendu>0?(r.depotRecu>=r.depotAttendu-0.5?'<span style="color:var(--green)">reçu</span>':(r.depotRecu>0?'<span style="color:var(--amber)">partiel : '+euro(r.depotAttendu-r.depotRecu,0)+' restant</span>':'<span style="color:var(--text3)">non repéré dans la Comptabilité</span>')):'<span style="color:var(--text3)">montant non renseigné dans la fiche</span>'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
  <div class="card" style="margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:8px">Réglages</div><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end"><label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Délai de tolérance (jour du mois après lequel un loyer non reçu est en retard)<input id="loy-delai" type="number" min="0" max="28" value="${P.delai}" onchange="loyersSet()" style="width:90px;padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)"></label><label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Écart accepté avec le loyer attendu (%, révision du loyer)<input id="loy-tol" type="number" min="0" max="30" step="0.5" value="${P.tol}" onchange="loyersSet()" style="width:90px;padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)"></label></div></div>
  <div style="margin-bottom:24px">${detailMois}</div>`;
 }
@@ -5441,6 +5518,8 @@ function buildGuideHtml(){
   <li>Les <strong>arriérés</strong> cumulés (loyers attendus moins reçus) sont calculés par bien : un mois impayé suivi d'un double paiement se compense. Une carte par bien en retard indique les mois concernés et le dernier paiement, avec le bouton <em>Rédiger une relance</em> qui prépare un courrier de relance amiable à copier.</li>
   <li>Une ligne « Loyers » non affectée est comptée pour le bien dont le loyer correspond exactement ; sinon elle est signalée et ne compte qu'une fois affectée dans la Comptabilité. Les mois antérieurs à votre premier mouvement importé ne sont jamais comptés comme impayés.</li>
   <li>Les arriérés s'affichent aussi sur le dashboard et dans les points de vigilance de Conseil ▸ Gestion.</li></ul>
+  <p><strong>Loyer payé en fin de mois pour le mois suivant.</strong> Trois niveaux, du plus automatique au plus précis. (1) Dans la fiche du bien, le champ <em>Loyer payé d'avance : virements à partir du jour</em> (par exemple 25) : un virement reçu à partir de ce jour compte pour le mois suivant, et la page Loyers propose de l'activer quand elle repère des virements de fin de mois. (2) Le <strong>libellé</strong> : « LOYER NOVEMBRE » est reconnu et compte pour novembre, quelle que soit la date du virement. (3) Le choix <strong>ligne par ligne</strong> : le lien <em>détail du loyer</em>, dans la Comptabilité et dans le détail de la page Loyers, ouvre une fenêtre pour choisir le mois couvert. La priorité est : choix sur la ligne, puis libellé, puis règle du bien, puis mois de la date. La grille s'étend d'un mois quand un virement paie déjà le mois suivant.</p>
+  <p><strong>Dépôt de garantie dans un virement.</strong> Dans la même fenêtre, indiquez la part du virement qui est un dépôt de garantie (par exemple 1 250 € dont 600 €). Le loyer pris en compte est le virement moins le dépôt ; le dépôt est exclu de la Rentabilité (ce n'est pas un produit : il figure parmi les lignes « hors rentabilité » comme dépôt de garantie reçu) et suivi dans une carte <em>Dépôts de garantie</em> qui compare le montant attendu de la fiche au montant reçu.</p>
   <h3>Rentabilité par bien</h3>
   <p>L'onglet ${U('Rentabilité')} (Gestion) montre ce que rapporte <strong>réellement</strong> chaque bien, d'après les lignes de la Comptabilité qui lui sont affectées. Choisissez la période : 12 derniers mois, depuis l'origine, ou une année. Pour chaque bien, le tableau donne :</p>
   <ul><li>le <strong>coût total d'acquisition</strong> (prix + travaux + frais de notaire, de courtage et de banque) et la part des frais ;</li>
@@ -7496,6 +7575,7 @@ function openEditBien(id){
  document.getElementById('eb-dateentree').value=b.dateEntree||'';
  document.getElementById('eb-datefinbail').value=b.dateFinBail||'';
  document.getElementById('eb-depot').value=b.depot||'';
+ document.getElementById('eb-loyer-avance').value=b.loyerAvance||'';
  document.getElementById('eb-demarches-list').innerHTML=(b.demarches||[]).map((d,i)=>`
  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
  <span style="font-size:13px">${d.nom}</span>
@@ -7574,6 +7654,7 @@ async function updateBien(){
  b.dateEntree=g('eb-dateentree').value;
  b.dateFinBail=g('eb-datefinbail').value;
  b.depot=gn('eb-depot')??0;
+ {const la=Math.round(gn('eb-loyer-avance')||0);if(la>=1&&la<=31)b.loyerAvance=la;else delete b.loyerAvance;}
  // Mettre à jour les libellés des apports CCA si l'adresse a changé (la Comptabilité n'est jamais modifiée)
  const nouvelleAdresse = b.adresse;
  const libellesToUpdate_cca = {};
