@@ -1328,7 +1328,7 @@ canvas{max-width:100%;display:block}
  <div class="modal-title" id="fac-titre">Facture de loyer</div>
  <div class="two-col"><div class="fg"><label>N° de facture</label><input id="fac-num" type="text"></div><div class="fg"><label>Date d'émission</label><input id="fac-emi" type="date"></div></div>
  <div class="two-col"><div class="fg"><label>Période concernée</label><input id="fac-per" type="month" onchange="document.getElementById('fac-refact-ym').value=ymAdd(this.value||facState.ym,-2);facDefMontant()"></div><div class="fg"><label>Locataire</label><input id="fac-loc" type="text"></div></div>
- <div class="fg"><label>Logement loué (adresse)</label><input id="fac-logt" type="text"></div>
+ <div class="fg"><label>Logement loué (adresse, une ligne pour la rue et une pour le code postal et la ville)</label><textarea id="fac-logt" rows="2" style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:inherit;font-size:13px"></textarea></div>
  <div class="fg"><label>Objet</label><input id="fac-objet" type="text"></div>
  <div class="two-col"><div class="fg"><label>Loyer mensuel (€)</label><input id="fac-loyer" type="number" step="0.01" oninput="facTotalMaj()"></div><div class="fg"><label>Provisions sur charges (€)</label><input id="fac-prov" type="number" step="0.01" oninput="facTotalMaj()"></div></div>
  <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-refact-on" type="checkbox" onchange="facTotalMaj()"> Refacturer l'eau / l'électricité avancées par la SCI</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="fac-refact" type="number" step="0.01" placeholder="Montant à refacturer (€)" oninput="facTotalMaj()" style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--text3)">Charges du mois de <input id="fac-refact-ym" type="month"></label></div><div style="font-size:11px;color:var(--text3);margin-top:3px">Les charges sont refacturées avec 2 mois de décalage : le loyer de novembre porte les charges de septembre.</div></div>
@@ -4763,17 +4763,18 @@ function facEnsure(){
  if(!facState.ym)facState.ym=+T.slice(8,10)>=20?ymAdd(T.slice(0,7),1):T.slice(0,7);
 }
 function locNomComplet(b){return [b.locatairePrenom,b.locataire].filter(Boolean).join(' ');}
-function bienAdresseComplete(b){
- const a=(b.adresse||'').trim(),v=String(b.ville||'').replace(/[·,;]/g,' ').replace(/\s+/g,' ').trim();
- if(!v)return a||bienNom(b);
+function bienAdresseLignes(b){
+ const a=(b.adresse||'').trim(),v=String(b.ville||'').replace(/[·,;\n()]/g,' ').replace(/\s+/g,' ').trim();
+ if(!v)return a?[a]:[bienNom(b)];
  const m=v.match(/\b(\d{5})\b/),ligne=m?(m[1]+' '+v.replace(m[1],'').replace(/\s+/g,' ').trim()).trim():v;
- if(m&&a.includes(m[1]))return a;
- return a?a+', '+ligne:ligne;
+ if(m&&a.includes(m[1]))return facAdr(a);
+ return a?[a,ligne]:[ligne];
 }
+function bienAdresseComplete(b){return bienAdresseLignes(b).join(', ');}
 function facBiens(){return biensList().filter(b=>b.modeLocation!=='B'&&b.statut==='Bail signé - loué'&&((Number(b.loyer)||0)+(Number(b.charges)||0))>0);}
 function facNumero(b,emi){const rang=biensList().findIndex(x=>x.id===b.id)+1;return emi.slice(0,7)+'-'+String(rang).padStart(3,'0');}
 function facMoisLib(ym){const t=gMoisNom(ym+'-01');return t.charAt(0).toUpperCase()+t.slice(1);}
-function facAdr(a){a=String(a||'').trim();const m=a.match(/^(.*?)[,\s]+(\d{5})\s+(.+)$/);return m?[m[1].replace(/[,\s]+$/,''),m[2]+' '+m[3]]:(a?[a]:[]);}
+function facAdr(a){a=String(a||'').trim();if(a.includes('\n'))return a.split('\n').map(x=>x.trim()).filter(Boolean);const m=a.match(/^(.*?)[,\s]+(\d{5})\s+(.+)$/);return m?[m[1].replace(/[,\s]+$/,''),m[2]+' '+m[3]]:(a?[a]:[]);}
 function facObjetDefaut(b){
  let t='loyer et charges';
  if(b.dateEntree){t+=' — bail du '+gFr(b.dateEntree);
@@ -4783,7 +4784,7 @@ function facObjetDefaut(b){
 function facDefaut(b,ym,emi){
  const P=facParams(),pb=P.biens[b.id]||{};
  const refact=Number((pb.refacts||{})[ym])||0;
- return {bienId:b.id,num:facNumero(b,emi),emi,ym,locataire:locNomComplet(b),adresse:bienAdresseComplete(b),
+ return {bienId:b.id,num:facNumero(b,emi),emi,ym,locataire:locNomComplet(b),adresse:bienAdresseLignes(b).join('\n'),
   objet:typeof pb.objet==='string'&&pb.objet.trim()?pb.objet:facObjetDefaut(b),
   loyer:Number(b.loyer)||0,prov:Number(b.charges)||0,refactOn:!!pb.refactOn||refact>0,refact,refactYm:ymAdd(ym,-2),
   depotOn:Number(b.depot)>0,depot:Number(b.depot)||0};
