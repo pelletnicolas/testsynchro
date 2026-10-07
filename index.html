@@ -1131,7 +1131,8 @@ canvas{max-width:100%;display:block}
  <div class="sl" style="margin-top:0">Identification</div>
  <div class="fg"><label>Nom du bien <span style="color:var(--text3);font-weight:400">(identifiant affiché partout)</span></label><input id="eb-nom" type="text" placeholder="ex: Studio Centre, T2 Nord"></div>
  <div class="two-col">
- <div class="fg"><label>Adresse</label><input id="eb-adresse" type="text"></div>
+ <div class="fg"><label>Adresse (n° et rue)</label><input id="eb-adresse" type="text"></div>
+ <div class="two-col"><div class="fg"><label>Code postal</label><input id="eb-cp" type="text" inputmode="numeric" maxlength="5" placeholder="13001"></div><div class="fg"><label>Ville</label><input id="eb-ville" type="text" placeholder="Marseille"></div></div>
  <div class="fg"><label>Ville / CP</label><input id="eb-ville" type="text"></div>
  </div>
  <div class="two-col">
@@ -1214,7 +1215,8 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Statut location</label>
  <select id="eb-statut" onchange="if(this.value==='Airbnb'){var ml=document.getElementById('eb-mode-location');if(ml&&ml.value!=='A'&&ml.value!=='B')ml.value='B';updateEbModePreview();}"><option>Non loué</option><option>Bail signé - attente locataire</option><option>Bail signé - loué</option><option>Airbnb</option></select>
  </div>
- <div class="fg"><label>Locataire (nom)</label><input id="eb-locataire" type="text" placeholder="—"></div>
+ <div class="fg"><label>Locataire — nom</label><input id="eb-locataire" type="text" placeholder="—"></div>
+ <div class="fg"><label>Locataire — prénom(s)</label><input id="eb-locataire-prenom" type="text" placeholder="—"></div>
  </div>
  <div class="two-col">
  <div class="fg"><label>Téléphone</label><input id="eb-tel" type="tel" placeholder="06 00 00 00 00"></div>
@@ -1326,14 +1328,14 @@ canvas{max-width:100%;display:block}
  <div class="modal" style="max-width:640px">
  <div class="modal-title" id="fac-titre">Facture de loyer</div>
  <div class="two-col"><div class="fg"><label>N° de facture</label><input id="fac-num" type="text"></div><div class="fg"><label>Date d'émission</label><input id="fac-emi" type="date"></div></div>
- <div class="two-col"><div class="fg"><label>Période concernée</label><input id="fac-per" type="month"></div><div class="fg"><label>Locataire</label><input id="fac-loc" type="text"></div></div>
+ <div class="two-col"><div class="fg"><label>Période concernée</label><input id="fac-per" type="month" onchange="document.getElementById('fac-refact-ym').value=ymAdd(this.value||facState.ym,-2);facDefMontant()"></div><div class="fg"><label>Locataire</label><input id="fac-loc" type="text"></div></div>
  <div class="fg"><label>Logement loué (adresse)</label><input id="fac-logt" type="text"></div>
  <div class="fg"><label>Objet</label><input id="fac-objet" type="text"></div>
  <div class="two-col"><div class="fg"><label>Loyer mensuel (€)</label><input id="fac-loyer" type="number" step="0.01" oninput="facTotalMaj()"></div><div class="fg"><label>Provisions sur charges (€)</label><input id="fac-prov" type="number" step="0.01" oninput="facTotalMaj()"></div></div>
- <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-refact-on" type="checkbox" onchange="facTotalMaj()"> Refacturer l'eau / l'électricité avancées par la SCI</label><input id="fac-refact" type="number" step="0.01" placeholder="Montant à refacturer (€)" oninput="facTotalMaj()"></div>
+ <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-refact-on" type="checkbox" onchange="facTotalMaj()"> Refacturer l'eau / l'électricité avancées par la SCI</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="fac-refact" type="number" step="0.01" placeholder="Montant à refacturer (€)" oninput="facTotalMaj()" style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--text3)">Charges du mois de <input id="fac-refact-ym" type="month"></label></div><div style="font-size:11px;color:var(--text3);margin-top:3px">Les charges sont refacturées avec 2 mois de décalage : le loyer de novembre porte les charges de septembre.</div></div>
  <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-depot-on" type="checkbox"> Rappeler le dépôt de garantie versé à la signature : <input id="fac-depot" type="number" step="0.01" style="width:110px"> €</label></div>
  <div id="fac-total" style="background:var(--surface2);border-radius:var(--radius);padding:9px 12px;font-size:13px"></div>
- <div style="font-size:11px;color:var(--text3);line-height:1.5;margin-top:8px">Le montant de la refacturation et l'objet sont mémorisés pour ce bien et reproposés le mois suivant. Pensez à joindre à la facture les justificatifs eau / électricité.</div>
+ <div style="font-size:11px;color:var(--text3);line-height:1.5;margin-top:8px">Le montant de la refacturation est mémorisé par mois facturé ; l'objet est reproposé le mois suivant. Pensez à joindre à la facture les justificatifs eau / électricité.</div>
  <div class="modal-footer"><button class="btn" onclick="closeModal('modal-facture')">Annuler</button><button class="btn btn-primary" onclick="facGenererUne()">Générer le PDF</button></div>
  </div>
 </div>
@@ -4747,6 +4749,13 @@ function facEnsure(){
  if(!facState.emi)facState.emi=T;
  if(!facState.ym)facState.ym=+T.slice(8,10)>=20?ymAdd(T.slice(0,7),1):T.slice(0,7);
 }
+function locNomComplet(b){return [b.locatairePrenom,b.locataire].filter(Boolean).join(' ');}
+function bienAdresseComplete(b){
+ const a=(b.adresse||'').trim(),cp=(b.cp||'').trim(),vi=(b.ville||'').trim();
+ if(!cp&&!vi)return a||bienNom(b);
+ if(cp&&a.includes(cp))return a;
+ return [a,[cp,vi].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+}
 function facBiens(){return biensList().filter(b=>b.modeLocation!=='B'&&b.statut==='Bail signé - loué'&&((Number(b.loyer)||0)+(Number(b.charges)||0))>0);}
 function facNumero(b,emi){const rang=biensList().findIndex(x=>x.id===b.id)+1;return emi.slice(0,7)+'-'+String(rang).padStart(3,'0');}
 function facMoisLib(ym){const t=gMoisNom(ym+'-01');return t.charAt(0).toUpperCase()+t.slice(1);}
@@ -4759,10 +4768,10 @@ function facObjetDefaut(b){
 }
 function facDefaut(b,ym,emi){
  const P=facParams(),pb=P.biens[b.id]||{};
- const refact=Number(pb.refact)||0;
- return {bienId:b.id,num:facNumero(b,emi),emi,ym,locataire:b.locataire||'',adresse:b.adresse||bienNom(b),
+ const refact=Number((pb.refacts||{})[ym])||0;
+ return {bienId:b.id,num:facNumero(b,emi),emi,ym,locataire:locNomComplet(b),adresse:bienAdresseComplete(b),
   objet:typeof pb.objet==='string'&&pb.objet.trim()?pb.objet:facObjetDefaut(b),
-  loyer:Number(b.loyer)||0,prov:Number(b.charges)||0,refactOn:!!pb.refactOn,refact,
+  loyer:Number(b.loyer)||0,prov:Number(b.charges)||0,refactOn:!!pb.refactOn||refact>0,refact,refactYm:ymAdd(ym,-2),
   depotOn:Number(b.depot)>0,depot:Number(b.depot)||0};
 }
 function facTotal(f){return Math.round(((Number(f.loyer)||0)+(Number(f.prov)||0)+(f.refactOn?(Number(f.refact)||0):0))*100)/100;}
@@ -4780,7 +4789,7 @@ function facHtml(f){
   <table style="width:100%;border:1px solid ${nav}"><thead><tr style="background:${nav};color:#fff"><th style="padding:6px 8px;text-align:left;background:${nav};color:#fff;font-size:11.5px;text-transform:none">Désignation</th><th style="padding:6px 8px;text-align:left;background:${nav};color:#fff;font-size:11.5px;text-transform:none;width:20%">Période</th><th style="padding:6px 8px;text-align:left;background:${nav};color:#fff;font-size:11.5px;text-transform:none;width:17%">Montant</th></tr></thead><tbody>
   <tr><td style="${cell}">Loyer mensuel — ${E(adr.join(', '))}</td><td style="${cell}">${E(per)}</td><td style="${cell}">${m(f.loyer)}</td></tr>
   <tr><td style="${cell}">Provisions sur charges (régularisation annuelle)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${m(f.prov)}</td></tr>
-  ${f.refactOn?`<tr><td style="${cell}">Refacturation charges eau / électricité (avancées par la SCI pour le compte du locataire)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${Number(f.refact)>0?m(f.refact):''}</td></tr>`:''}
+  ${f.refactOn?`<tr><td style="${cell}">Refacturation charges eau / électricité de ${E(facMoisLib(f.refactYm||ymAdd(f.ym,-2)).toLowerCase())} (avancées par la SCI pour le compte du locataire)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${Number(f.refact)>0?m(f.refact):''}</td></tr>`:''}
   <tr><td style="${cell}"></td><td style="${cell};font-weight:700;text-align:right">Total dû</td><td style="${cell};font-weight:700">${m(facTotal(f))}</td></tr></tbody></table>
   ${f.refactOn?`<h4>Détail de la refacturation des charges eau / électricité</h4><div>${nl(P.refactTxt)}</div>`:''}
   <h4>Modalités de paiement</h4><div>Loyer payable d'avance, au plus tard le ${P.jour} de chaque mois, par virement bancaire.</div>
@@ -4797,9 +4806,13 @@ function facImprimer(liste){
 }
 function facSetPeriode(){facState.ym=document.getElementById('fac-g-ym').value;facState.emi=document.getElementById('fac-g-emi').value||gToday();renderLoyers();}
 function facSetRefact(id,v){
- const P=facParams();P.biens[id]=Object.assign({},P.biens[id]);const x=Math.max(0,Number(v)||0);
- P.biens[id].refact=x;P.biens[id].refactOn=x>0||!!P.biens[id].refactOn;if(x===0&&String(v).trim()==='')P.biens[id].refactOn=false;
+ const P=facParams();const pb=P.biens[id]=Object.assign({},P.biens[id]);pb.refacts=Object.assign({},pb.refacts);const x=Math.max(0,Number(v)||0);
+ if(x>0){pb.refacts[facState.ym]=x;pb.refactOn=true;}else delete pb.refacts[facState.ym];
  facSaveParams(P);renderLoyers();
+}
+function facDefMontant(){
+ const b=DATA.biens[facBienId];if(!b)return;const ym=document.getElementById('fac-per').value||facState.ym,pb=facParams().biens[b.id]||{},x=Number((pb.refacts||{})[ym])||0;
+ document.getElementById('fac-refact').value=x||'';if(x>0)document.getElementById('fac-refact-on').checked=true;facTotalMaj();
 }
 function facToutes(){
  facEnsure();const l=facBiens().map(b=>facDefaut(b,facState.ym,facState.emi));
@@ -4811,19 +4824,19 @@ function facOuvrir(id){
  const f=facDefaut(b,facState.ym,facState.emi),g=i=>document.getElementById(i);
  g('fac-titre').textContent='Facture de loyer — '+bienNom(b);
  g('fac-num').value=f.num;g('fac-emi').value=f.emi;g('fac-per').value=f.ym;g('fac-loc').value=f.locataire;g('fac-logt').value=f.adresse;g('fac-objet').value=f.objet;
- g('fac-loyer').value=f.loyer;g('fac-prov').value=f.prov;g('fac-refact-on').checked=f.refactOn;g('fac-refact').value=f.refact||'';
+ g('fac-loyer').value=f.loyer;g('fac-prov').value=f.prov;g('fac-refact-on').checked=f.refactOn;g('fac-refact').value=f.refact||'';g('fac-refact-ym').value=f.refactYm;
  g('fac-depot-on').checked=f.depotOn;g('fac-depot').value=f.depot||'';
  facTotalMaj();openModal('modal-facture');
 }
 function facLire(){
  const g=i=>document.getElementById(i);
  return {bienId:facBienId,num:g('fac-num').value.trim(),emi:g('fac-emi').value||gToday(),ym:g('fac-per').value||facState.ym,locataire:g('fac-loc').value.trim(),adresse:g('fac-logt').value.trim(),objet:g('fac-objet').value.trim(),
-  loyer:Number(g('fac-loyer').value)||0,prov:Number(g('fac-prov').value)||0,refactOn:g('fac-refact-on').checked,refact:Number(g('fac-refact').value)||0,depotOn:g('fac-depot-on').checked,depot:Number(g('fac-depot').value)||0};
+  loyer:Number(g('fac-loyer').value)||0,prov:Number(g('fac-prov').value)||0,refactOn:g('fac-refact-on').checked,refact:Number(g('fac-refact').value)||0,depotOn:g('fac-depot-on').checked,depot:Number(g('fac-depot').value)||0,refactYm:g('fac-refact-ym').value||ymAdd(g('fac-per').value||facState.ym,-2)};
 }
 function facTotalMaj(){const f=facLire();document.getElementById('fac-total').innerHTML='Total dû : <strong>'+euro(facTotal(f),2)+'</strong>';}
 function facGenererUne(){
  const f=facLire();if(!f.num){showToast('Indiquez un numéro de facture');return;}
- const P=facParams();P.biens[f.bienId]=Object.assign({},P.biens[f.bienId],{objet:f.objet,refact:f.refact,refactOn:f.refactOn});facSaveParams(P);
+ const P=facParams();const pb=P.biens[f.bienId]=Object.assign({},P.biens[f.bienId],{objet:f.objet,refactOn:f.refactOn});pb.refacts=Object.assign({},pb.refacts);if(f.refact>0)pb.refacts[f.ym]=f.refact;else delete pb.refacts[f.ym];facSaveParams(P);
  closeModal('modal-facture');facImprimer([f]);renderLoyers();
 }
 function facReglagesOuvrir(){
@@ -4841,23 +4854,23 @@ function facturesCard(){
  const yms=[];for(let i=-3;i<=2;i++)yms.push(ymAdd(gToday().slice(0,7),i));if(!yms.includes(facState.ym))yms.push(facState.ym);yms.sort();
  const lignes=l.map(b=>{
   const f=facDefaut(b,facState.ym,facState.emi);
-  return `<tr><td>${E(bienNom(b))}</td><td>${E(b.locataire||'—')}</td><td style="white-space:nowrap">${E(f.num)}</td><td style="text-align:right">${euro(f.loyer,2)}</td><td style="text-align:right">${euro(f.prov,2)}</td><td style="text-align:right"><input type="number" min="0" step="0.01" value="${f.refact||''}" placeholder="0" style="width:80px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);text-align:right" onchange="facSetRefact('${b.id}',this.value)"></td><td style="text-align:right;font-weight:600">${euro(facTotal(f),2)}</td><td><button class="btn btn-sm" onclick="facOuvrir('${b.id}')">Facture…</button></td></tr>`;
+  return `<tr><td>${E(bienNom(b))}</td><td>${E(locNomComplet(b)||'—')}</td><td style="white-space:nowrap">${E(f.num)}</td><td style="text-align:right">${euro(f.loyer,2)}</td><td style="text-align:right">${euro(f.prov,2)}</td><td style="text-align:right"><input type="number" min="0" step="0.01" value="${f.refact||''}" placeholder="0" style="width:80px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);text-align:right" onchange="facSetRefact('${b.id}',this.value)"></td><td style="text-align:right;font-weight:600">${euro(facTotal(f),2)}</td><td><button class="btn btn-sm" onclick="facOuvrir('${b.id}')">Facture…</button></td></tr>`;
  }).join('');
  return `<div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><div><div style="font-weight:600;font-size:14px">Factures de loyer</div><div style="font-size:12px;color:var(--text3)">N° AAAA-MM-NNN : année et mois d'émission, puis rang du bien dans la liste des biens. Loyer et provisions viennent de la fiche du bien.</div></div><button class="btn btn-sm" onclick="facReglagesOuvrir()">⚙ Coordonnées de la SCI</button></div>
  ${(!P.iban)?'<div class="note" style="margin-bottom:10px;line-height:1.5">Renseignez l\'IBAN et le BIC de la SCI dans « Coordonnées de la SCI » pour qu\'ils figurent sur les factures.</div>':''}
  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px"><label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Période facturée<select id="fac-g-ym" onchange="facSetPeriode()" style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)">${yms.map(y=>`<option value="${y}"${y===facState.ym?' selected':''}>${facMoisLib(y)}</option>`).join('')}</select></label>
  <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Date d'émission<input id="fac-g-emi" type="date" value="${facState.emi}" onchange="facSetPeriode()" style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)"></label>
  <button class="btn btn-primary btn-sm" onclick="facToutes()"${l.length?'':' disabled'}>Toutes les factures du mois (PDF)</button></div>
- ${l.length?`<div style="overflow-x:auto"><table class="jtable" style="font-size:12px"><thead><tr><th>Bien</th><th>Locataire</th><th>N°</th><th style="text-align:right">Loyer</th><th style="text-align:right">Provisions</th><th style="text-align:right">Refact. eau / élec.</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>${lignes}</tbody></table></div>`:'<div style="font-size:12px;color:var(--text3)">Aucun bien loué avec un loyer renseigné : renseignez le statut « Bail signé - loué » et le loyer dans la fiche du bien.</div>'}</div>`;
+ ${l.length?`<div style="overflow-x:auto"><table class="jtable" style="font-size:12px"><thead><tr><th>Bien</th><th>Locataire</th><th>N°</th><th style="text-align:right">Loyer</th><th style="text-align:right">Provisions</th><th style="text-align:right">Refact. eau / élec. (M-2)</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>${lignes}</tbody></table></div>`:'<div style="font-size:12px;color:var(--text3)">Aucun bien loué avec un loyer renseigné : renseignez le statut « Bail signé - loué » et le loyer dans la fiche du bien.</div>'}</div>`;
 }
 function loyersRelance(id){
  const S=loyersSuivi(),r=S.biens.find(x=>x.b.id===id);if(!r)return;
  const b=r.b,mm=r.cells.filter(c=>c.st==='impaye'||c.st==='partiel').map(c=>gMoisNom(c.ym+'-01'));
  const txt=`Objet : loyer en retard — ${b.adresse||bienNom(b)}
 
-Madame, Monsieur${b.locataire?' '+b.locataire:''},
+Madame, Monsieur${locNomComplet(b)?' '+locNomComplet(b):''},
 
-Sauf erreur de notre part, nous n'avons pas reçu le règlement du loyer de ${mm.length?mm.join(', '):'la période écoulée'} pour le logement situé ${b.adresse||bienNom(b)}. Le montant restant dû s'élève à ${euro(r.arrieres,2).replace(/[\u202f\u00a0]/g,' ')} (loyer et charges : ${euro(r.tot,2).replace(/[\u202f\u00a0]/g,' ')} par mois).
+Sauf erreur de notre part, nous n'avons pas reçu le règlement du loyer de ${mm.length?mm.join(', '):'la période écoulée'} pour le logement situé ${bienAdresseComplete(b)}. Le montant restant dû s'élève à ${euro(r.arrieres,2).replace(/[\u202f\u00a0]/g,' ')} (loyer et charges : ${euro(r.tot,2).replace(/[\u202f\u00a0]/g,' ')} par mois).
 
 Nous vous remercions de bien vouloir régulariser cette situation dans les meilleurs délais, ou de nous contacter si vous rencontrez une difficulté, afin que nous trouvions ensemble une solution.
 
@@ -5675,9 +5688,9 @@ function buildGuideHtml(){
   <p><strong>Loyer payé en fin de mois pour le mois suivant.</strong> Trois niveaux, du plus automatique au plus précis. (1) Dans la fiche du bien, le champ <em>Loyer payé d'avance : virements à partir du jour</em> (par exemple 25) : un virement reçu à partir de ce jour compte pour le mois suivant, et la page Loyers propose de l'activer quand elle repère des virements de fin de mois. (2) Le <strong>libellé</strong> : « LOYER NOVEMBRE » est reconnu et compte pour novembre, quelle que soit la date du virement. (3) Le choix <strong>ligne par ligne</strong> : le lien <em>détail du loyer</em>, dans la Comptabilité et dans le détail de la page Loyers, ouvre une fenêtre pour choisir le mois couvert. La priorité est : choix sur la ligne, puis libellé, puis règle du bien, puis mois de la date. La grille s'étend d'un mois quand un virement paie déjà le mois suivant.</p>
   <p><strong>Dépôt de garantie dans un virement.</strong> Dans la même fenêtre, indiquez la part du virement qui est un dépôt de garantie (par exemple 1 250 € dont 600 €). Le loyer pris en compte est le virement moins le dépôt ; le dépôt est exclu de la Rentabilité (ce n'est pas un produit : il figure parmi les lignes « hors rentabilité » comme dépôt de garantie reçu) et suivi dans une carte <em>Dépôts de garantie</em> qui compare le montant attendu de la fiche au montant reçu.</p>
   <h3>Factures de loyer</h3>
-  <p>Sur la même page ${U('Loyers')}, la carte <strong>Factures de loyer</strong> établit les factures mensuelles au modèle de la SCI (en-tête avec logo, bailleur, locataire, désignation, total dû, modalités de paiement, mention de TVA). Choisissez la <strong>période facturée</strong> et la <strong>date d'émission</strong> : l'application liste les biens loués en longue durée avec leur loyer et leurs provisions sur charges, lus dans la fiche du bien.</p>
+  <p>Sur la même page ${U('Loyers')}, la carte <strong>Factures de loyer</strong> établit les factures mensuelles au modèle de la SCI (en-tête avec logo, bailleur, locataire, désignation, total dû, modalités de paiement, mention de TVA). Choisissez la <strong>période facturée</strong> et la <strong>date d'émission</strong> : l'application liste les biens loués en longue durée avec leur loyer et leurs provisions sur charges, lus dans la fiche du bien. Renseignez aussi dans la fiche l'<strong>adresse</strong>, le <strong>code postal</strong> et la <strong>ville</strong> du logement, ainsi que le <strong>nom</strong> et le <strong>prénom</strong> du locataire : ils figurent sur la facture et sur les relances.</p>
   <ul><li><strong>Numéro</strong> : <em>année-mois-rang</em>, par exemple 2026-09-001. L'année et le mois sont ceux de la <strong>date d'émission</strong> ; le rang est la position du bien dans la liste des biens (001 pour le premier). Le numéro reste donc le même pour un bien d'un mois à l'autre ; il peut être modifié dans la fenêtre de la facture.</li>
-  <li>La colonne <strong>Refact. eau / élec.</strong> permet de saisir le montant à refacturer au locataire ; il est mémorisé pour le bien. Le paragraphe de détail de la refacturation est alors ajouté à la facture (pensez à joindre les justificatifs).</li>
+  <li>La colonne <strong>Refact. eau / élec.</strong> permet de saisir le montant à refacturer au locataire, <strong>avec 2 mois de décalage</strong> : sur la facture de loyer de novembre, on refacture les charges de septembre (la ligne de la facture le précise). Le montant est mémorisé pour chaque mois facturé. Le paragraphe de détail de la refacturation est alors ajouté à la facture (pensez à joindre les justificatifs).</li>
   <li>Le bouton <em>Facture…</em> ouvre une fenêtre pour ajuster une facture (locataire, adresse, objet, montants, rappel du dépôt de garantie) puis génère le PDF ; <em>Toutes les factures du mois</em> produit un PDF unique, une facture par page. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF ».</li>
   <li>Le bouton <em>Coordonnées de la SCI</em> règle une fois pour toutes la raison sociale, le RCS, l'adresse, l'<strong>IBAN</strong> et le BIC, le jour limite de paiement (le 2 par défaut) et les textes types. Ces réglages sont partagés entre associés.</li></ul>
   <h3>Rentabilité par bien</h3>
@@ -7352,7 +7365,7 @@ function locataireDrawerContent(b){
  const loyer=Number(b.loyer||0),charges=Number(b.charges||0);
  return`
  <div class="sl" style="margin-top:0">Identité</div>
- <div class="status-row"><span>Nom</span><span style="font-weight:${b.locataire?600:400}">${b.locataire||'<em style="color:var(--text3)">Non renseigné</em>'}</span></div>
+ <div class="status-row"><span>Nom</span><span style="font-weight:${b.locataire?600:400}">${locNomComplet(b)||'<em style="color:var(--text3)">Non renseigné</em>'}</span></div>
  <div class="status-row"><span>Téléphone</span><span>${b.tel?`<a href="tel:${b.tel}" style="color:var(--blue);text-decoration:none">${b.tel}</a>`:'—'}</span></div>
  <div class="status-row"><span>Email</span><span>${b.email?`<a href="mailto:${b.email}" style="color:var(--blue);text-decoration:none;font-size:12px">${b.email}</a>`:'—'}</span></div>
  <div class="sl">Bail</div>
@@ -7384,7 +7397,7 @@ function locataireDrawerContent(b){
 
 function openDrawerLocataire(id){
  const b=DATA.biens[id];if(!b)return;
- document.getElementById('drw-titre').textContent=b.locataire||(b.nom||b.adresse);
+ document.getElementById('drw-titre').textContent=locNomComplet(b)||(b.nom||b.adresse);
  document.getElementById('drw-sous-titre').textContent=`${b.nom||b.adresse} · ${b.adresse} · ${b.type} ${b.surface}m²`;
  document.getElementById('drw-body').innerHTML=locataireDrawerContent(b);
  document.getElementById('drw-modifier-btn').onclick=()=>{closeDrawer();openEditBien(id);};
@@ -7691,7 +7704,7 @@ function openEditBien(id){
  const b=DATA.biens[id];if(!b)return;
  document.getElementById('eb-id').value=id;
  document.getElementById('eb-nom').value=b.nom||'';
- document.getElementById('eb-adresse').value=b.adresse||'';
+ document.getElementById('eb-adresse').value=b.adresse||'';document.getElementById('eb-cp').value=b.cp||'';document.getElementById('eb-ville').value=b.ville||'';
  document.getElementById('eb-ville').value=b.ville||'';
  document.getElementById('eb-type').value=b.type||'Studio';
  document.getElementById('eb-surface').value=b.surface||'';
@@ -7729,7 +7742,7 @@ function openEditBien(id){
  updateEbModePreview();
  const statutVal = (b.modeLocation==='B') ? 'Airbnb' : (b.statut||'Non loué');
  document.getElementById('eb-statut').value=statutVal;
- document.getElementById('eb-locataire').value=b.locataire||'';
+ document.getElementById('eb-locataire').value=b.locataire||'';document.getElementById('eb-locataire-prenom').value=b.locatairePrenom||'';
  document.getElementById('eb-tel').value=b.tel||'';
  document.getElementById('eb-email').value=b.email||'';
  document.getElementById('eb-dateentree').value=b.dateEntree||'';
@@ -7767,7 +7780,7 @@ async function updateBien(){
  const gn=id=>{const v=g(id).value;return v===''?null:Number(v);}
  const ancienneAdresse = b.adresse;
  b.nom=g('eb-nom').value.trim()||b.nom;
- b.adresse=g('eb-adresse').value.trim()||b.adresse;
+ b.adresse=g('eb-adresse').value.trim()||b.adresse;{const cp=g('eb-cp').value.trim(),vi=g('eb-ville').value.trim();if(cp)b.cp=cp;else delete b.cp;if(vi)b.ville=vi;else delete b.ville;}
  b.ville=g('eb-ville').value.trim();
  b.type=g('eb-type').value;
  b.surface=gn('eb-surface')??b.surface;
@@ -7808,7 +7821,7 @@ async function updateBien(){
  const statutSaisi=g('eb-statut').value;
  if(statutSaisi==='Airbnb'){b.modeLocation='B';b.statut='Bail signé - loué';}
  else{b.statut=statutSaisi;}
- b.locataire=g('eb-locataire').value.trim();
+ b.locataire=g('eb-locataire').value.trim();{const pr=g('eb-locataire-prenom').value.trim();if(pr)b.locatairePrenom=pr;else delete b.locatairePrenom;}
  b.tel=g('eb-tel').value.trim();
  b.email=g('eb-email').value.trim();
  b.dateEntree=g('eb-dateentree').value;
