@@ -1159,6 +1159,7 @@ canvas{max-width:100%;display:block}
  <select id="eb-mode-remb" onchange="updateEbMensPreview()">
  <option value="annuite">Annuité constante (mensualité fixe)</option>
  <option value="amort_constant">Amortissement constant (capital fixe)</option>
+ <option value="tableau">Tableau de la banque importé (échéance du tableau)</option>
  </select>
  </div>
  <div class="fg">
@@ -3039,7 +3040,7 @@ function bienDrawerContent(b){
  ${(()=>{
   const mode=b.modeLocation||'C',rev=bienRevenuMensuel(b),ca=b.chargesAnnuelles||{},num=v=>Number(v)||0;
   const revTxt=mode==='B'?'chiffre d\'affaires Airbnb annuel estimé '+euro(Math.round(bienCaAnnuel(b)),0)+' ÷ 12':(mode==='A'?'chiffre d\'affaires annuel estimé '+euro(Math.round(bienCaAnnuel(b)),0)+' ÷ 12 : 9 mois de bail à '+euro(loyer+charges,0)+' + Airbnb de juin à août':'loyer + charges locataire ('+euro(loyer,0)+' + '+euro(charges,0)+')');
-  const mensTxt=b.mensualiteManuelle&&Number(b.mensualiteManuelle)>0?'saisie à la main':'calculée d\'après le capital '+euro(capital,0)+', '+(Number(b.taux)||0)+' % sur '+duree+' mois';
+  const mensTxt=echActif(b)?'échéance du mois du tableau de la banque, assurance comprise':b.mensualiteManuelle&&Number(b.mensualiteManuelle)>0?'saisie à la main':'calculée d\'après le capital '+euro(capital,0)+', '+(Number(b.taux)||0)+' % sur '+duree+' mois';
   const lignes=[['Copropriété',ca.copro],['Taxe foncière',ca.fonciere],['Assurance PNO',ca.assurpno],['Entretien',ca.entretien],['Autres',ca.autres]].filter(x=>num(x[1])>0);
   return `<div style="font-size:12px;color:var(--text2);line-height:1.7;padding:6px 0">
   <div style="display:flex;justify-content:space-between;gap:10px"><span>Revenu moyen par mois <span style="color:var(--text3)">(${revTxt})</span></span><strong style="white-space:nowrap">+${euro(rev,0)}</strong></div>
@@ -3790,7 +3791,7 @@ function renderAssocies(){
 // ============================================================
 // Calcule la mensualité d'un bien selon son mode et ses paramètres
 function bienMensualite(b) {
- if(echA(b)) return echMensCourante(b);   // tableau de la banque : échéance du mois, assurance comprise
+ if(echActif(b)) return echMensCourante(b);   // tableau de la banque : échéance du mois, assurance comprise
  if(b.mensualiteManuelle && Number(b.mensualiteManuelle) > 0) return Number(b.mensualiteManuelle);
  const c=Number(b.capital), t=Number(b.taux)/100/12, n=Number(b.duree);
  if(!t || !n || !c) return 0;
@@ -3893,7 +3894,7 @@ function genTableauAmort(b) {
 }
 
 function empruntDrawerContent(b){
- return echBarre(b)+(echA(b)?echDrawerContent(b):empruntDrawerTheorique(b));
+ return echBarre(b)+(echActif(b)?echDrawerContent(b):empruntDrawerTheorique(b));
 }
 function empruntDrawerTheorique(b){
  const c=Number(b.capital), t=Number(b.taux)/100/12, n=Number(b.duree);
@@ -4305,7 +4306,10 @@ function echControles(rowsBrutes){
 
 // ---- utilisation du tableau d'un bien ----
 const echObjets=b=>(b.echeancier||[]).map((r,i)=>({n:i+1,date:r[0],capDu:r[1],capital:r[2],interets:r[3],assurance:r[4],echeance:r[5]}));
-const echA=b=>!!(b&&Array.isArray(b.echeancier)&&b.echeancier.length);
+const echA=b=>!!(b&&Array.isArray(b.echeancier)&&b.echeancier.length);                 // un tableau de la banque est enregistré
+const echActif=b=>echA(b)&&b.modeRemboursement==='tableau';                             // …et le mode de remboursement « tableau » est choisi : il pilote alors mensualité, capital restant, intérêts
+// Tableaux importés avant l'existence de ce choix : ils continuent d'être utilisés (le marqueur évite de recommencer si vous choisissez un autre mode)
+function echMigrer(){biensList().forEach(b=>{if(echA(b)&&!b.echMigre){b.echMigre=1;if(b.modeRemboursement!=='tableau')b.modeRemboursement='tableau';}});}
 // échéance du mois en cours (assurance comprise) ; 0 si le prêt est soldé
 function echMensCouranteRows(rows,today){
  if(!rows||!rows.length)return 0;
@@ -4320,7 +4324,7 @@ function echCapitalRestantRows(rows,today){
  const r=rows.find(x=>x[0]>today);
  return r?r[1]:0;
 }
-function refreshCapitalRestant(){biensList().forEach(b=>{if(echA(b))b.capitalRestant=echArr(echCapitalRestantRows(b.echeancier,gToday()));});}
+function refreshCapitalRestant(){echMigrer();biensList().forEach(b=>{if(echActif(b))b.capitalRestant=echArr(echCapitalRestantRows(b.echeancier,gToday()));});}
 
 // ---- rapprochement avec les remboursements importés d'Odoo ----
 function echRapprocher(b,today){
@@ -4348,7 +4352,7 @@ function echRapprocher(b,today){
 // ventilation des remboursements d'une période entre intérêts, capital et assurance (d'après les échéances rapprochées)
 function echVentilation(d1,d2){
  const o={interets:0,capital:0,assurance:0,total:0,n:0};
- biensList().filter(echA).forEach(b=>echRapprocher(b).res.filter(x=>x.statut==='paye'&&x.m.date>=d1&&x.m.date<=d2).forEach(x=>{
+ biensList().filter(echActif).forEach(b=>echRapprocher(b).res.filter(x=>x.statut==='paye'&&x.m.date>=d1&&x.m.date<=d2).forEach(x=>{
   o.interets+=x.r.interets;o.capital+=x.r.capital;o.assurance+=x.r.assurance;o.total+=Math.abs(Number(x.m.montant)||0);o.n++;}));
  return o;
 }
@@ -4414,15 +4418,26 @@ async function echImporter(){
  b.echeancier=A.rows.map(r=>[r.date,r.capDu,r.capital,r.interets,r.assurance,r.echeance]);
  b.echeancierInfo={date:gToday(),source:A.source,nom:A.nom||'',n:A.rows.length};
  b.capital=r0.capDu;b.duree=A.rows.length;b.debut=r0.date;
+ b.modeRemboursement='tableau';b.echMigre=1;                                   // la mensualité vient désormais du tableau
+ const mens=echArr(echMensCourante(b));if(mens>0)b.mensualiteManuelle=mens;      // visible dans la fiche du bien
  const tx=A.stats.tauxDeduit;if(tx>0&&(!(Number(b.taux)>0)||Math.abs(Number(b.taux)-tx)>0.05))b.taux=Math.round(tx*100)/100;
  refreshCapitalRestant();echFermer();renderAll();openDrawerEmprunt(b.id);
  await fbSave('biens',{[b.id]:b});
- showToast('Tableau de la banque importé : '+A.rows.length+' échéances');
+ showToast('Tableau de la banque importé : '+A.rows.length+' échéances · mensualité de la fiche mise à jour : '+euro(mens,2));
+}
+async function echUtiliser(id){
+ const b=DATA.biens[id];if(!echA(b))return;
+ b.modeRemboursement='tableau';b.echMigre=1;const m=echArr(echMensCourante(b));if(m>0)b.mensualiteManuelle=m;
+ refreshCapitalRestant();renderAll();openDrawerEmprunt(id);
+ await fbSave('biens',{[id]:b});showToast('Tableau de la banque utilisé : mensualité '+euro(m,2));
 }
 async function echSupprimer(id){
  const b=DATA.biens[id];if(!b||!echA(b))return;
  if(!confirm('Revenir au tableau théorique (calculé d\'après le capital, le taux et la durée) ? Le tableau importé sera supprimé.'))return;
- delete b.echeancier;delete b.echeancierInfo;
+ const m0=echArr(echMensCourante(b));
+ delete b.echeancier;delete b.echeancierInfo;delete b.echMigre;
+ if(b.modeRemboursement==='tableau')b.modeRemboursement='annuite';
+ if(Number(b.mensualiteManuelle)===m0)delete b.mensualiteManuelle;               // la mensualité reprise du tableau est retirée (retour au calcul théorique)
  renderAll();openDrawerEmprunt(id);
  await fbSave('biens',{[id]:b});
 }
@@ -4431,7 +4446,7 @@ async function echSupprimer(id){
 function echBarre(b){
  const E=escH,i=b.echeancierInfo||{};
  return `<div style="background:var(--surface2);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;font-size:12px;line-height:1.55">
-  ${echA(b)?`<div><span class="badge badge-ok">Tableau de la banque</span> <span style="color:var(--text2)">${b.echeancier.length} échéances${i.date?', importé le '+gFr(i.date):''}${i.nom?' ('+E(i.nom)+')':''}</span></div>`:`<div style="color:var(--text2)">Tableau <strong>théorique</strong>, calculé d'après le capital, le taux et la durée. Importez le PDF de la banque pour obtenir les intérêts, le capital et l'assurance réels, et ventiler vos remboursements Odoo.</div>`}
+  ${echA(b)&&!echActif(b)?`<div><span class="badge badge-warn">Tableau de la banque non utilisé</span> <span style="color:var(--text2)">${b.echeancier.length} échéances enregistrées, mais le mode de remboursement de la fiche est « ${b.modeRemboursement==='amort_constant'?'amortissement constant':'annuité constante'} » : la mensualité et les intérêts viennent du calcul théorique.</span> <button class="btn btn-sm" style="margin-left:6px" onclick="echUtiliser('${b.id}')">Utiliser le tableau de la banque</button></div>`:(echA(b)?`<div><span class="badge badge-ok">Tableau de la banque</span> <span style="color:var(--text2)">${b.echeancier.length} échéances${i.date?', importé le '+gFr(i.date):''}${i.nom?' ('+E(i.nom)+')':''}</span></div>`:`<div style="color:var(--text2)">Tableau <strong>théorique</strong>, calculé d'après le capital, le taux et la durée. Importez le PDF de la banque pour obtenir les intérêts, le capital et l'assurance réels, et ventiler vos remboursements Odoo.</div>`)}
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn btn-sm btn-primary" onclick="echChoisirPdf('${b.id}')">${echA(b)?'Remplacer par un autre PDF':'Importer le tableau de la banque (PDF)'}</button><button class="btn btn-sm" onclick="echOuvrirColler('${b.id}')">Coller le texte</button>${echA(b)?`<button class="btn btn-sm" onclick="echSupprimer('${b.id}')">Revenir au tableau théorique</button>`:''}</div></div>`;
 }
 function echDrawerContent(b){
@@ -5138,7 +5153,7 @@ function buildGuideHtml(){
   ${co('<strong>Supprimer un bien</strong> supprime ses apports en compte courant, mais jamais les lignes de la Comptabilité.')}
   <h3>Emprunt</h3>
   <p>Un tableau d'amortissement par bien : capital remboursé, intérêts et capital restant dû. Par défaut il est <strong>théorique</strong> (calculé d'après le capital, le taux et la durée de la fiche). Dans le détail d'un prêt, le bouton <em>Importer le tableau de la banque (PDF)</em> lit le PDF de la banque (colonnes : date d'échéance, capital dû avant l'échéance, capital, intérêts, assurance groupe et frais, échéance assurance comprise) et le remplace par le <strong>tableau réel</strong>. Un aperçu s'affiche avant l'import avec des contrôles : chaque ligne doit s'additionner (capital + intérêts + assurance = échéance), le capital dû doit diminuer du capital remboursé, et le prêt doit être soldé à la dernière échéance. Si le PDF est une image scannée, <em>Coller le texte</em> permet de copier-coller le tableau.</p>
-  <p>Une fois le tableau importé : l'<strong>échéance du mois</strong> (assurance comprise) alimente le cash-flow, le <strong>capital restant dû</strong> se calcule seul à partir de la date du jour, et l'<strong>impôt estimé</strong> utilise les intérêts et l'assurance réels. Chaque ligne « Remboursement emprunt » importée d'Odoo est <strong>rapprochée de son échéance</strong> (même montant à 0,5 % près, à 20 jours près) : l'appli indique les échéances sans paiement retrouvé, les paiements sans échéance, et sépare chaque paiement en <strong>intérêts, capital et assurance</strong>. Ces montants sont repris dans la carte « Résultat de la SCI » de la Rentabilité et dans le pré-bilan pour l'expert-comptable. Le bouton « Affecter à ce bien … » rattache au bien les lignes rapprochées qui n'étaient pas affectées.</p></p>
+  <p>À l'import, la fiche du bien passe en mode de remboursement <em>Tableau de la banque importé</em> et sa <strong>mensualité est mise à jour</strong> avec l'échéance du mois du tableau (le champ « Mensualité manuelle » est alors grisé). Ce choix figure dans la liste « Mode de remboursement » de la fiche, à côté de l'annuité constante et de l'amortissement constant : il n'est proposé que si un tableau est importé. Si vous choisissez un autre mode, le tableau reste enregistré mais n'est plus utilisé, et un bouton « Utiliser le tableau de la banque » le réactive. Une fois le tableau utilisé : l'<strong>échéance du mois</strong> (assurance comprise) alimente le cash-flow, le <strong>capital restant dû</strong> se calcule seul à partir de la date du jour, et l'<strong>impôt estimé</strong> utilise les intérêts et l'assurance réels. Chaque ligne « Remboursement emprunt » importée d'Odoo est <strong>rapprochée de son échéance</strong> (même montant à 0,5 % près, à 20 jours près) : l'appli indique les échéances sans paiement retrouvé, les paiements sans échéance, et sépare chaque paiement en <strong>intérêts, capital et assurance</strong>. Ces montants sont repris dans la carte « Résultat de la SCI » de la Rentabilité et dans le pré-bilan pour l'expert-comptable. Le bouton « Affecter à ce bien … » rattache au bien les lignes rapprochées qui n'étaient pas affectées.</p></p>
   <h3>Locataires</h3>
   <p>Situation de chaque bien : loué, bail signé en attente, non loué ou Airbnb, avec le total encaissable.</p>
   <h3>Rentabilité par bien</h3>
@@ -6126,7 +6141,7 @@ function bienToProj(b) {
  taux: Number(b.taux)||0,
  duree: Number(b.duree)||240,
  credit: Number(b.capital)||0,
- echeancier: b.echeancier||null, // tableau d'amortissement de la banque (intérêts et assurance réels)
+ echeancier: echActif(b)?b.echeancier:null, // tableau d'amortissement de la banque (intérêts et assurance réels)
  frais: Number(b.notaire||0) + Number(b.courtier||0) + Number(b.travaux||0),
  chargesAnnuelles: b.chargesAnnuelles || {},
  mode: bienModeEff(b), // mode de gestion A/B/C du bien (C si le quartier n'autorise pas l'Airbnb)
@@ -6914,6 +6929,15 @@ function renderLocataires(){
 // ============================================================
 
 // Preview mensualité dans modal édition
+// Mode de remboursement du formulaire : « tableau » n'est proposé que si un tableau de la banque est importé
+function ebModeRembInit(b){
+ const sel=document.getElementById('eb-mode-remb'),opt=[...sel.options].find(o=>o.value==='tableau');
+ opt.disabled=!echA(b);
+ opt.textContent=echA(b)?'Tableau de la banque importé (échéance du tableau)':'Tableau de la banque importé (importez d\'abord le PDF, onglet Emprunt)';
+ const m=b.modeRemboursement;
+ sel.value=(m==='tableau'&&echA(b))?'tableau':((m==='amort_constant')?'amort_constant':'annuite');
+ document.getElementById('eb-mens-manuelle').value=b.mensualiteManuelle||'';
+}
 function updateEbMensPreview() {
  const c = Number(document.getElementById('eb-capital')?.value) || 0;
  const t = Number(document.getElementById('eb-taux')?.value) / 100 / 12;
@@ -6922,6 +6946,14 @@ function updateEbMensPreview() {
  const mensManuelle = Number(document.getElementById('eb-mens-manuelle')?.value) || 0;
  const el = document.getElementById('eb-mens-preview');
  if(!el) return;
+ const mf = document.getElementById('eb-mens-manuelle'), bb = DATA.biens[(document.getElementById('eb-id')||{}).value];
+ if(mode === 'tableau' && bb && echA(bb)) {   // la mensualité vient du tableau : champ grisé
+  const m = echArr(echMensCourante(bb, gToday()));
+  mf.value = m; mf.disabled = true;
+  el.innerHTML = `Mode <strong>tableau de la banque</strong> · Mensualité du mois, assurance comprise : <strong style="color:var(--accent)">${euro(m,2)}/mois</strong> · ${bb.echeancier.length} échéances, capital restant dû ${euro(echCapitalRestantRows(bb.echeancier, gToday()),0)} · intérêts, capital et assurance réels dans l'onglet Emprunt.`;
+  return;
+ }
+ if(mf) mf.disabled = false;
  if(mensManuelle > 0) {
  el.innerHTML = `Mensualité <strong>manuelle</strong> : <strong style="color:var(--accent)">${euro(mensManuelle,2)}/mois</strong> · Les intérêts sont déduits automatiquement dans le tableau.`;
  return;
@@ -7148,8 +7180,7 @@ function openEditBien(id){
  document.getElementById('eb-crd').value=b.capitalRestant||b.capital||'';
  document.getElementById('eb-taux').value=b.taux||'';
  document.getElementById('eb-duree').value=b.duree||'';
- document.getElementById('eb-mode-remb').value=b.modeRemboursement||'annuite';
- document.getElementById('eb-mens-manuelle').value=b.mensualiteManuelle||'';
+ ebModeRembInit(b);
  updateEbMensPreview();
  document.getElementById('eb-banque').value=b.banque||'';
  document.getElementById('eb-debut').value=b.debut||'';
@@ -7224,6 +7255,11 @@ async function updateBien(){
  const mensManuelle=gn('eb-mens-manuelle');
  if(mensManuelle!==null && mensManuelle>0) b.mensualiteManuelle=mensManuelle;
  else delete b.mensualiteManuelle;
+ if(b.modeRemboursement==='tableau'){
+  if(echA(b)){const m=echArr(echMensCourante(b,gToday()));if(m>0)b.mensualiteManuelle=m;}   // mensualité du tableau, enregistrée dans la fiche
+  else b.modeRemboursement='annuite';
+ }
+ if(echA(b))b.echMigre=1;
  b.banque=g('eb-banque').value.trim();
  b.debut=g('eb-debut').value;
  b.modeLocation=g('eb-mode-location').value||'C';
