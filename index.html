@@ -958,6 +958,10 @@ canvas{max-width:100%;display:block}
  <div></div>
  </div>
  <div class="two-col">
+ <div class="fg"><label>Quartier <span style="font-weight:400;color:var(--text3)">(compare au Marché)</span></label><select id="nb-quartier"></select></div>
+ <div class="fg"><label>État du bien</label><select id="nb-etat"><option>Ancien</option><option>Ancien à rénover</option><option>Récent</option><option>Neuf</option></select></div>
+ </div>
+ <div class="two-col">
  <div class="fg"><label>Capital emprunté (€)</label><input id="nb-capital" type="number" placeholder="ex: 100000"></div>
  <div class="fg"><label>Taux annuel (%)</label><input id="nb-taux" type="number" step="0.01" placeholder="3.50"></div>
  </div>
@@ -1124,8 +1128,18 @@ canvas{max-width:100%;display:block}
  </div>
  <div class="two-col">
  <div class="fg"><label>Travaux pré-location (€)</label><input id="eb-travaux" type="number"></div>
- <div class="fg"><label>Valeur estimée actuelle (€)</label><input id="eb-valeur" type="number" step="0.01"></div>
+ <div class="fg"><label>Valeur estimée actuelle (€) <span style="font-weight:400;color:var(--text3)">— saisie à la main</span></label><input id="eb-valeur" type="number" step="0.01"></div>
  </div>
+ <div class="sl">Valeur d'après le Marché</div>
+ <div class="two-col">
+ <div class="fg"><label>Quartier <span style="font-weight:400;color:var(--text3)">(données du Marché)</span></label><select id="eb-quartier" onchange="updateEbValeurPreview()"></select></div>
+ <div class="fg"><label>État du bien</label><select id="eb-etat" onchange="updateEbValeurPreview()"><option>Ancien</option><option>Ancien à rénover</option><option>Récent</option><option>Neuf</option></select></div>
+ </div>
+ <div class="two-col">
+ <div class="fg"><label>Valeur retenue (dashboard, banque)</label><select id="eb-valeur-mode" onchange="updateEbValeurPreview()"><option value="manuelle">Valeur saisie à la main</option><option value="marche">Estimation d'après le Marché (automatique)</option></select></div>
+ <div class="fg"><label>Correction du bien (± %)</label><input id="eb-coef-valeur" type="number" step="0.5" placeholder="0" oninput="updateEbValeurPreview()"></div>
+ </div>
+ <div id="eb-valeur-preview" style="font-size:12px;color:var(--text2);line-height:1.55;margin:-4px 0 12px"></div>
  <div class="sl">Emprunt</div>
  <div class="two-col">
  <div class="fg"><label>Capital emprunté (€)</label><input id="eb-capital" type="number"></div>
@@ -1261,6 +1275,15 @@ canvas{max-width:100%;display:block}
  <button class="btn" onclick="closeModal('modal-airbnb')">Annuler</button>
  <button class="btn btn-primary" onclick="saveAirbnbParams()">Enregistrer</button>
  </div>
+ </div>
+</div>
+
+<input type="file" id="ech-file" accept="application/pdf,.pdf" style="display:none" onchange="echFichierChoisi(this)">
+<div class="modal-bg" id="modal-ech">
+ <div class="modal" style="max-width:880px">
+ <div class="modal-title" id="ech-titre">Tableau d'amortissement de la banque</div>
+ <div id="ech-body"></div>
+ <div class="modal-footer" id="ech-footer"></div>
  </div>
 </div>
 
@@ -2637,10 +2660,67 @@ function statusBadge(s){
  if(s==='En attente')return`<span class="badge badge-warn">En attente</span>`;
  return`<span class="badge badge-info">À faire</span>`;
 }
-// Retourne la valeur estimée du bien, ou le prix d'achat si la date du jour est antérieure à la date d'achat
-function valeurBien(b){
- if(b.dateAchat && new Date() < new Date(b.dateAchat)) return Number(b.prix)||0;
- return Number(b.valeurEstimee||b.prix)||0;
+// Données du Marché intégrées à l'appli (analyse_marché_vdef : MeilleursAgents · SeLoger · DVF) : c'est une photo à cette date, sans mise à jour automatique
+const MARKET_MAJ_ISO='2026-03',MARKET_MAJ_LABEL='mars 2026';
+function marcheAnciennete(){const t=window.__TODAY?new Date(window.__TODAY+'T12:00:00'):new Date();return (t.getFullYear()*12+t.getMonth()+1)-(+MARKET_MAJ_ISO.slice(0,4)*12+ +MARKET_MAJ_ISO.slice(5,7));}   // mois écoulés depuis les données
+// Valeur indicative d'après le Marché : prix du quartier pour l'état et la surface du bien (interpolé), avec une correction propre au bien (± %)
+function marcheValeurIndicative(b){
+ const q=b.quartier,S=Number(b.surface)||0;
+ if(!q)return {ok:false,raison:'quartier non renseigné'};
+ if(!(S>0))return {ok:false,raison:'surface non renseignée'};
+ const typ=marcheTypeOf(b.etat),rec=MARKET.data[q+'|'+typ];
+ if(!rec)return {ok:false,raison:'quartier absent des données de marché'};
+ const prixM=marcheInterp(rec,S,'achat');
+ if(!(prixM>0))return {ok:false,raison:'pas de donnée de prix pour ce quartier'};
+ const coef=Number(b.coefValeur)||0;
+ return {ok:true,valeur:Math.round(prixM*(1+coef/100)),prixM:Math.round(prixM),pm2:Math.round(prixM/S),coef,typ,q,S};
+}
+function valeurInfo(b){
+ const prix=Number(b.prix)||0,indic=b.quartier?marcheValeurIndicative(b):null,saisie=Number(b.valeurEstimee)||0;
+ let valeur,source;
+ if(b.dateAchat && new Date() < new Date(b.dateAchat)){valeur=prix;source='prix';}               // pas encore acheté : prix d'achat
+ else if(b.valeurMode==='marche'&&indic&&indic.ok){valeur=indic.valeur;source='marche';}          // estimation automatique d'après le Marché
+ else if(saisie>0){valeur=saisie;source=saisie===prix?'prix':'manuelle';}                         // valeur saisie à la main
+ else{valeur=prix;source='prix';}
+ return {valeur,source,indic,perime:marcheAnciennete()>6};
+}
+// Retourne la valeur retenue du bien : estimation du Marché si ce mode est choisi, sinon valeur saisie, sinon prix d'achat
+function valeurBien(b){return valeurInfo(b).valeur;}
+function quartierOptions(id){
+ const sel=document.getElementById(id);if(!sel||sel.options.length>1)return;
+ const zones={};MARKET.quartiers.forEach(q=>{const z=MARKET.zones[q]||'Autres';(zones[z]=zones[z]||[]).push(q);});
+ sel.innerHTML='<option value="">— non renseigné —</option>'+Object.keys(zones).sort().map(z=>`<optgroup label="${escH(z)}">${zones[z].sort().map(q=>`<option value="${escH(q)}">${escH(q)}</option>`).join('')}</optgroup>`).join('');
+}
+function airbnbQuartierAlerte(b){
+ const m=b.modeLocation||'C';
+ if(b._fictif||!b.quartier||(m!=='A'&&m!=='B')||marcheAirbnbOk(b.quartier))return '';
+ return `<div style="font-size:11px;color:var(--amber);padding:2px 0 6px;line-height:1.5">Le quartier « ${escH(b.quartier)} » est marqué sans Airbnb dans la base de données du Marché, alors que ce bien est en mode ${m}. Le calcul garde le mode de la fiche : vérifiez le réglage du quartier ou le mode du bien.</div>`;
+}
+function valeurDetailHtml(b){
+ const I=valeurInfo(b),E=escH,lab={marche:'estimation d\'après le Marché',manuelle:'saisie à la main',prix:'prix d\'achat, non mis à jour'}[I.source];
+ let h=`<div class="status-row"><span>Valeur estimée <span style="font-size:11px;color:var(--text3)">(${lab})</span></span><span>${euro(I.valeur)}</span></div>`;
+ const ind=I.indic;
+ if(ind&&ind.ok){
+  const ec=Number(b.prix)>0?ind.valeur/Number(b.prix)-1:null;
+  h+=`<div style="font-size:11px;color:var(--text3);padding:2px 0 6px;line-height:1.5">Indicatif du Marché : <strong>${euro(ind.valeur)}</strong> (${euro(ind.pm2,0)}/m² · ${E(ind.q)}, ${E(b.etat||'Ancien')}, ${ind.S} m²${ind.coef?', correction '+(ind.coef>0?'+':'')+ind.coef+' %':''})${ec==null?'':' · '+(ec>=0?'+':'')+(ec*100).toFixed(1).replace('.',',')+' % par rapport au prix d\'achat'} · données du Marché de ${MARKET_MAJ_LABEL}${I.perime?' <span style="color:var(--amber)">(plus de 6 mois : actualisez-les dans Marché ▸ Base de données)</span>':''}</div>`;
+ }else if(b.valeurMode==='marche')h+=`<div style="font-size:11px;color:var(--amber);padding:2px 0 6px">Estimation d'après le Marché impossible (${E(ind?ind.raison:'quartier non renseigné')}) : la valeur saisie est utilisée.</div>`;
+ else if(!b.quartier)h+=`<div style="font-size:11px;color:var(--text3);padding:2px 0 6px">Renseignez le quartier dans la fiche (modifier) pour comparer cette valeur au Marché.</div>`;
+ return h+airbnbQuartierAlerte(b);
+}
+function updateEbValeurPreview(){
+ const el=document.getElementById('eb-valeur-preview');if(!el)return;
+ const v=id=>(document.getElementById(id)||{}).value;
+ const b={quartier:v('eb-quartier'),etat:v('eb-etat'),surface:Number(v('eb-surface'))||0,coefValeur:Number(v('eb-coef-valeur'))||0,prix:Number(v('eb-prix'))||0};
+ const ind=marcheValeurIndicative(b),mode=v('eb-valeur-mode');
+ if(!ind.ok){el.innerHTML=`<span style="color:var(--text3)">Valeur indicative du Marché : impossible (${escH(ind.raison)}).</span>`;return;}
+ const ec=b.prix>0?ind.valeur/b.prix-1:null;
+ el.innerHTML=`Valeur indicative du Marché : <strong>${euro(ind.valeur)}</strong> (${euro(ind.pm2,0)}/m² · ${escH(ind.q)}, ${escH(b.etat||'Ancien')}, ${ind.S} m²${ind.coef?', correction '+(ind.coef>0?'+':'')+ind.coef+' %':''})${ec==null?'':' · '+(ec>=0?'+':'')+(ec*100).toFixed(1).replace('.',',')+' % par rapport au prix d\'achat'}. Données du Marché de ${MARKET_MAJ_LABEL}${marcheAnciennete()>6?' (plus de 6 mois)':''}.${mode==='marche'?' <strong>Cette valeur sera utilisée dans le dashboard.</strong>':' <button class="btn btn-sm" type="button" onclick="ebUtiliserValeurMarche()">Utiliser cette valeur</button>'}`;
+}
+function ebUtiliserValeurMarche(){
+ const v=id=>(document.getElementById(id)||{}).value;
+ const ind=marcheValeurIndicative({quartier:v('eb-quartier'),etat:v('eb-etat'),surface:Number(v('eb-surface'))||0,coefValeur:Number(v('eb-coef-valeur'))||0});
+ if(!ind.ok)return;
+ document.getElementById('eb-valeur').value=ind.valeur;document.getElementById('eb-valeur-mode').value='manuelle';updateEbValeurPreview();
 }
 function biensList(){return Object.values(DATA.biens)}
 function mvtsList(){return Object.values(DATA.mouvements).sort((a,b)=>a.date.localeCompare(b.date))}
@@ -2735,7 +2815,7 @@ function renderDashboard(){
 
  document.getElementById('dash-kpis').innerHTML=`
  <div class="kpi"><div class="kpi-label">Biens</div><div class="kpi-val">${biens.length}</div></div>
- <div class="kpi"><div class="kpi-label">Valeur estimée</div><div class="kpi-val">${euro(totalValeur)}</div></div>
+ <div class="kpi"><div class="kpi-label">Valeur estimée</div><div class="kpi-val">${euro(totalValeur)}</div>${(()=>{const n=biens.filter(b=>valeurInfo(b).source==='marche').length;return n?`<div style="font-size:11px;color:var(--text3);margin-top:2px">dont ${n} bien${n>1?'s':''} estimé${n>1?'s':''} d'après le Marché</div>`:'';})()}</div>
  <div class="kpi"><div class="kpi-label">Capital restant dû</div><div class="kpi-val">${euro(totalCRD)}</div></div>
  <div class="kpi"><div class="kpi-label">Valeur nette SCI</div><div class="kpi-val ${valNette>=0?'kpi-pos':'kpi-neg'}">${valNette>=0?'+':''}${euro(valNette)}</div></div>
  <div class="kpi"><div class="kpi-label">Trésorerie</div><div class="kpi-val kpi-pos">${euro(tresorerie,2)}</div></div>
@@ -2942,7 +3022,7 @@ function bienDrawerContent(b){
  <div class="status-row"><span>Prix d'acquisition</span><span>${euro(b.prix)}</span></div>
  <div class="status-row"><span>Date d'achat</span><span>${b.dateAchat?fdate(b.dateAchat):'—'}</span></div>
  <div class="status-row"><span>Coût total acquisition</span><span>${euro(coutTotal)}</span></div>
- <div class="status-row"><span>Valeur estimée</span><span>${euro(valeurBien(b))}</span></div>
+ ${valeurDetailHtml(b)}
  <div class="status-row"><span>Capital emprunté</span><span>${euro(b.capital)}</span></div>
  <div class="status-row"><span>Capital restant dû</span><span>${euro(b.capitalRestant||b.capital)}</span></div>
  <div class="status-row"><span>Banque</span><span>${b.banque||'—'} · ${b.taux}% · ${duree} mois</span></div>
@@ -3430,7 +3510,7 @@ function renderRentabilite(){
   <div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><thead><tr><th>Bien</th><th style="text-align:right">Prix d'achat</th><th style="text-align:right">Travaux</th><th style="text-align:right">= Base du rendement</th><th style="text-align:right" title="Le plus élevé entre la fiche du bien et les paiements de la Comptabilité">Notaire</th><th style="text-align:right" title="Le plus élevé entre la fiche du bien et les paiements de la Comptabilité">Courtage</th><th style="text-align:right" title="Frais de dossier, garantie, crédit logement… payés">Frais bancaires et autres</th><th style="text-align:right">= Frais d'acquisition</th><th style="text-align:right">Frais / prix</th><th style="text-align:right">${rentaEtalOpt()==='total'?'Frais déduits (totalité)':'Frais étalés par an'}</th></tr></thead><tbody>
   ${rows.map(r=>`<tr><td><strong>${E(bienNom(r.b))}</strong></td><td style="text-align:right">${euro(r.prix,0)}</td><td style="text-align:right">${euro(r.trav,0)}</td><td style="text-align:right;font-weight:600">${euro(r.coutOper,0)}</td><td style="text-align:right">${euro(r.notaireRet,0)}</td><td style="text-align:right">${euro(r.courtageRet,0)}</td><td style="text-align:right">${r.autresRet?euro(r.autresRet,0):'—'}</td><td style="text-align:right;font-weight:600">${euro(r.fraisAcq,0)}${r.fraisAuto?`<div style="font-size:11px;font-weight:400;color:var(--text3)">dont ${euro(r.fraisAuto,0)} détectés en « Hors rentabilité »</div>`:''}</td><td style="text-align:right">${r.prix>0?pct1(r.fraisAcq/r.prix*100):'—'}</td><td style="text-align:right">${r.etalTotal?euro(r.fraisAcq,0)+' <span style="color:var(--text3)">(totalité)</span>':euro(r.fraisAn,0)+' <span style="color:var(--text3)">('+Math.round(r.etalAns*10)/10+' ans)</span>'}</td></tr>`).join('')}
   <tr style="background:var(--surface2);font-weight:600"><td>Total</td><td style="text-align:right">${euro(sum('prix'),0)}</td><td style="text-align:right">${euro(sum('trav'),0)}</td><td style="text-align:right">${euro(sum('coutOper'),0)}</td><td style="text-align:right">${euro(sum('notaireRet'),0)}</td><td style="text-align:right">${euro(sum('courtageRet'),0)}</td><td style="text-align:right">${sum('autresRet')?euro(sum('autresRet'),0):'—'}</td><td style="text-align:right">${euro(sum('fraisAcq'),0)}</td><td style="text-align:right">${sum('prix')>0?pct1(sum('fraisAcq')/sum('prix')*100):'—'}</td><td style="text-align:right">${euro(rentaEtalOpt()==='total'?sum('fraisAcq'):sum('fraisAn'),0)}</td></tr></tbody></table></div>
-  <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.55"><strong>D'où viennent ces frais.</strong> <em>Notaire</em> et <em>courtage</em> : le plus élevé entre la fiche du bien et les paiements de la Comptabilité, pour ne pas compter deux fois le même frais. <em>Frais bancaires et autres</em> : les paiements de la Comptabilité. Les lignes comptées sont celles affectées à <em>Frais d'acquisition · bien</em> et, tant que la liste « Frais de notaire et de banque » est sur « comptés », celles classées <em>Hors rentabilité</em> dont le libellé évoque un frais (notaire, frais de dossier, crédit logement, courtage, garantie…) et dont le montant ne dépasse pas 25 % du prix : elles sont rattachées au bien dont la date d'achat est la plus proche. Le paiement du prix d'achat, un déblocage de prêt ou un dépôt de garantie restent neutres. Les intérêts du prêt ne sont pas déduits (la Comptabilité ne distingue pas intérêts et capital) : ils apparaissent dans le cash-flow.</div></div>`;
+  <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.55"><strong>D'où viennent ces frais.</strong> <em>Notaire</em> et <em>courtage</em> : le plus élevé entre la fiche du bien et les paiements de la Comptabilité, pour ne pas compter deux fois le même frais. <em>Frais bancaires et autres</em> : les paiements de la Comptabilité. Les lignes comptées sont celles affectées à <em>Frais d'acquisition · bien</em> et, tant que la liste « Frais de notaire et de banque » est sur « comptés », celles classées <em>Hors rentabilité</em> dont le libellé évoque un frais (notaire, frais de dossier, crédit logement, courtage, garantie…) et dont le montant ne dépasse pas 25 % du prix : elles sont rattachées au bien dont la date d'achat est la plus proche. Le paiement du prix d'achat, un déblocage de prêt ou un dépôt de garantie restent neutres. Les intérêts du prêt ne sont pas déduits du rendement : ils figurent dans le cash-flow (avec le tableau d'amortissement de la banque importé dans l'onglet Emprunt, la carte « Résultat de la SCI » distingue intérêts, capital et assurance).</div></div>`;
  // lignes à vérifier : frais d'acquisition comptés par erreur dans les charges d'exploitation
  const aVer=rentaAVerifier(R);
  document.getElementById('renta-verif').innerHTML=aVer.length?`<div class="card" style="border-left:3px solid var(--amber);margin-bottom:14px"><div style="font-weight:600;font-size:14px;margin-bottom:2px">À vérifier : ${aVer.length} ligne${aVer.length>1?'s':''} comptée${aVer.length>1?'s':''} comme charge d'exploitation</div>
@@ -3443,7 +3523,7 @@ function renderRentabilite(){
   ${ls.length?`<div style="overflow-x:auto;margin-top:8px"><table class="jtable" style="font-size:12px"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Imputation</th><th style="text-align:right">Montant imputé</th></tr></thead><tbody>${ls.map(x=>`<tr><td style="white-space:nowrap">${fdate(x.m.date)}</td><td>${E(x.m.libelle)}</td><td>${E(catLabel(x.m.cat))}</td><td>${(x.commun?'quote-part commune ('+Math.round(x.part*100)+' %)'+(x.avant?' · frais d\'avant achat':''):'directe')+(x.perso?' · part de '+pc1(x.perso)+' % de la ligne':'')}</td><td style="text-align:right">${x.val>=0?'+':'−'}${euro(Math.abs(x.val),2)}</td></tr>`).join('')}</tbody></table></div>`:'<div style="font-size:12px;color:var(--text3);margin-top:8px">Aucune ligne affectée à ce bien sur la période.</div>'}</details>`;
  }).join('');
  // Résultat de la SCI : tout inclus, avec contrôle sur la somme de toutes les lignes de la période
- const S=R.sci,Ct=R.controle,nonImput=R.nonRep,nonAffec=R.nonAff;
+ const S=R.sci,Ct=R.controle,nonImput=R.nonRep,nonAffec=R.nonAff,Vt=echVentilation(R.d1,R.d2);
  const sc=v=>`<span style="color:${v>=0?'var(--green)':'var(--red)'};font-weight:600">${v>=0?'+':'−'}${euro(Math.abs(v),2)}</span>`;
  const ln=(l,v,o)=>`<tr${o&&o.bold?' style="font-weight:600;background:var(--surface2)"':''}><td style="${o&&o.indent?'padding-left:'+o.indent+'px;color:var(--text2)':''}">${l}</td><td style="text-align:right">${v}</td></tr>`;
  const resBiens=rows.reduce((t,r)=>t+r.resultat,0),horsNetX=Ct.horsNet,ok0=Math.abs(Ct.ecart)<0.01;
@@ -3457,6 +3537,7 @@ function renderRentabilite(){
   ${nonImput.n?ln('dont frais communs non répartis (avant le premier achat)',sc(nonImput.prod-nonImput.dep),{indent:18}):''}
   ${nonAffec.n?ln('dont lignes encore à affecter ('+nonAffec.n+')',sc(nonAffec.prod-nonAffec.dep),{indent:18}):''}
   ${ln('Remboursements d\'emprunt','−'+euro(S.emp,2))}
+  ${Vt.n?ln('dont intérêts <span style="color:var(--text3)">(tableau de la banque)</span>','−'+euro(Vt.interets,2),{indent:18})+ln('dont capital remboursé','−'+euro(Vt.capital,2),{indent:18})+(Vt.assurance>0?ln('dont assurance emprunteur et frais','−'+euro(Vt.assurance,2),{indent:18}):'')+(S.emp-Vt.total>0.5?ln('dont non ventilé <span style="color:var(--text3)">(lignes sans échéance rapprochée)</span>','−'+euro(S.emp-Vt.total,2),{indent:18}):''):''}
   ${ln('Cash-flow de la SCI',sc(S.cashflow),{bold:1})}
   </tbody></table></div>
   <div style="font-weight:600;font-size:13px;margin:14px 0 6px">Contrôle avec la Comptabilité</div>
@@ -3709,6 +3790,7 @@ function renderAssocies(){
 // ============================================================
 // Calcule la mensualité d'un bien selon son mode et ses paramètres
 function bienMensualite(b) {
+ if(echA(b)) return echMensCourante(b);   // tableau de la banque : échéance du mois, assurance comprise
  if(b.mensualiteManuelle && Number(b.mensualiteManuelle) > 0) return Number(b.mensualiteManuelle);
  const c=Number(b.capital), t=Number(b.taux)/100/12, n=Number(b.duree);
  if(!t || !n || !c) return 0;
@@ -3811,6 +3893,9 @@ function genTableauAmort(b) {
 }
 
 function empruntDrawerContent(b){
+ return echBarre(b)+(echA(b)?echDrawerContent(b):empruntDrawerTheorique(b));
+}
+function empruntDrawerTheorique(b){
  const c=Number(b.capital), t=Number(b.taux)/100/12, n=Number(b.duree);
  if(!n||!c)return`<div class="empty-state">Données emprunt incomplètes</div>`;
  const mode = b.modeRemboursement || 'annuite';
@@ -3940,11 +4025,11 @@ function gExercice(today,mois){
 // Impôt sur les sociétés estimé pour l'année « an », avec le moteur de la Projection (loyers, charges, intérêts, amortissement des fiches)
 function gestionIsEstime(an){
  const biens=biensList().filter(b=>b.dateAchat&&+b.dateAchat.slice(0,4)<=an);
- let ca=0,charges=0,interets=0,amort=0;
- biens.forEach(b=>{const y=projCalcIS(bienToProj(b),an);ca+=y.ca;charges+=y.charges;interets+=y.interets;amort+=y.amort;});
+ let ca=0,charges=0,interets=0,amort=0,assur=0;
+ biens.forEach(b=>{const y=projCalcIS(bienToProj(b),an);ca+=y.ca;charges+=y.charges;interets+=y.interets;amort+=y.amort;assur+=y.assurance||0;});
  const resultat=ca-charges-interets-amort,seuil=BP_PARAMS.isSeuil||42500,t1=(BP_PARAMS.isTaux1||15)/100,t2=(BP_PARAMS.isTaux2||25)/100,base=Math.max(0,resultat);
  const is=base<=seuil?base*t1:seuil*t1+(base-seuil)*t2;
- return {an,n:biens.length,ca,charges,interets,amort,resultat,is,seuil,t1,t2};
+ return {an,n:biens.length,ca,charges,interets,amort,assurance:assur,resultat,is,seuil,t1,t2};
 }
 const gestionTf=an=>biensList().filter(b=>b.dateAchat&&b.dateAchat<=an+'-01-01').reduce((t,b)=>t+(Number((b.chargesAnnuelles||{}).fonciere)||0),0);   // taxe foncière due par le propriétaire au 1er janvier
 // CFE : la location nue de logements d'habitation n'y est pas soumise ; la location meublée habituelle (bail meublé, Airbnb) l'est
@@ -4014,6 +4099,8 @@ function gestionVigilance(today,P){
   if(biens.some(b=>b.modeLocation==='B'||b.modeLocation==='A'))add('warn','Location meublée de courte durée (Airbnb)','Louer un logement en meublé de tourisme est un changement d\'usage : à Marseille, une autorisation est exigée, à vérifier auprès de la ville. Un numéro d\'enregistrement est requis pour les meublés de tourisme et la procédure évolue (téléservice national annoncé au quatrième trimestre 2026) : vérifiez la démarche en vigueur auprès de la mairie. La taxe de séjour est collectée par les plateformes. Vérifiez aussi le régime de TVA avec votre expert-comptable.');
   add('warn','Diagnostic de performance énergétique','Vérifiez le DPE de chaque logement : les logements classés G sont interdits à la location depuis le 1er janvier 2025, les F le seront en 2028 et les E en 2034 ; les loyers des F et G sont gelés.');
  }
+ const sansTab=biens.filter(b=>Number(b.capital)>0&&!echA(b));
+ if(sansTab.length)add('info','Tableau d\'amortissement de la banque à importer','Importez le PDF du tableau de chaque prêt ('+E(sansTab.map(nom).join(', '))+') dans l\'onglet Emprunt : les intérêts et l\'assurance de l\'impôt estimé viennent alors du tableau réel, et vos remboursements Odoo sont ventilés entre intérêts, capital et assurance.');
  const cca=ccaList().reduce((t,c)=>t+(Number(c.apport)||0)-(Number(c.remb)||0),0);
  if(cca>0)add('info','Comptes courants d\'associés : '+euro(cca,0),'Si vous les rémunérez, prévoyez une convention écrite et un taux qui ne dépasse pas le plafond de déductibilité publié chaque trimestre (taux maximum des intérêts déductibles, sur impots.gouv.fr) : l\'excédent n\'est pas déductible. Sans convention, vos apports ne produisent pas d\'intérêts.');
  const naf=(typeof affNonAffectees==='function')?affNonAffectees().length:0;
@@ -4034,7 +4121,7 @@ function gestionDocs(today,P){
  const D=[
   {k:'releves',t:'Relevés bancaires de l\'exercice',auto:dernier?'Dernier mouvement importé : '+gFr(dernier):'Aucun mouvement importé'},
   {k:'affect',t:'Lignes de la Comptabilité classées et affectées',auto:(typeof affNonAffectees==='function'?affNonAffectees().length:0)+' ligne(s) restant à affecter'},
-  {k:'prets',t:'Tableaux d\'amortissement des prêts et attestations d\'intérêts de la banque',auto:biens.filter(b=>Number(b.capital)>0).length+' prêt(s) saisi(s) dans l\'appli'},
+  {k:'prets',t:'Tableaux d\'amortissement des prêts et attestations d\'intérêts de la banque',auto:biens.filter(b=>Number(b.capital)>0).length+' prêt(s) saisi(s) dans l\'appli, dont '+biens.filter(echA).length+' avec le tableau de la banque importé'},
   {k:'actes',t:'Actes d\'achat avec la ventilation terrain / construction et le détail des frais (notaire, courtage)',auto:''},
   {k:'travaux',t:'Factures de travaux et d\'équipements de l\'exercice',auto:''},
   {k:'copro',t:'Appels de fonds et décomptes de charges de copropriété',auto:''},
@@ -4076,6 +4163,7 @@ function renderConseilGestion(){
   <div style="overflow-x:auto"><table class="jtable" style="font-size:12.5px"><thead><tr><th></th><th style="text-align:right">Exercice en cours (${gFr(ex.fin)})</th><th style="text-align:right">Dernier exercice clos (${gFr(ex.precFin)})</th></tr></thead><tbody>
   <tr><td>Produits (loyers)</td><td style="text-align:right">${euro(isCur.ca,0)}</td><td style="text-align:right">${euro(isRef.ca,0)}</td></tr>
   <tr><td>Charges</td><td style="text-align:right">−${euro(isCur.charges,0)}</td><td style="text-align:right">−${euro(isRef.charges,0)}</td></tr>
+  ${(isCur.assurance||isRef.assurance)?`<tr style="color:var(--text2)"><td style="padding-left:18px">dont assurance emprunteur et frais (tableau de la banque)</td><td style="text-align:right">−${euro(isCur.assurance,0)}</td><td style="text-align:right">−${euro(isRef.assurance,0)}</td></tr>`:''}
   <tr><td>Intérêts d'emprunt</td><td style="text-align:right">−${euro(isCur.interets,0)}</td><td style="text-align:right">−${euro(isRef.interets,0)}</td></tr>
   <tr><td>Amortissements</td><td style="text-align:right">−${euro(isCur.amort,0)}</td><td style="text-align:right">−${euro(isRef.amort,0)}</td></tr>
   <tr style="font-weight:600;background:var(--surface2)"><td>Résultat fiscal estimé</td><td style="text-align:right">${euro(isCur.resultat,0)}</td><td style="text-align:right">${euro(isRef.resultat,0)}</td></tr>
@@ -4106,6 +4194,8 @@ function buildPrebilanHtml(){
  else h+='<div class="muted">Aucun bien.</div>';
  h+=`<h2>3. Biens, prêts et estimation de l'exercice</h2>`;
  h+=biens.length?table(['Bien','Achat','Prix','Frais (notaire, courtage)','Travaux','Prêt (capital · taux · durée)','Intérêts estimés','Amortissement estimé'],biens.map(b=>{const y=projCalcIS(bienToProj(b),+ex.fin.slice(0,4));return [E(bienNom(b)),b.dateAchat?gFr(b.dateAchat):'—',euro(Number(b.prix)||0,0),euro((Number(b.notaire)||0)+(Number(b.courtier)||0),0),euro(Number(b.travaux)||0,0),euro(Number(b.capital)||0,0)+' · '+(Number(b.taux)||0)+' % · '+Math.round((Number(b.duree)||240)/12)+' ans',euro(y.interets,0),euro(y.amort,0)];}),2):'<div class="muted">Aucun bien.</div>';
+ const Vt=echVentilation(ex.debut,d2);
+ if(Vt.n)h+=`<div class="note">Remboursements d'emprunt de la période ventilés d'après les tableaux de la banque : intérêts ${euro(Vt.interets,2)}, capital ${euro(Vt.capital,2)}, assurance et frais ${euro(Vt.assurance,2)} (${Vt.n} échéance${Vt.n>1?'s':''} rapprochée${Vt.n>1?'s':''}).</div>`;
  h+=`<div class="note">Estimation de l'exercice (moteur de la Projection) : résultat fiscal ${euro(isCur.resultat,0)}, impôt sur les sociétés ${euro(isCur.is,0)}. Amortissement : 80 % du prix sur 40 ans ; frais d'acquisition et travaux non déduits ; à affiner par l'expert-comptable.</div>`;
  h+=`<h2>4. Comptes courants d'associés</h2>`;
  const soldes={};ccaList().forEach(c=>{soldes[c.assoc]=(soldes[c.assoc]||0)+(Number(c.apport)||0)-(Number(c.remb)||0);});
@@ -4132,7 +4222,243 @@ function showConseilPage(id,btn){
  updateWide();
 }
 
+// ================= TABLEAU D'AMORTISSEMENT DE LA BANQUE (PDF) =================
+// Colonnes attendues : date d'échéance · capital dû avant l'échéance · capital · intérêts · assurance groupe et frais · échéance assurance comprise.
+// Une ligne stockée : [date ISO, capital dû, capital, intérêts, assurance, échéance].
+const ECH_PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const ECH_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let echPdfPromise=null,echCible=null,echAnalyse=null;
+const echArr=x=>Math.round(x*100)/100;
+
+// ---- lecture du PDF (pdf.js, chargé seulement à l'import) ----
+function echChargerPdfJs(){
+ if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
+ if(echPdfPromise)return echPdfPromise;
+ echPdfPromise=new Promise((res,rej)=>{
+  const s=document.createElement('script');s.src=ECH_PDFJS;
+  s.onload=()=>{if(window.pdfjsLib){window.pdfjsLib.GlobalWorkerOptions.workerSrc=ECH_WORKER;res(window.pdfjsLib);}else{echPdfPromise=null;rej(new Error('bibliothèque de lecture des PDF introuvable'));}};
+  s.onerror=()=>{echPdfPromise=null;rej(new Error('impossible de charger la bibliothèque de lecture des PDF (connexion internet ?)'));};
+  document.head.appendChild(s);
+ });
+ return echPdfPromise;
+}
+// éléments de texte d'une page (position x, y) → lignes de texte, de haut en bas puis de gauche à droite
+function echLignesDepuisItems(items){
+ const rows=[];
+ items.filter(i=>i.str&&i.str.trim()).sort((a,b)=>b.y-a.y||a.x-b.x).forEach(it=>{
+  let r=rows.find(r=>Math.abs(r.y-it.y)<=2.5);
+  if(!r){r={y:it.y,cells:[]};rows.push(r);}
+  r.cells.push(it);
+ });
+ return rows.sort((a,b)=>b.y-a.y).map(r=>r.cells.sort((a,b)=>a.x-b.x).map(c=>c.str.trim()).join(' '));
+}
+async function echLignesDepuisPdf(file){
+ const lib=await echChargerPdfJs();
+ const buf=await file.arrayBuffer();
+ const pdf=await lib.getDocument({data:new Uint8Array(buf)}).promise;
+ let lignes=[];
+ for(let p=1;p<=pdf.numPages;p++){
+  const page=await pdf.getPage(p),tc=await page.getTextContent();
+  lignes=lignes.concat(echLignesDepuisItems(tc.items.map(i=>({str:i.str,x:i.transform[4],y:i.transform[5]}))));
+ }
+ return lignes;
+}
+
+// ---- analyse du texte ----
+const ECH_NUM=/-?\d{1,3}(?:[ .]\d{3})+,\d{2}|-?\d+,\d{2}/g;      // 109 000,00 · 1.234,56 · 296,13
+const echNombre=t=>Number(t.replace(/[ .]/g,'').replace(',','.'));
+function echParseLignes(lignes){
+ const rows=[],ignorees=[];
+ lignes.forEach(l=>{
+  const s=String(l).replace(/[\u00a0\u202f]/g,' ');
+  const md=s.match(/(?:^|\s)(\d{2})[\/.\-](\d{2})[\/.\-](\d{4})(?=\s|$)/);
+  if(!md)return;
+  const j=+md[1],m=+md[2],a=+md[3];
+  if(m<1||m>12||j<1||j>31)return;
+  const nums=(s.slice(md.index+md[0].length).match(ECH_NUM)||[]).map(echNombre);
+  if(nums.length<4){ignorees.push(l);return;}
+  const n5=nums.length>=5?nums.slice(-5):[nums[0],nums[1],nums[2],0,nums[3]];   // sans colonne d'assurance : assurance = 0
+  rows.push({date:gIso(a,m,j),capDu:n5[0],capital:n5[1],interets:n5[2],assurance:n5[3],echeance:n5[4]});
+ });
+ return {rows,ignorees};
+}
+// contrôles : chaque ligne s'additionne, le capital dû diminue du capital remboursé, il retombe à 0 à la dernière échéance
+function echControles(rowsBrutes){
+ const vus=new Set(),rows=[];
+ rowsBrutes.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{const k=[r.date,r.capDu,r.capital,r.interets,r.assurance,r.echeance].join('|');if(!vus.has(k)){vus.add(k);rows.push(r);}});
+ const C=[],n=rows.length;
+ if(!n)return {rows,stats:{},controles:[{ok:false,critique:true,txt:'Aucune échéance reconnue. Vérifiez que le PDF est un tableau d\'amortissement (et non une image scannée) ou collez le texte du tableau.'}],critique:true};
+ const lignesKo=rows.filter(r=>Math.abs(r.capital+r.interets+r.assurance-r.echeance)>0.03);
+ C.push({ok:!lignesKo.length,critique:true,txt:lignesKo.length?lignesKo.length+' ligne(s) où capital + intérêts + assurance ≠ échéance (première : '+gFr(lignesKo[0].date)+')':'Chaque ligne s\'additionne : capital + intérêts + assurance = échéance'});
+ const ruptures=[];for(let i=0;i<n-1;i++)if(Math.abs(rows[i].capDu-rows[i].capital-rows[i+1].capDu)>0.1)ruptures.push(i);
+ C.push({ok:!ruptures.length,critique:true,txt:ruptures.length?'Le capital dû ne diminue pas du capital remboursé à '+ruptures.length+' endroit(s) (première : après le '+gFr(rows[ruptures[0]].date)+')':'Le capital dû diminue exactement du capital remboursé, échéance après échéance'});
+ const fin=echArr(rows[n-1].capDu-rows[n-1].capital);
+ C.push({ok:Math.abs(fin)<=1,critique:true,txt:Math.abs(fin)<=1?'Le capital est soldé à la dernière échéance ('+gFr(rows[n-1].date)+')':'Il resterait '+fin+' € de capital après la dernière échéance : des lignes manquent peut-être'});
+ const somCap=echArr(rows.reduce((t,r)=>t+r.capital,0));
+ C.push({ok:Math.abs(somCap-rows[0].capDu)<=1,critique:true,txt:Math.abs(somCap-rows[0].capDu)<=1?'Somme des capitaux remboursés = capital emprunté ('+somCap.toLocaleString('fr-FR')+' €)':'Somme des capitaux remboursés ('+somCap.toLocaleString('fr-FR')+' €) ≠ capital emprunté ('+rows[0].capDu.toLocaleString('fr-FR')+' €)'});
+ let nonMens=0;for(let i=0;i<n-1;i++){const g=(gDate(rows[i+1].date)-gDate(rows[i].date))/86400000;if(g<27||g>35)nonMens++;}
+ C.push({ok:!nonMens,critique:false,txt:nonMens?nonMens+' intervalle(s) entre échéances différent(s) d\'un mois (différé, trimestrialité ou lignes manquantes ?)':'Échéances mensuelles régulières'});
+ const stats={n,debut:rows[0].date,fin:rows[n-1].date,capital:rows[0].capDu,interets:echArr(rows.reduce((t,r)=>t+r.interets,0)),assurance:echArr(rows.reduce((t,r)=>t+r.assurance,0)),total:echArr(rows.reduce((t,r)=>t+r.echeance,0)),
+  tauxDeduit:rows[0].capDu>0?rows[0].interets/rows[0].capDu*1200:0};
+ return {rows,stats,controles:C,critique:C.some(c=>c.critique&&!c.ok)};
+}
+
+// ---- utilisation du tableau d'un bien ----
+const echObjets=b=>(b.echeancier||[]).map((r,i)=>({n:i+1,date:r[0],capDu:r[1],capital:r[2],interets:r[3],assurance:r[4],echeance:r[5]}));
+const echA=b=>!!(b&&Array.isArray(b.echeancier)&&b.echeancier.length);
+// échéance du mois en cours (assurance comprise) ; 0 si le prêt est soldé
+function echMensCouranteRows(rows,today){
+ if(!rows||!rows.length)return 0;
+ const mois=today.slice(0,7),r=rows.find(x=>x[0].slice(0,7)===mois);
+ if(r)return r[5];
+ return today<rows[0][0]?rows[0][5]:(today>rows[rows.length-1][0]?0:rows.filter(x=>x[0]<=today).slice(-1)[0][5]);
+}
+const echMensCourante=(b,today)=>echMensCouranteRows(b.echeancier,today||gToday());
+// capital restant dû : capital avant la prochaine échéance (celles dont la date est passée sont réglées)
+function echCapitalRestantRows(rows,today){
+ if(!rows||!rows.length)return 0;
+ const r=rows.find(x=>x[0]>today);
+ return r?r[1]:0;
+}
+function refreshCapitalRestant(){biensList().forEach(b=>{if(echA(b))b.capitalRestant=echArr(echCapitalRestantRows(b.echeancier,gToday()));});}
+
+// ---- rapprochement avec les remboursements importés d'Odoo ----
+function echRapprocher(b,today){
+ const T=today||gToday(),rows=echObjets(b);
+ const debutCompta=mvtsList().reduce((m,x)=>(!m||x.date<m)?x.date:m,'');
+ const cand=mvtsList().filter(m=>m.cat==='loyer_emprunt'&&(mvtAff(m)===b.id||mvtAff(m)==='')).map(m=>({m,mt:Math.abs(Number(m.montant)||0),t:gDate(m.date).getTime()}));
+ const used=new Set(),res=[];
+ rows.forEach(r=>{
+  const tR=gDate(r.date).getTime();let best=null;
+  cand.forEach(c=>{
+   if(used.has(c.m.id))return;
+   const dj=Math.abs(c.t-tR)/86400000,da=Math.abs(c.mt-r.echeance);
+   if(dj>20||da>Math.max(1,r.echeance*0.005))return;
+   const sc=dj+da*2;if(!best||sc<best.sc)best={c,sc};
+  });
+  if(best){used.add(best.c.m.id);res.push({r,m:best.c.m,ecart:echArr(best.c.mt-r.echeance),statut:'paye'});}
+  else res.push({r,m:null,statut:r.date>gAddDays(T,-10)?'avenir':(debutCompta&&r.date<debutCompta?'avant':'manquant')});
+ });
+ const libres=cand.filter(c=>!used.has(c.m.id)&&mvtAff(c.m)===b.id).map(c=>c.m);
+ const P=res.filter(x=>x.statut==='paye');
+ return {res,libres,stats:{payes:P.length,manquants:res.filter(x=>x.statut==='manquant').length,
+  interets:echArr(P.reduce((t,x)=>t+x.r.interets,0)),capital:echArr(P.reduce((t,x)=>t+x.r.capital,0)),assurance:echArr(P.reduce((t,x)=>t+x.r.assurance,0)),
+  aAffecter:P.filter(x=>mvtAff(x.m)==='').length}};
+}
+// ventilation des remboursements d'une période entre intérêts, capital et assurance (d'après les échéances rapprochées)
+function echVentilation(d1,d2){
+ const o={interets:0,capital:0,assurance:0,total:0,n:0};
+ biensList().filter(echA).forEach(b=>echRapprocher(b).res.filter(x=>x.statut==='paye'&&x.m.date>=d1&&x.m.date<=d2).forEach(x=>{
+  o.interets+=x.r.interets;o.capital+=x.r.capital;o.assurance+=x.r.assurance;o.total+=Math.abs(Number(x.m.montant)||0);o.n++;}));
+ return o;
+}
+async function echAffecterRapproches(id){
+ const b=DATA.biens[id];if(!b)return;
+ const ids=echRapprocher(b).res.filter(x=>x.statut==='paye'&&mvtAff(x.m)==='').map(x=>x.m.id);
+ ids.forEach(i=>{const m=DATA.mouvements[i];if(m){m.aff=id;delete m.affParts;}});
+ openDrawerEmprunt(id);renderTresorerie();renderRentabilite();
+ for(let k=0;k<ids.length;k+=200){const ch={};ids.slice(k,k+200).forEach(i=>{ch[i]=DATA.mouvements[i];});await fbSave('mouvements',ch);}
+ showToast(ids.length+' ligne'+(ids.length>1?'s':'')+' affectée'+(ids.length>1?'s':'')+' à ce bien');
+}
+
+// ---- fenêtre d'import ----
+function echOuvrirModal(titre,corps,pied){
+ document.getElementById('ech-titre').textContent=titre;
+ document.getElementById('ech-body').innerHTML=corps;
+ document.getElementById('ech-footer').innerHTML=pied;
+ openModal('modal-ech');
+}
+function echFermer(){closeModal('modal-ech');}
+function echChoisirPdf(id){echCible=id;const f=document.getElementById('ech-file');f.value='';f.click();}
+async function echFichierChoisi(inp){
+ const file=inp.files&&inp.files[0];if(!file)return;
+ echOuvrirModal('Lecture du PDF…','<div class="empty-state" style="padding:24px">Lecture du tableau en cours…</div>','<button class="btn" onclick="echFermer()">Annuler</button>');
+ try{
+  const lignes=await echLignesDepuisPdf(file);
+  echAnalyse={source:'pdf',nom:file.name,...echAnalyserLignes(lignes)};
+  echRendreApercu();
+ }catch(e){echErreur(e&&e.message?e.message:String(e));}
+}
+function echAnalyserLignes(lignes){const p=echParseLignes(lignes);return {nbLignes:lignes.length,ignorees:p.ignorees,...echControles(p.rows)};}
+function echErreur(msg){
+ echOuvrirModal('Tableau d\'amortissement de la banque',`<div class="note" style="background:var(--red-light);color:var(--red);line-height:1.55"><strong>Lecture impossible :</strong> ${escH(msg)}</div><div style="font-size:12px;color:var(--text2);margin-top:10px;line-height:1.55">Si le PDF est un scan (une image), le texte ne peut pas être lu. Sinon, ouvrez le PDF, sélectionnez le tableau, copiez-le et collez-le avec « Coller le texte ».</div>`,`<button class="btn" onclick="echFermer()">Fermer</button><button class="btn btn-primary" onclick="echOuvrirColler('${echCible}')">Coller le texte</button>`);
+}
+function echOuvrirColler(id){
+ echCible=id;
+ echOuvrirModal('Coller le tableau d\'amortissement',`<div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:8px">Ouvrez le PDF de la banque, sélectionnez les lignes du tableau (date, capital dû, capital, intérêts, assurance, échéance), copiez-les et collez-les ici.</div><textarea id="ech-texte" rows="12" style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:monospace;font-size:12px" placeholder="05/11/2025   109 000,00   314,24   317,92   14,10   646,26"></textarea>`,`<button class="btn" onclick="echFermer()">Annuler</button><button class="btn btn-primary" onclick="echAnalyserTexte()">Analyser</button>`);
+}
+function echAnalyserTexte(){
+ const t=(document.getElementById('ech-texte')||{}).value||'';
+ echAnalyse={source:'texte',nom:'',...echAnalyserLignes(t.split(/\r?\n/))};
+ echRendreApercu();
+}
+function echRendreApercu(){
+ const A=echAnalyse,b=DATA.biens[echCible];if(!A||!b)return;
+ const st=A.stats,E=escH;
+ let corps='';
+ if(st&&st.n){
+  const ex=Math.abs(Number(b.capital)-st.capital)>1&&Number(b.capital)>0;
+  corps+=`<div class="kpi-grid" style="margin-bottom:12px"><div class="kpi"><div class="kpi-label">Échéances</div><div class="kpi-val">${st.n}</div></div><div class="kpi"><div class="kpi-label">Première · dernière</div><div class="kpi-val" style="font-size:13px">${gFr(st.debut)} · ${gFr(st.fin)}</div></div><div class="kpi"><div class="kpi-label">Capital emprunté</div><div class="kpi-val">${euro(st.capital,0)}</div></div><div class="kpi"><div class="kpi-label">Taux déduit</div><div class="kpi-val">${st.tauxDeduit.toFixed(2).replace('.',',')} %</div></div><div class="kpi"><div class="kpi-label">Total intérêts</div><div class="kpi-val kpi-neg">${euro(st.interets,0)}</div></div><div class="kpi"><div class="kpi-label">Assurance et frais</div><div class="kpi-val kpi-neg">${euro(st.assurance,0)}</div></div></div>`;
+  corps+=`<div style="margin-bottom:10px">${A.controles.map(c=>`<div style="font-size:12.5px;padding:2px 0;color:${c.ok?'var(--green)':(c.critique?'var(--red)':'var(--amber)')}">${c.ok?'✓':(c.critique?'✗':'!')} ${E(c.txt)}</div>`).join('')}</div>`;
+  if(A.critique)corps+=`<div class="note" style="background:var(--red-light);color:var(--red);margin-bottom:10px;line-height:1.55">Des incohérences ont été détectées : la lecture du PDF est peut-être erronée. Vérifiez les lignes ci-dessous. Vous pouvez tout de même importer en cochant la case, mais les intérêts et le capital restant dû seraient alors faux.<label style="display:block;margin-top:6px;cursor:pointer"><input type="checkbox" id="ech-force" onchange="echMajBouton()"> Importer malgré les incohérences</label></div>`;
+  corps+=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.55">L'import remplacera le tableau théorique de <strong>${E(bienNom(b))}</strong> : capital ${euro(st.capital,0)}, durée ${st.n} mois, début ${gFr(st.debut)}${Math.abs((Number(b.taux)||0)-st.tauxDeduit)>0.05?', taux '+st.tauxDeduit.toFixed(2).replace('.',',')+' % (fiche : '+String(Number(b.taux)||0).replace('.',',')+' %)':''}.${ex?' <strong>Le capital de la fiche ('+euro(b.capital,0)+') sera remplacé.</strong>':''}</div>`;
+  corps+=`<div style="max-height:240px;overflow:auto;border:0.5px solid var(--border);border-radius:var(--radius)"><table class="jtable" style="font-size:12px"><thead><tr><th>Date</th><th style="text-align:right">Capital dû</th><th style="text-align:right">Capital</th><th style="text-align:right">Intérêts</th><th style="text-align:right">Assurance</th><th style="text-align:right">Échéance</th></tr></thead><tbody>${A.rows.map(r=>`<tr><td>${gFr(r.date)}</td><td style="text-align:right">${euro(r.capDu,2)}</td><td style="text-align:right">${euro(r.capital,2)}</td><td style="text-align:right">${euro(r.interets,2)}</td><td style="text-align:right">${euro(r.assurance,2)}</td><td style="text-align:right;font-weight:600">${euro(r.echeance,2)}</td></tr>`).join('')}</tbody></table></div>`;
+ }else corps+=`<div class="note" style="background:var(--red-light);color:var(--red);line-height:1.55">${E(A.controles[0].txt)}</div>`;
+ echOuvrirModal('Tableau d\'amortissement de la banque',corps,`<button class="btn" onclick="echFermer()">Annuler</button><button class="btn" onclick="echOuvrirColler('${echCible}')">Coller le texte</button><button class="btn btn-primary" id="ech-ok" onclick="echImporter()" ${(st&&st.n&&!A.critique)?'':'disabled'}>Importer le tableau</button>`);
+}
+function echMajBouton(){const f=document.getElementById('ech-force'),b=document.getElementById('ech-ok');if(b)b.disabled=!(echAnalyse&&echAnalyse.rows.length&&(!echAnalyse.critique||(f&&f.checked)));}
+async function echImporter(){
+ const A=echAnalyse,b=DATA.biens[echCible];if(!A||!b||!A.rows.length)return;
+ if(A.critique&&!(document.getElementById('ech-force')||{}).checked)return;
+ const r0=A.rows[0];
+ b.echeancier=A.rows.map(r=>[r.date,r.capDu,r.capital,r.interets,r.assurance,r.echeance]);
+ b.echeancierInfo={date:gToday(),source:A.source,nom:A.nom||'',n:A.rows.length};
+ b.capital=r0.capDu;b.duree=A.rows.length;b.debut=r0.date;
+ const tx=A.stats.tauxDeduit;if(tx>0&&(!(Number(b.taux)>0)||Math.abs(Number(b.taux)-tx)>0.05))b.taux=Math.round(tx*100)/100;
+ refreshCapitalRestant();echFermer();renderAll();openDrawerEmprunt(b.id);
+ await fbSave('biens',{[b.id]:b});
+ showToast('Tableau de la banque importé : '+A.rows.length+' échéances');
+}
+async function echSupprimer(id){
+ const b=DATA.biens[id];if(!b||!echA(b))return;
+ if(!confirm('Revenir au tableau théorique (calculé d\'après le capital, le taux et la durée) ? Le tableau importé sera supprimé.'))return;
+ delete b.echeancier;delete b.echeancierInfo;
+ renderAll();openDrawerEmprunt(id);
+ await fbSave('biens',{[id]:b});
+}
+
+// ---- affichage dans l'onglet Emprunt ----
+function echBarre(b){
+ const E=escH,i=b.echeancierInfo||{};
+ return `<div style="background:var(--surface2);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;font-size:12px;line-height:1.55">
+  ${echA(b)?`<div><span class="badge badge-ok">Tableau de la banque</span> <span style="color:var(--text2)">${b.echeancier.length} échéances${i.date?', importé le '+gFr(i.date):''}${i.nom?' ('+E(i.nom)+')':''}</span></div>`:`<div style="color:var(--text2)">Tableau <strong>théorique</strong>, calculé d'après le capital, le taux et la durée. Importez le PDF de la banque pour obtenir les intérêts, le capital et l'assurance réels, et ventiler vos remboursements Odoo.</div>`}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn btn-sm btn-primary" onclick="echChoisirPdf('${b.id}')">${echA(b)?'Remplacer par un autre PDF':'Importer le tableau de la banque (PDF)'}</button><button class="btn btn-sm" onclick="echOuvrirColler('${b.id}')">Coller le texte</button>${echA(b)?`<button class="btn btn-sm" onclick="echSupprimer('${b.id}')">Revenir au tableau théorique</button>`:''}</div></div>`;
+}
+function echDrawerContent(b){
+ const rows=echObjets(b),T=gToday(),R=echRapprocher(b,T),st=R.stats,E=escH;
+ const restant=echCapitalRestantRows(b.echeancier,T),cap=Number(b.capital)||rows[0].capDu,pct=cap>0?Math.max(0,Math.min(100,(cap-restant)/cap*100)):0;
+ const totI=rows.reduce((t,r)=>t+r.interets,0),totA=rows.reduce((t,r)=>t+r.assurance,0),totE=rows.reduce((t,r)=>t+r.echeance,0);
+ const stat={paye:x=>`<span style="color:var(--green)">✓ ${gFr(x.m.date).slice(0,5)} · ${euro(Math.abs(x.m.montant),2)}${Math.abs(x.ecart)>0.005?' <span style="color:var(--amber)">('+(x.ecart>0?'+':'')+euro(x.ecart,2)+')</span>':''}${mvtAff(x.m)===''?' <span style="color:var(--amber)" title="Ligne non affectée à un bien">à affecter</span>':''}</span>`,manquant:()=>'<span style="color:var(--red);font-weight:600">✗ manquant</span>',avenir:()=>'<span style="color:var(--text3)">à venir</span>',avant:()=>'<span style="color:var(--text3)">avant l\'historique</span>'};
+ return `<div class="kpi-grid" style="margin-bottom:14px">
+  <div class="kpi"><div class="kpi-label">Capital emprunté</div><div class="kpi-val">${euro(cap,0)}</div></div>
+  <div class="kpi"><div class="kpi-label">Capital restant dû</div><div class="kpi-val">${euro(restant,0)}</div></div>
+  <div class="kpi"><div class="kpi-label">Échéance du mois</div><div class="kpi-val">${euro(echMensCourante(b,T),2)}</div></div>
+  <div class="kpi"><div class="kpi-label">Total intérêts</div><div class="kpi-val kpi-neg">${euro(totI,0)}</div></div>
+  <div class="kpi"><div class="kpi-label">Assurance et frais</div><div class="kpi-val kpi-neg">${euro(totA,0)}</div></div>
+  <div class="kpi"><div class="kpi-label">Coût total du crédit</div><div class="kpi-val kpi-neg">${euro(totE-cap,0)}</div></div></div>
+  <div style="margin-bottom:14px"><div class="kpi-label" style="margin-bottom:4px">Remboursement — ${pct.toFixed(1)} %</div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div>
+  <div style="background:var(--surface2);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;font-size:12.5px;line-height:1.7">
+   <strong>Rapprochement avec la Comptabilité (lignes « Remboursement emprunt »)</strong><br>
+   ${st.payes} échéance${st.payes>1?'s':''} retrouvée${st.payes>1?'s':''} · intérêts payés <strong>${euro(st.interets,2)}</strong> · capital remboursé <strong>${euro(st.capital,2)}</strong> · assurance et frais <strong>${euro(st.assurance,2)}</strong>${st.manquants?` · <span style="color:var(--red);font-weight:600">${st.manquants} échéance${st.manquants>1?'s':''} sans paiement retrouvé</span>`:''}
+   ${R.libres.length?`<br><span style="color:var(--amber)">${R.libres.length} remboursement${R.libres.length>1?'s':''} affecté${R.libres.length>1?'s':''} à ce bien sans échéance correspondante : ${R.libres.slice(0,4).map(m=>gFr(m.date)+' '+euro(Math.abs(m.montant),2)).join(', ')}${R.libres.length>4?'…':''}</span>`:''}
+   ${st.aAffecter?`<br><button class="btn btn-sm" style="margin-top:6px" onclick="echAffecterRapproches('${b.id}')">Affecter à ce bien les ${st.aAffecter} ligne${st.aAffecter>1?'s':''} rapprochée${st.aAffecter>1?'s':''}</button>`:''}</div>
+  <div style="overflow-x:auto"><table class="jtable" style="font-size:12px"><thead><tr><th>N°</th><th>Date</th><th style="text-align:right">Capital dû</th><th style="text-align:right">Échéance</th><th style="text-align:right;color:var(--red)">Intérêts</th><th style="text-align:right;color:var(--green)">Capital</th><th style="text-align:right">Assurance</th><th>Constaté (Odoo)</th></tr></thead><tbody>
+  ${R.res.map(x=>`<tr${x.r.date>T?'':' style="background:var(--surface2)"'}><td style="color:var(--text3)">${x.r.n}</td><td>${gFr(x.r.date)}</td><td style="text-align:right">${euro(x.r.capDu,0)}</td><td style="text-align:right;font-weight:600">${euro(x.r.echeance,2)}</td><td style="text-align:right;color:var(--red)">${euro(x.r.interets,2)}</td><td style="text-align:right;color:var(--green)">${euro(x.r.capital,2)}</td><td style="text-align:right">${euro(x.r.assurance,2)}</td><td>${stat[x.statut](x)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
 function renderAll(){
+ refreshCapitalRestant();
+ quartierOptions('eb-quartier');quartierOptions('nb-quartier');
  refreshAccueilStats();
  renderDashboard();
  renderBiens();
@@ -4803,6 +5129,7 @@ function buildGuideHtml(){
   <h3>Biens</h3>
   <p>Le bouton ${U('+ Ajouter un bien')} ouvre le formulaire : identification, acquisition (prix, notaire, travaux), emprunt (capital, taux, durée, début), location, <strong>mode de gestion</strong>, charges annuelles (copropriété, taxe foncière, assurance PNO, entretien) et <strong>apports des associés</strong> en compte courant. Cliquez sur un bien pour ouvrir sa fiche, la modifier ou le supprimer.</p>
   <p><strong>Le cash-flow d'un bien</strong> affiché dans la fiche est le revenu mensuel moins la mensualité du crédit moins les charges du bien (copropriété, taxe foncière, assurance, entretien, saisies <em>par an</em> dans la fiche et divisées par 12), avant impôt sur les sociétés, CFE, honoraires comptables et vacance. Le revenu est le loyer et les charges locataire (mode C), ou le <strong>chiffre d'affaires annuel estimé divisé par 12</strong> en mode A (9 mois de bail plus l'Airbnb de juin à août) et en mode B (Airbnb toute l'année). L'Airbnb est donc compté en entier : pour être plus prudent, réglez le prix par nuit, les nuits louées, le taux d'occupation et le multiplicateur de chaque saison dans ${U('⚙ Hypothèses Airbnb')}. Dans la fiche, la rubrique <em>Comment est calculé ce cash-flow ?</em> détaille chaque ligne et indique si la mensualité est saisie à la main ou calculée d'après le capital, le taux et la durée.</p>
+  <p><strong>Valeur estimée d'un bien.</strong> Dans le dashboard, la valeur estimée du patrimoine additionne la valeur retenue de chaque bien. Par défaut, c'est la valeur que vous saisissez dans la fiche (égale au prix d'achat tant que vous ne la modifiez pas) : <strong>rien ne la fait varier tout seul</strong>. Si vous renseignez le <em>quartier</em> et l'<em>état</em> du bien (la surface est déjà dans la fiche), la fiche affiche une <strong>valeur indicative du Marché</strong> : prix du quartier pour cet état et cette surface, avec une correction propre au bien (± %), l'écart avec le prix d'achat et la date des données. Vous choisissez la <strong>valeur retenue</strong> : saisie à la main (prioritaire par défaut) ou estimation d'après le Marché (automatique, qui suit alors vos modifications de prix de quartier dans la base de données). Les données du Marché sont une photo de mars 2026 (MeilleursAgents, SeLoger, DVF) : elles ne se mettent pas à jour toutes seules et l'appli signale quand elles ont plus de six mois. Ce sont des moyennes par quartier, un repère et non une estimation d'expert.</p>
   ${tab(['Mode de gestion','Principe','Revenu affiché'],[
    ['<strong>C</strong> — Longue durée','Loyer × 12 mois','Loyer + charges'],
    ['<strong>A</strong> — Bail meublé 9 mois + Airbnb été','Bail hors été, Airbnb en juin–août','Loyer + charges (l\'Airbnb d\'été est détaillé dans la fiche du bien)'],
@@ -4810,7 +5137,8 @@ function buildGuideHtml(){
   ${co('<strong>Hypothèses Airbnb :</strong> le bouton '+U('⚙ Hypothèses Airbnb')+' (Gestion, Projection et formulaires) règle, par saison, le nombre de nuits louées, le taux d\'occupation et le multiplicateur de prix. Le prix saisi sur un bien est celui d\'une nuit en <em>saison moyenne</em>. Ces hypothèses s\'appliquent à tous les biens en mode A ou B, partout dans l\'application.','info')}
   ${co('<strong>Supprimer un bien</strong> supprime ses apports en compte courant, mais jamais les lignes de la Comptabilité.')}
   <h3>Emprunt</h3>
-  <p>Un tableau d'amortissement par bien : capital remboursé, intérêts et capital restant dû.</p>
+  <p>Un tableau d'amortissement par bien : capital remboursé, intérêts et capital restant dû. Par défaut il est <strong>théorique</strong> (calculé d'après le capital, le taux et la durée de la fiche). Dans le détail d'un prêt, le bouton <em>Importer le tableau de la banque (PDF)</em> lit le PDF de la banque (colonnes : date d'échéance, capital dû avant l'échéance, capital, intérêts, assurance groupe et frais, échéance assurance comprise) et le remplace par le <strong>tableau réel</strong>. Un aperçu s'affiche avant l'import avec des contrôles : chaque ligne doit s'additionner (capital + intérêts + assurance = échéance), le capital dû doit diminuer du capital remboursé, et le prêt doit être soldé à la dernière échéance. Si le PDF est une image scannée, <em>Coller le texte</em> permet de copier-coller le tableau.</p>
+  <p>Une fois le tableau importé : l'<strong>échéance du mois</strong> (assurance comprise) alimente le cash-flow, le <strong>capital restant dû</strong> se calcule seul à partir de la date du jour, et l'<strong>impôt estimé</strong> utilise les intérêts et l'assurance réels. Chaque ligne « Remboursement emprunt » importée d'Odoo est <strong>rapprochée de son échéance</strong> (même montant à 0,5 % près, à 20 jours près) : l'appli indique les échéances sans paiement retrouvé, les paiements sans échéance, et sépare chaque paiement en <strong>intérêts, capital et assurance</strong>. Ces montants sont repris dans la carte « Résultat de la SCI » de la Rentabilité et dans le pré-bilan pour l'expert-comptable. Le bouton « Affecter à ce bien … » rattache au bien les lignes rapprochées qui n'étaient pas affectées.</p></p>
   <h3>Locataires</h3>
   <p>Situation de chaque bien : loué, bail signé en attente, non loué ou Airbnb, avec le total encaissable.</p>
   <h3>Rentabilité par bien</h3>
@@ -4820,7 +5148,7 @@ function buildGuideHtml(){
   <li>les <strong>dépenses directes</strong> et la <strong>quote-part des frais communs</strong> ;</li>
   <li>le <strong>résultat d'exploitation</strong> (produits − dépenses), les <strong>remboursements d'emprunt</strong> et le <strong>cash-flow</strong> ;</li>
   <li>deux rendements : le <strong>rendement opérationnel</strong> (résultat d'exploitation annualisé ÷ prix + travaux : <em>uniquement</em> les produits et les charges d'exploitation) et le <strong>rendement total (tout compris)</strong> (le même résultat, moins les frais d'acquisition — notaire, courtage, banque — étalés sur la durée du prêt, 10 ou 20 ans au choix, ou <strong>pris en totalité à date</strong> : il est donc toujours inférieur ou égal à l'opérationnel), comparés aux rendements <strong>prévus</strong> d'après les loyers et charges de la fiche du bien.</li></ul>
-  <p>Une carte <strong>Coût d'acquisition de chaque bien</strong> détaille la base des rendements et les frais : prix, travaux, notaire, courtage, frais bancaires et autres, frais d'acquisition, frais en % du prix et frais étalés par an. <strong>D'où viennent les frais :</strong> pour le notaire et le courtage, le plus élevé entre la fiche du bien et les paiements de la Comptabilité (un même frais saisi aux deux endroits n'est compté qu'une fois) ; pour les frais bancaires (dossier, garantie, crédit logement…), les paiements de la Comptabilité. Sont comptées les lignes affectées à <em>Frais d'acquisition · nom du bien</em> et, par défaut, celles classées <em>Hors rentabilité</em> dont le libellé évoque un frais (notaire, frais de dossier, crédit logement, courtage, garantie…) et dont le montant ne dépasse pas 25 % du prix : elles sont rattachées au bien dont la date d'achat est la plus proche. Le paiement du prix, un déblocage de prêt ou un dépôt de garantie restent neutres. La liste <strong>Frais de notaire et de banque « hors rentabilité »</strong> permet de les ignorer. La liste <strong>Frais d'acquisition</strong> choisit leur traitement dans le rendement total : étalés sur la durée du prêt, 10 ou 20 ans, ou <strong>pris en totalité à date</strong> (ils sont alors déduits en entier du résultat de la période affichée : le rendement est très bas au début puis remonte ; choisissez « Depuis l'origine » pour une lecture depuis l'achat). Une carte <strong>À vérifier</strong> repère les lignes comptées comme charges d'exploitation alors qu'elles ressemblent à des frais d'acquisition (notaire, frais de dossier, crédit logement, courtage, ou un montant supérieur à 20 % du prix) : un bouton les rattache au bien ou les sort de la rentabilité. Les intérêts du prêt ne sont pas déduits : la Comptabilité ne distingue pas intérêts et capital, ils figurent dans le cash-flow. Pour qu'un frais payé (dossier bancaire, garantie de prêt…) compte dans le coût total d'un bien, affectez la ligne à <em>Frais d'acquisition · nom du bien</em> : il s'<strong>ajoute</strong> aux frais de la fiche, sans compter dans le résultat d'exploitation. Pour éviter un double compte, ne rattachez que des frais absents de la fiche ; le paiement du prix d'achat reste en <em>Hors rentabilité</em>.</p>
+  <p>Une carte <strong>Coût d'acquisition de chaque bien</strong> détaille la base des rendements et les frais : prix, travaux, notaire, courtage, frais bancaires et autres, frais d'acquisition, frais en % du prix et frais étalés par an. <strong>D'où viennent les frais :</strong> pour le notaire et le courtage, le plus élevé entre la fiche du bien et les paiements de la Comptabilité (un même frais saisi aux deux endroits n'est compté qu'une fois) ; pour les frais bancaires (dossier, garantie, crédit logement…), les paiements de la Comptabilité. Sont comptées les lignes affectées à <em>Frais d'acquisition · nom du bien</em> et, par défaut, celles classées <em>Hors rentabilité</em> dont le libellé évoque un frais (notaire, frais de dossier, crédit logement, courtage, garantie…) et dont le montant ne dépasse pas 25 % du prix : elles sont rattachées au bien dont la date d'achat est la plus proche. Le paiement du prix, un déblocage de prêt ou un dépôt de garantie restent neutres. La liste <strong>Frais de notaire et de banque « hors rentabilité »</strong> permet de les ignorer. La liste <strong>Frais d'acquisition</strong> choisit leur traitement dans le rendement total : étalés sur la durée du prêt, 10 ou 20 ans, ou <strong>pris en totalité à date</strong> (ils sont alors déduits en entier du résultat de la période affichée : le rendement est très bas au début puis remonte ; choisissez « Depuis l'origine » pour une lecture depuis l'achat). Une carte <strong>À vérifier</strong> repère les lignes comptées comme charges d'exploitation alors qu'elles ressemblent à des frais d'acquisition (notaire, frais de dossier, crédit logement, courtage, ou un montant supérieur à 20 % du prix) : un bouton les rattache au bien ou les sort de la rentabilité. Les intérêts du prêt ne sont pas déduits du rendement : ils figurent dans le cash-flow. Avec le tableau d'amortissement de la banque importé (onglet Emprunt), la carte « Résultat de la SCI » ventile les remboursements entre intérêts, capital et assurance. Pour qu'un frais payé (dossier bancaire, garantie de prêt…) compte dans le coût total d'un bien, affectez la ligne à <em>Frais d'acquisition · nom du bien</em> : il s'<strong>ajoute</strong> aux frais de la fiche, sans compter dans le résultat d'exploitation. Pour éviter un double compte, ne rattachez que des frais absents de la fiche ; le paiement du prix d'achat reste en <em>Hors rentabilité</em>.</p>
   ${co('<strong>Frais communs à la SCI</strong> (comptable, CFE, frais bancaires…) : une ligne affectée à « Commun SCI » est répartie <strong>au prorata du coût d\'achat</strong> des biens déjà acquis à la date de la ligne. Avec un seul bien, il reçoit tout ; avec deux biens de 100 000 € et 300 000 €, ils supportent 25 % et 75 %. Un bien acheté plus tard ne porte pas les frais antérieurs à son achat.','info')}
   <p>Une ligne « dont frais communs répartis » sous le total montre la part des frais communs déjà incluse dans les biens. Une carte <strong>Résultat de la SCI</strong> additionne tout : produits, dépenses (y compris les frais communs non imputés et les lignes encore à affecter), emprunt et cash-flow, puis <strong>contrôle</strong> que la variation de trésorerie reconstituée est égale à la somme de toutes les lignes de la Comptabilité sur la période. Les frais communs datés d'<strong>avant l'achat</strong> d'un bien se traitent avec la liste <strong>Frais d'avant achat</strong> : répartis sur tous les biens (au prorata du coût d'achat), imputés au premier bien acheté, ou laissés non répartis ; dans tous les cas ils figurent dans le résultat de la SCI. Sous le tableau, une carte <strong>Frais communs et achats</strong> donne les <strong>totaux de la période</strong> : frais communs à la SCI (dont répartis dans les biens et dont non répartis, avant le premier achat) et achats et investissements <em>Hors rentabilité</em> (acquisition, notaire, déblocage de prêt…), avec le détail de chaque ligne. Un détail par bien liste ensuite chaque ligne imputée (directe, en quote-part ou en part personnalisée). La fiche d'un bien affiche aussi sa rentabilité réelle sur 12 mois. Ce tableau et celui de la Comptabilité occupent toute la largeur de l'écran pour afficher toutes les colonnes (défilement horizontal sur un petit écran).</p>
   ${co('<strong>Ce qui n\'est pas compté dans la rentabilité :</strong> les <strong>comptes courants d\'associés</strong> (ce n\'est ni un produit ni une charge), les lignes affectées à <strong>Hors rentabilité</strong> (paiement d\'acquisition, notaire, déblocage de prêt, dépôt de garantie…) et les lignes <strong>Non classé</strong>. Sous le tableau, une note indique combien de lignes sont exclues sur la période, pour que rien ne disparaisse sans que vous le sachiez.')}`);
@@ -5798,6 +6126,7 @@ function bienToProj(b) {
  taux: Number(b.taux)||0,
  duree: Number(b.duree)||240,
  credit: Number(b.capital)||0,
+ echeancier: b.echeancier||null, // tableau d'amortissement de la banque (intérêts et assurance réels)
  frais: Number(b.notaire||0) + Number(b.courtier||0) + Number(b.travaux||0),
  chargesAnnuelles: b.chargesAnnuelles || {},
  mode: bienModeEff(b), // mode de gestion A/B/C du bien (C si le quartier n'autorise pas l'Airbnb)
@@ -5810,6 +6139,7 @@ function bienToProj(b) {
 
 // Mensualité d'un bien projeté
 function projMensualite(pb) {
+ if(pb.echeancier&&pb.echeancier.length) return echMensCouranteRows(pb.echeancier,gToday());
  const capital = pb.credit > 0 ? pb.credit : pb.prix + (pb.frais||0);
  const taux = pb.taux;
  const duree = pb.duree;
@@ -5859,7 +6189,11 @@ function projCalcIS(pb, an) {
  const moisActifs = achatAn===an ? (12-achatMois+1) : 12;
  const ca = projCaAnnuel(pb, an);
 
- // Calcul intérêts exacts sur l'année
+ // Intérêts de l'année : tableau de la banque s'il est importé, sinon calcul d'après le capital, le taux et la durée
+ let interetsAn=0,assurAn=0;
+ if(pb.echeancier&&pb.echeancier.length){
+  pb.echeancier.forEach(r=>{if(+r[0].slice(0,4)===an){interetsAn+=r[3];assurAn+=r[4];}});
+ }else{
  const capital = pb.credit>0 ? pb.credit : pb.prix+(pb.frais||0);
  const r = pb.taux/100/12;
  const mens = projMensualite(pb);
@@ -5869,20 +6203,20 @@ function projCalcIS(pb, an) {
  const inte=cap*r; cap-=(mens-inte);
  if(cap<=0){cap=0;break;}
  }
- let interetsAn=0;
  for(let i=0;i<moisActifs;i++){
  const inte=Math.max(0,cap*r); interetsAn+=inte; cap-=(mens-inte);
  if(cap<=0){cap=0;break;}
  }
+ }
 
- const charges = projChargesMois(pb)*moisActifs;
+ const charges = projChargesMois(pb)*moisActifs + assurAn;   // l'assurance emprunteur et les frais du tableau de la banque sont des charges déductibles
  const amort = pb.prix*0.8*0.025*(moisActifs/12);
  const resultat = Math.max(0, ca-interetsAn-charges-amort);
  const isSeuil = BP_PARAMS.isSeuil||42500;
  const t1 = (BP_PARAMS.isTaux1||15)/100;
  const t2 = (BP_PARAMS.isTaux2||25)/100;
  const is = resultat<=isSeuil ? resultat*t1 : isSeuil*t1+(resultat-isSeuil)*t2;
- return {ca,interets:interetsAn,charges,amort,resultat,is};
+ return {ca,interets:interetsAn,charges,amort,resultat,is,assurance:assurAn};
 }
 
 // ============================================================
@@ -6752,6 +7086,7 @@ async function saveBien(){
  modeLocation:document.getElementById('nb-statut').value==='Airbnb'?'B':(document.getElementById('nb-mode-location').value||'C'),
  airbnb_nuit:Number(document.getElementById('nb-airbnb-nuit').value)||0,
  valeurEstimee:Number(document.getElementById('nb-prix').value)||0,
+ quartier:(document.getElementById('nb-quartier')||{}).value||'',etat:(document.getElementById('nb-etat')||{}).value||'Ancien',valeurMode:'manuelle',
  demarches:[
  {nom:'Agence immobilière',statut:'À faire'},{nom:'Notaire',statut:'À faire'},
  {nom:'Banque',statut:'À faire'},{nom:'Déclaration mairie',statut:'À faire'}
@@ -6803,6 +7138,12 @@ function openEditBien(id){
  document.getElementById('eb-courtier').value=b.courtier||0;
  document.getElementById('eb-travaux').value=b.travaux||0;
  document.getElementById('eb-valeur').value=b.valeurEstimee||b.prix||'';
+ quartierOptions('eb-quartier');
+ document.getElementById('eb-quartier').value=b.quartier||'';
+ document.getElementById('eb-etat').value=b.etat||'Ancien';
+ document.getElementById('eb-valeur-mode').value=b.valeurMode==='marche'?'marche':'manuelle';
+ document.getElementById('eb-coef-valeur').value=b.coefValeur||'';
+ updateEbValeurPreview();
  document.getElementById('eb-capital').value=b.capital||'';
  document.getElementById('eb-crd').value=b.capitalRestant||b.capital||'';
  document.getElementById('eb-taux').value=b.taux||'';
@@ -6873,6 +7214,8 @@ async function updateBien(){
  b.courtier=gn('eb-courtier')??0;
  b.travaux=gn('eb-travaux')??0;
  b.valeurEstimee=gn('eb-valeur')??b.prix;
+ b.quartier=g('eb-quartier').value||'';b.etat=g('eb-etat').value||'Ancien';
+ b.valeurMode=g('eb-valeur-mode').value==='marche'?'marche':'manuelle';b.coefValeur=gn('eb-coef-valeur')??0;
  b.capital=gn('eb-capital')??b.capital;
  b.capitalRestant=gn('eb-crd')??b.capital;
  b.taux=gn('eb-taux')??b.taux;
@@ -7655,7 +7998,7 @@ function marcheAirbnbOk(q){
  if(!rec)return true;                                   // quartier inconnu du Marché : on ne restreint pas
  return Number(rec.airbnb_nuit)>0;
 }
-function bienModeEff(b){const m=b.modeLocation||'C';return ((m==='A'||m==='B')&&b.quartier&&!marcheAirbnbOk(b.quartier))?'C':m;}
+function bienModeEff(b){const m=b.modeLocation||'C';return ((m==='A'||m==='B')&&b._fictif&&b.quartier&&!marcheAirbnbOk(b.quartier))?'C':m;}   // simulations seulement : un bien réel garde le mode de sa fiche
 function marcheRefreshAll(){
  try{renderBddTable();}catch(e){}
  try{renderMarche();}catch(e){}
