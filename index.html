@@ -4299,8 +4299,14 @@ function echControles(rowsBrutes){
  C.push({ok:Math.abs(somCap-rows[0].capDu)<=1,critique:true,txt:Math.abs(somCap-rows[0].capDu)<=1?'Somme des capitaux remboursés = capital emprunté ('+somCap.toLocaleString('fr-FR')+' €)':'Somme des capitaux remboursés ('+somCap.toLocaleString('fr-FR')+' €) ≠ capital emprunté ('+rows[0].capDu.toLocaleString('fr-FR')+' €)'});
  let nonMens=0;for(let i=0;i<n-1;i++){const g=(gDate(rows[i+1].date)-gDate(rows[i].date))/86400000;if(g<27||g>35)nonMens++;}
  C.push({ok:!nonMens,critique:false,txt:nonMens?nonMens+' intervalle(s) entre échéances différent(s) d\'un mois (différé, trimestrialité ou lignes manquantes ?)':'Échéances mensuelles régulières'});
+ // Différé : les premières échéances ne comprennent que des intérêts (et l'assurance), capital = 0 ; l'amortissement commence à la première échéance qui rembourse du capital
+ const iAmort=Math.max(0,rows.findIndex(r=>r.capital>0)),nbDiff=iAmort,rAm=rows[iAmort];
+ if(nbDiff>0)C.push({ok:true,info:true,critique:false,txt:'Différé détecté : '+nbDiff+' échéance'+(nbDiff>1?'s':'')+' sans remboursement de capital (intérêts et assurance seuls) du '+gFr(rows[0].date)+' au '+gFr(rows[nbDiff-1].date)+' ; l\'amortissement commence le '+gFr(rAm.date)+' (échéance de '+rAm.echeance.toLocaleString('fr-FR',{minimumFractionDigits:2})+' €)'});
+ const capNul=rows.slice(iAmort).filter(r=>!(r.capital>0)).length;
+ if(capNul)C.push({ok:false,critique:false,txt:capNul+' échéance(s) sans remboursement de capital après le début de l\'amortissement (report d\'échéance ?)'});
  const stats={n,debut:rows[0].date,fin:rows[n-1].date,capital:rows[0].capDu,interets:echArr(rows.reduce((t,r)=>t+r.interets,0)),assurance:echArr(rows.reduce((t,r)=>t+r.assurance,0)),total:echArr(rows.reduce((t,r)=>t+r.echeance,0)),
-  tauxDeduit:rows[0].capDu>0?rows[0].interets/rows[0].capDu*1200:0};
+  nbDiffere:nbDiff,debutAmort:rAm.date,dureeAmort:n-nbDiff,mensRef:rAm.echeance,
+  tauxDeduit:rAm.capDu>0?rAm.interets/rAm.capDu*1200:0};
  return {rows,stats,controles:C,critique:C.some(c=>c.critique&&!c.ok)};
 }
 
@@ -4310,12 +4316,28 @@ const echA=b=>!!(b&&Array.isArray(b.echeancier)&&b.echeancier.length);          
 const echActif=b=>echA(b)&&b.modeRemboursement==='tableau';                             // …et le mode de remboursement « tableau » est choisi : il pilote alors mensualité, capital restant, intérêts
 // Tableaux importés avant l'existence de ce choix : ils continuent d'être utilisés (le marqueur évite de recommencer si vous choisissez un autre mode)
 function echMigrer(){biensList().forEach(b=>{if(echA(b)&&!b.echMigre){b.echMigre=1;if(b.modeRemboursement!=='tableau')b.modeRemboursement='tableau';}});}
-// échéance du mois en cours (assurance comprise) ; 0 si le prêt est soldé
+// rang de l'échéance du mois en cours (-1 si le prêt est soldé)
+function echIndexCourant(rows,today){
+ if(!rows||!rows.length)return -1;
+ const mois=today.slice(0,7),i=rows.findIndex(x=>x[0].slice(0,7)===mois);
+ if(i>=0)return i;
+ if(today<rows[0][0])return 0;
+ if(today>rows[rows.length-1][0])return -1;
+ return rows.reduce((k,x,j)=>x[0]<=today?j:k,0);
+}
+// mensualité retenue (assurance comprise) : échéance du mois ; pendant un différé (capital = 0), celle de la première échéance qui rembourse du capital ; 0 si le prêt est soldé
 function echMensCouranteRows(rows,today){
- if(!rows||!rows.length)return 0;
- const mois=today.slice(0,7),r=rows.find(x=>x[0].slice(0,7)===mois);
- if(r)return r[5];
- return today<rows[0][0]?rows[0][5]:(today>rows[rows.length-1][0]?0:rows.filter(x=>x[0]<=today).slice(-1)[0][5]);
+ const i=echIndexCourant(rows,today);
+ if(i<0)return 0;
+ if(!(rows[i][2]>0)){const j=rows.findIndex((x,k)=>k>=i&&x[2]>0);if(j>=0)return rows[j][5];}
+ return rows[i][5];
+}
+// situation de différé d'un bien : en cours ? quelle échéance est réellement prélevée ce mois-ci, et quand commence l'amortissement
+function echDiffere(b,today){
+ const rows=b.echeancier||[],T=today||gToday(),iA=rows.findIndex(r=>r[2]>0);
+ if(iA<=0)return {nb:0,enCours:false};
+ const i=echIndexCourant(rows,T);
+ return {nb:iA,enCours:i>=0&&i<iA,fin:rows[iA-1][0],debutAmort:rows[iA][0],actuelle:i>=0?rows[i][5]:0,regle:rows[iA][5]};
 }
 const echMensCourante=(b,today)=>echMensCouranteRows(b.echeancier,today||gToday());
 // capital restant dû : capital avant la prochaine échéance (celles dont la date est passée sont réglées)
@@ -4403,9 +4425,9 @@ function echRendreApercu(){
  if(st&&st.n){
   const ex=Math.abs(Number(b.capital)-st.capital)>1&&Number(b.capital)>0;
   corps+=`<div class="kpi-grid" style="margin-bottom:12px"><div class="kpi"><div class="kpi-label">Échéances</div><div class="kpi-val">${st.n}</div></div><div class="kpi"><div class="kpi-label">Première · dernière</div><div class="kpi-val" style="font-size:13px">${gFr(st.debut)} · ${gFr(st.fin)}</div></div><div class="kpi"><div class="kpi-label">Capital emprunté</div><div class="kpi-val">${euro(st.capital,0)}</div></div><div class="kpi"><div class="kpi-label">Taux déduit</div><div class="kpi-val">${st.tauxDeduit.toFixed(2).replace('.',',')} %</div></div><div class="kpi"><div class="kpi-label">Total intérêts</div><div class="kpi-val kpi-neg">${euro(st.interets,0)}</div></div><div class="kpi"><div class="kpi-label">Assurance et frais</div><div class="kpi-val kpi-neg">${euro(st.assurance,0)}</div></div></div>`;
-  corps+=`<div style="margin-bottom:10px">${A.controles.map(c=>`<div style="font-size:12.5px;padding:2px 0;color:${c.ok?'var(--green)':(c.critique?'var(--red)':'var(--amber)')}">${c.ok?'✓':(c.critique?'✗':'!')} ${E(c.txt)}</div>`).join('')}</div>`;
+  corps+=`<div style="margin-bottom:10px">${A.controles.map(c=>`<div style="font-size:12.5px;padding:2px 0;color:${c.info?'var(--blue)':(c.ok?'var(--green)':(c.critique?'var(--red)':'var(--amber)'))}">${c.info?'ℹ':(c.ok?'✓':(c.critique?'✗':'!'))} ${E(c.txt)}</div>`).join('')}</div>`;
   if(A.critique)corps+=`<div class="note" style="background:var(--red-light);color:var(--red);margin-bottom:10px;line-height:1.55">Des incohérences ont été détectées : la lecture du PDF est peut-être erronée. Vérifiez les lignes ci-dessous. Vous pouvez tout de même importer en cochant la case, mais les intérêts et le capital restant dû seraient alors faux.<label style="display:block;margin-top:6px;cursor:pointer"><input type="checkbox" id="ech-force" onchange="echMajBouton()"> Importer malgré les incohérences</label></div>`;
-  corps+=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.55">L'import remplacera le tableau théorique de <strong>${E(bienNom(b))}</strong> : capital ${euro(st.capital,0)}, durée ${st.n} mois, début ${gFr(st.debut)}${Math.abs((Number(b.taux)||0)-st.tauxDeduit)>0.05?', taux '+st.tauxDeduit.toFixed(2).replace('.',',')+' % (fiche : '+String(Number(b.taux)||0).replace('.',',')+' %)':''}.${ex?' <strong>Le capital de la fiche ('+euro(b.capital,0)+') sera remplacé.</strong>':''}</div>`;
+  corps+=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.55">L'import remplacera le tableau théorique de <strong>${E(bienNom(b))}</strong> : capital ${euro(st.capital,0)}, ${st.nbDiffere>0?'amortissement sur '+st.dureeAmort+' mois à partir du '+gFr(st.debutAmort)+' (après '+st.nbDiffere+' mois de différé)':'durée '+st.n+' mois, début '+gFr(st.debut)}${Math.abs((Number(b.taux)||0)-st.tauxDeduit)>0.05?', taux '+st.tauxDeduit.toFixed(2).replace('.',',')+' % (fiche : '+String(Number(b.taux)||0).replace('.',',')+' %)':''}.${ex?' <strong>Le capital de la fiche ('+euro(b.capital,0)+') sera remplacé.</strong>':''} Mensualité retenue pour la fiche : <strong>${euro(echMensCouranteRows(A.rows.map(r=>[r.date,r.capDu,r.capital,r.interets,r.assurance,r.echeance]),gToday()),2)}</strong>${st.nbDiffere>0?' (première échéance qui rembourse du capital, et non l\'échéance d\'intérêts seuls)':''}.</div>`;
   corps+=`<div style="max-height:240px;overflow:auto;border:0.5px solid var(--border);border-radius:var(--radius)"><table class="jtable" style="font-size:12px"><thead><tr><th>Date</th><th style="text-align:right">Capital dû</th><th style="text-align:right">Capital</th><th style="text-align:right">Intérêts</th><th style="text-align:right">Assurance</th><th style="text-align:right">Échéance</th></tr></thead><tbody>${A.rows.map(r=>`<tr><td>${gFr(r.date)}</td><td style="text-align:right">${euro(r.capDu,2)}</td><td style="text-align:right">${euro(r.capital,2)}</td><td style="text-align:right">${euro(r.interets,2)}</td><td style="text-align:right">${euro(r.assurance,2)}</td><td style="text-align:right;font-weight:600">${euro(r.echeance,2)}</td></tr>`).join('')}</tbody></table></div>`;
  }else corps+=`<div class="note" style="background:var(--red-light);color:var(--red);line-height:1.55">${E(A.controles[0].txt)}</div>`;
  echOuvrirModal('Tableau d\'amortissement de la banque',corps,`<button class="btn" onclick="echFermer()">Annuler</button><button class="btn" onclick="echOuvrirColler('${echCible}')">Coller le texte</button><button class="btn btn-primary" id="ech-ok" onclick="echImporter()" ${(st&&st.n&&!A.critique)?'':'disabled'}>Importer le tableau</button>`);
@@ -4417,7 +4439,9 @@ async function echImporter(){
  const r0=A.rows[0];
  b.echeancier=A.rows.map(r=>[r.date,r.capDu,r.capital,r.interets,r.assurance,r.echeance]);
  b.echeancierInfo={date:gToday(),source:A.source,nom:A.nom||'',n:A.rows.length};
- b.capital=r0.capDu;b.duree=A.rows.length;b.debut=r0.date;
+ const st0=A.stats;
+ b.capital=r0.capDu;b.duree=st0.dureeAmort;b.debut=st0.debutAmort;                  // durée et début de l'AMORTISSEMENT (hors mois de différé)
+ if(st0.nbDiffere>0)b.differe=st0.nbDiffere;else delete b.differe;
  b.modeRemboursement='tableau';b.echMigre=1;                                   // la mensualité vient désormais du tableau
  const mens=echArr(echMensCourante(b));if(mens>0)b.mensualiteManuelle=mens;      // visible dans la fiche du bien
  const tx=A.stats.tauxDeduit;if(tx>0&&(!(Number(b.taux)>0)||Math.abs(Number(b.taux)-tx)>0.05))b.taux=Math.round(tx*100)/100;
@@ -4435,7 +4459,7 @@ async function echSupprimer(id){
  const b=DATA.biens[id];if(!b||!echA(b))return;
  if(!confirm('Revenir au tableau théorique (calculé d\'après le capital, le taux et la durée) ? Le tableau importé sera supprimé.'))return;
  const m0=echArr(echMensCourante(b));
- delete b.echeancier;delete b.echeancierInfo;delete b.echMigre;
+ delete b.echeancier;delete b.echeancierInfo;delete b.echMigre;delete b.differe;
  if(b.modeRemboursement==='tableau')b.modeRemboursement='annuite';
  if(Number(b.mensualiteManuelle)===m0)delete b.mensualiteManuelle;               // la mensualité reprise du tableau est retirée (retour au calcul théorique)
  renderAll();openDrawerEmprunt(id);
@@ -4457,18 +4481,19 @@ function echDrawerContent(b){
  return `<div class="kpi-grid" style="margin-bottom:14px">
   <div class="kpi"><div class="kpi-label">Capital emprunté</div><div class="kpi-val">${euro(cap,0)}</div></div>
   <div class="kpi"><div class="kpi-label">Capital restant dû</div><div class="kpi-val">${euro(restant,0)}</div></div>
-  <div class="kpi"><div class="kpi-label">Échéance du mois</div><div class="kpi-val">${euro(echMensCourante(b,T),2)}</div></div>
+  <div class="kpi"><div class="kpi-label">Mensualité retenue</div><div class="kpi-val">${euro(echMensCourante(b,T),2)}</div></div>
   <div class="kpi"><div class="kpi-label">Total intérêts</div><div class="kpi-val kpi-neg">${euro(totI,0)}</div></div>
   <div class="kpi"><div class="kpi-label">Assurance et frais</div><div class="kpi-val kpi-neg">${euro(totA,0)}</div></div>
   <div class="kpi"><div class="kpi-label">Coût total du crédit</div><div class="kpi-val kpi-neg">${euro(totE-cap,0)}</div></div></div>
   <div style="margin-bottom:14px"><div class="kpi-label" style="margin-bottom:4px">Remboursement — ${pct.toFixed(1)} %</div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div>
+  ${(()=>{const D=echDiffere(b,T);return D.nb?`<div style="background:var(--blue-light);border-radius:var(--radius);padding:9px 12px;margin-bottom:14px;font-size:12.5px;line-height:1.6"><strong>Prêt avec différé</strong> : ${D.nb} échéance${D.nb>1?'s':''} sans remboursement de capital (intérêts et assurance seuls), jusqu'au ${gFr(D.fin)}. L'amortissement commence le ${gFr(D.debutAmort)}.${D.enCours?` <strong>Différé en cours</strong> : ce mois-ci la banque prélève ${euro(D.actuelle,2)}, mais la mensualité retenue (cash-flow, projections) est celle de la première échéance qui rembourse du capital, <strong>${euro(D.regle,2)}</strong>.`:''}</div>`:'';})()}
   <div style="background:var(--surface2);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;font-size:12.5px;line-height:1.7">
    <strong>Rapprochement avec la Comptabilité (lignes « Remboursement emprunt »)</strong><br>
    ${st.payes} échéance${st.payes>1?'s':''} retrouvée${st.payes>1?'s':''} · intérêts payés <strong>${euro(st.interets,2)}</strong> · capital remboursé <strong>${euro(st.capital,2)}</strong> · assurance et frais <strong>${euro(st.assurance,2)}</strong>${st.manquants?` · <span style="color:var(--red);font-weight:600">${st.manquants} échéance${st.manquants>1?'s':''} sans paiement retrouvé</span>`:''}
    ${R.libres.length?`<br><span style="color:var(--amber)">${R.libres.length} remboursement${R.libres.length>1?'s':''} affecté${R.libres.length>1?'s':''} à ce bien sans échéance correspondante : ${R.libres.slice(0,4).map(m=>gFr(m.date)+' '+euro(Math.abs(m.montant),2)).join(', ')}${R.libres.length>4?'…':''}</span>`:''}
    ${st.aAffecter?`<br><button class="btn btn-sm" style="margin-top:6px" onclick="echAffecterRapproches('${b.id}')">Affecter à ce bien les ${st.aAffecter} ligne${st.aAffecter>1?'s':''} rapprochée${st.aAffecter>1?'s':''}</button>`:''}</div>
   <div style="overflow-x:auto"><table class="jtable" style="font-size:12px"><thead><tr><th>N°</th><th>Date</th><th style="text-align:right">Capital dû</th><th style="text-align:right">Échéance</th><th style="text-align:right;color:var(--red)">Intérêts</th><th style="text-align:right;color:var(--green)">Capital</th><th style="text-align:right">Assurance</th><th>Constaté (Odoo)</th></tr></thead><tbody>
-  ${R.res.map(x=>`<tr${x.r.date>T?'':' style="background:var(--surface2)"'}><td style="color:var(--text3)">${x.r.n}</td><td>${gFr(x.r.date)}</td><td style="text-align:right">${euro(x.r.capDu,0)}</td><td style="text-align:right;font-weight:600">${euro(x.r.echeance,2)}</td><td style="text-align:right;color:var(--red)">${euro(x.r.interets,2)}</td><td style="text-align:right;color:var(--green)">${euro(x.r.capital,2)}</td><td style="text-align:right">${euro(x.r.assurance,2)}</td><td>${stat[x.statut](x)}</td></tr>`).join('')}</tbody></table></div>`;
+  ${R.res.map(x=>`<tr${x.r.date>T?'':' style="background:var(--surface2)"'}><td style="color:var(--text3)">${x.r.n}</td><td>${gFr(x.r.date)}</td><td style="text-align:right">${euro(x.r.capDu,0)}</td><td style="text-align:right;font-weight:600">${euro(x.r.echeance,2)}</td><td style="text-align:right;color:var(--red)">${euro(x.r.interets,2)}</td><td style="text-align:right;color:var(--green)">${x.r.capital>0?euro(x.r.capital,2):'<span style="color:var(--text3)" title="Différé : intérêts et assurance seuls">différé</span>'}</td><td style="text-align:right">${euro(x.r.assurance,2)}</td><td>${stat[x.statut](x)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderAll(){
@@ -5153,7 +5178,7 @@ function buildGuideHtml(){
   ${co('<strong>Supprimer un bien</strong> supprime ses apports en compte courant, mais jamais les lignes de la Comptabilité.')}
   <h3>Emprunt</h3>
   <p>Un tableau d'amortissement par bien : capital remboursé, intérêts et capital restant dû. Par défaut il est <strong>théorique</strong> (calculé d'après le capital, le taux et la durée de la fiche). Dans le détail d'un prêt, le bouton <em>Importer le tableau de la banque (PDF)</em> lit le PDF de la banque (colonnes : date d'échéance, capital dû avant l'échéance, capital, intérêts, assurance groupe et frais, échéance assurance comprise) et le remplace par le <strong>tableau réel</strong>. Un aperçu s'affiche avant l'import avec des contrôles : chaque ligne doit s'additionner (capital + intérêts + assurance = échéance), le capital dû doit diminuer du capital remboursé, et le prêt doit être soldé à la dernière échéance. Si le PDF est une image scannée, <em>Coller le texte</em> permet de copier-coller le tableau.</p>
-  <p>À l'import, la fiche du bien passe en mode de remboursement <em>Tableau de la banque importé</em> et sa <strong>mensualité est mise à jour</strong> avec l'échéance du mois du tableau (le champ « Mensualité manuelle » est alors grisé). Ce choix figure dans la liste « Mode de remboursement » de la fiche, à côté de l'annuité constante et de l'amortissement constant : il n'est proposé que si un tableau est importé. Si vous choisissez un autre mode, le tableau reste enregistré mais n'est plus utilisé, et un bouton « Utiliser le tableau de la banque » le réactive. Une fois le tableau utilisé : l'<strong>échéance du mois</strong> (assurance comprise) alimente le cash-flow, le <strong>capital restant dû</strong> se calcule seul à partir de la date du jour, et l'<strong>impôt estimé</strong> utilise les intérêts et l'assurance réels. Chaque ligne « Remboursement emprunt » importée d'Odoo est <strong>rapprochée de son échéance</strong> (même montant à 0,5 % près, à 20 jours près) : l'appli indique les échéances sans paiement retrouvé, les paiements sans échéance, et sépare chaque paiement en <strong>intérêts, capital et assurance</strong>. Ces montants sont repris dans la carte « Résultat de la SCI » de la Rentabilité et dans le pré-bilan pour l'expert-comptable. Le bouton « Affecter à ce bien … » rattache au bien les lignes rapprochées qui n'étaient pas affectées.</p></p>
+  <p><strong>Prêts avec différé</strong> (au début, seuls les intérêts et l'assurance sont payés, capital = 0) : le tableau les reconnaît et l'indique. La <strong>mensualité retenue</strong> est alors celle de la première échéance qui rembourse du capital (et non l'échéance d'intérêts seuls) ; le début et la durée du prêt dans la fiche sont ceux de l'<em>amortissement</em>, hors mois de différé ; le taux est déduit d'une échéance qui rembourse du capital. Pendant le différé, l'onglet Emprunt précise ce que la banque prélève réellement ce mois-ci, et le rapprochement avec Odoo compare chaque paiement à l'échéance réelle (intérêts seuls). Le cash-flow et les projections utilisent la mensualité retenue, donc le montant le plus élevé : choix prudent. À l'import, la fiche du bien passe en mode de remboursement <em>Tableau de la banque importé</em> et sa <strong>mensualité est mise à jour</strong> avec l'échéance du mois du tableau (le champ « Mensualité manuelle » est alors grisé). Ce choix figure dans la liste « Mode de remboursement » de la fiche, à côté de l'annuité constante et de l'amortissement constant : il n'est proposé que si un tableau est importé. Si vous choisissez un autre mode, le tableau reste enregistré mais n'est plus utilisé, et un bouton « Utiliser le tableau de la banque » le réactive. Une fois le tableau utilisé : l'<strong>échéance du mois</strong> (assurance comprise) alimente le cash-flow, le <strong>capital restant dû</strong> se calcule seul à partir de la date du jour, et l'<strong>impôt estimé</strong> utilise les intérêts et l'assurance réels. Chaque ligne « Remboursement emprunt » importée d'Odoo est <strong>rapprochée de son échéance</strong> (même montant à 0,5 % près, à 20 jours près) : l'appli indique les échéances sans paiement retrouvé, les paiements sans échéance, et sépare chaque paiement en <strong>intérêts, capital et assurance</strong>. Ces montants sont repris dans la carte « Résultat de la SCI » de la Rentabilité et dans le pré-bilan pour l'expert-comptable. Le bouton « Affecter à ce bien … » rattache au bien les lignes rapprochées qui n'étaient pas affectées.</p></p>
   <h3>Locataires</h3>
   <p>Situation de chaque bien : loué, bail signé en attente, non loué ou Airbnb, avec le total encaissable.</p>
   <h3>Rentabilité par bien</h3>
@@ -6950,7 +6975,7 @@ function updateEbMensPreview() {
  if(mode === 'tableau' && bb && echA(bb)) {   // la mensualité vient du tableau : champ grisé
   const m = echArr(echMensCourante(bb, gToday()));
   mf.value = m; mf.disabled = true;
-  el.innerHTML = `Mode <strong>tableau de la banque</strong> · Mensualité du mois, assurance comprise : <strong style="color:var(--accent)">${euro(m,2)}/mois</strong> · ${bb.echeancier.length} échéances, capital restant dû ${euro(echCapitalRestantRows(bb.echeancier, gToday()),0)} · intérêts, capital et assurance réels dans l'onglet Emprunt.`;
+  el.innerHTML = `Mode <strong>tableau de la banque</strong> · Mensualité du mois, assurance comprise : <strong style="color:var(--accent)">${euro(m,2)}/mois</strong> · ${bb.echeancier.length} échéances, capital restant dû ${euro(echCapitalRestantRows(bb.echeancier, gToday()),0)} · intérêts, capital et assurance réels dans l'onglet Emprunt.${echDiffere(bb, gToday()).enCours?' Différé en cours : la mensualité est celle de la première échéance qui rembourse du capital.':''}`;
   return;
  }
  if(mf) mf.disabled = false;
