@@ -98,7 +98,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
 .modal-bg.open{display:flex}
 .modal{background:var(--surface);border-radius:var(--radius-lg);padding:22px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;border:0.5px solid var(--border)}
 .modal-title{font-size:15px;font-weight:600;margin-bottom:18px}
-.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:0.5px solid var(--border)}
+.modal-footer{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:0.5px solid var(--border)}
 .progress-bar{height:5px;background:var(--surface2);border-radius:99px;overflow:hidden;margin-top:6px}
 .progress-fill{height:100%;background:var(--blue);border-radius:99px}
 .av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
@@ -1326,7 +1326,7 @@ canvas{max-width:100%;display:block}
 </div>
 
 <div class="modal-bg" id="modal-facture">
- <div class="modal" style="max-width:640px">
+ <div class="modal" style="max-width:760px">
  <div class="modal-title" id="fac-titre">Facture de loyer</div>
  <div class="two-col"><div class="fg"><label>N° de facture</label><input id="fac-num" type="text"></div><div class="fg"><label>Date d'émission</label><input id="fac-emi" type="date"></div></div>
  <div class="two-col"><div class="fg"><label>Période concernée</label><input id="fac-per" type="month" onchange="document.getElementById('fac-refact-ym').value=ymAdd(this.value||facState.ym,-2);facDefMontant()"></div><div class="fg"><label>Locataire</label><input id="fac-loc" type="text"></div></div>
@@ -1342,7 +1342,7 @@ canvas{max-width:100%;display:block}
 </div>
 
 <div class="modal-bg" id="modal-fac-mail">
- <div class="modal" style="max-width:660px">
+ <div class="modal" style="max-width:920px">
  <div class="modal-title" id="fm-titre">Envoyer la facture par e-mail</div>
  <div class="fg"><label>Destinataire</label><input id="fm-to" type="email" placeholder="e-mail du locataire (à renseigner dans la fiche du bien)"></div>
  <div class="fg"><label>Objet</label><input id="fm-objet" type="text"></div>
