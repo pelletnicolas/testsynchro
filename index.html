@@ -50,7 +50,9 @@ tr.st td{font-weight:700;border-bottom:2px solid var(--line)}
 tr.yr td{font:700 17px Georgia,serif;padding-top:18px;border-bottom:2px solid var(--ink)}.fold,.fold:hover{border:0;background:none;color:inherit;padding:0;font:inherit;cursor:pointer}.fold:hover{text-decoration:underline}
 tr.yr small{font:400 13px "Avenir Next",Seravek,"Segoe UI",system-ui,sans-serif;color:var(--mute);margin-left:8px}
 td input[type=checkbox]{width:16px;height:16px;padding:0;vertical-align:middle;cursor:pointer}button:disabled{opacity:.55;cursor:default;background:var(--card);color:inherit}
-.sync{margin:10px 0 0;font-size:14px}.sync button{padding:3px 12px}details details{margin-top:10px}
+.sync{margin:10px 0 0;font-size:14px}.sync button{padding:3px 12px}#ghbox{margin-top:10px}
+/* Lecture seule (visiteur du lien) : aucune commande de modification */
+body.ro .flag,body.ro [data-e],body.ro td input[type=checkbox],body.ro #merge,body.ro #add,body.ro #impBar,body.ro #help,body.ro #mode{display:none!important}
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
 /* ---- Bilan à imprimer : toujours sur fond blanc, quelle que soit l'apparence (claire ou sombre) de la page ---- */
 body.bk{background:#e3e7e4}body.bk main{display:none}
@@ -81,8 +83,7 @@ body.bk{background:#e3e7e4}body.bk main{display:none}
 <body>
 <main>
 <div class="head"><h1>Suivi d'entraînement</h1><button id="bkOpen">BILAN</button></div>
-<div class="bar sync" id="sync" hidden><span id="syncTxt"></span><button id="pub" hidden>Synchroniser</button><button id="unpub" hidden>Annuler mes modifications</button></div>
-<p class="cm" id="syncMsg" role="status"></p>
+<div class="bar sync" id="sync" hidden><span id="syncTxt"></span><button id="pub">Réessayer</button></div>
 <div class="bar" id="years" role="tablist" aria-label="Année affichée"></div>
 <p class="sub" id="sub"></p>
 <div class="kpis" id="kpis"></div>
@@ -115,7 +116,7 @@ body.bk{background:#e3e7e4}body.bk main{display:none}
 
 <div class="card">
   <details id="addbox">
-    <summary>Ajouter, modifier ou importer des séances</summary>
+    <summary id="boxTitle">Ajouter, modifier ou importer des séances</summary>
     <p class="cm" id="mode" style="margin:12px 0 0" hidden></p>
     <form id="add" style="margin-top:12px">
       <input type="date" name="date" required aria-label="Date">
@@ -129,15 +130,15 @@ body.bk{background:#e3e7e4}body.bk main{display:none}
       <label class="chk"><input type="checkbox" name="course"> Course officielle</label>
       <button id="ok">Ajouter</button><button type="button" id="del" hidden>Supprimer</button><button type="button" id="split" hidden>Séparer</button><button type="button" id="cancel" hidden>Annuler</button>
     </form>
-    <div class="bar" style="margin-top:12px">
+    <div class="bar" id="impBar" style="margin-top:12px">
       <label class="cm" for="imp">Compléter depuis un fichier : calendrier Excel (.xlsx) ou export Garmin Connect (Activities.csv)</label>
       <input type="file" id="imp" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
     </div>
-    <p class="cm" style="margin:12px 0 4px">Vos séances sont enregistrées dans ce navigateur, et envoyées en ligne quand vous êtes connecté (voir « Synchronisation en ligne » ci-dessous). L'import ajoute les séances absentes, sans toucher à celles déjà présentes ; un sport inconnu est créé automatiquement.</p>
+    <p class="cm" id="help" style="margin:12px 0 4px">L'import ajoute les séances absentes, sans toucher à celles déjà présentes ; un sport inconnu est créé automatiquement.</p>
     <p class="cm" id="msg" role="status"></p>
-    <details id="ghbox">
-      <summary style="font-size:15px">Synchronisation en ligne</summary>
+    <div id="ghbox">
       <p class="cm" id="fbInfo"></p>
+      <p class="cm" id="lockLine" hidden><button type="button" id="lock"></button></p>
       <form id="login" hidden>
         <input name="email" id="logEmail" type="email" placeholder="E-mail du compte" autocomplete="username" required aria-label="E-mail du compte">
         <input name="password" id="logPwd" type="password" placeholder="Mot de passe" autocomplete="current-password" required aria-label="Mot de passe">
@@ -145,7 +146,7 @@ body.bk{background:#e3e7e4}body.bk main{display:none}
       </form>
       <p class="cm" id="logged" hidden><span id="who"></span> <button type="button" id="logout">Se déconnecter</button></p>
       <p class="cm" id="logMsg" role="status"></p>
-    </details>
+    </div>
   </details>
 </div>
 <div class="tip" id="tip" hidden></div>
@@ -198,7 +199,7 @@ const toObj = o => ({id:o.id,date:o.date,sport:o.sport,sec:parseDur(o.duree),dis
 // La version en ligne (base) est lue dans la base Firebase réglée plus bas, par tous ceux qui ouvrent le lien.
 // Sans base réglée, tout reste dans ce navigateur.
 // Chaque navigateur ne retient que ses modifications non envoyées (pend) par rapport à cette version en ligne.
-const PEND = "suivi-modifs", CACHE = "suivi-en-ligne", AUTH = "suivi-compte";
+const PEND = "suivi-modifs", CACHE = "suivi-en-ligne", AUTH = "suivi-compte", EDIT = "suivi-modifiable";
 const jget = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
 const jset = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
 // Une séance sans identifiant en reçoit un, stable, fabriqué à partir de son contenu.
@@ -211,11 +212,11 @@ const applyPend = (b,p) => { if(p.replace) return seances; const del = new Set(p
   return b.filter(o=>!del.has(o.id)).map(o=>p.up[o.id]||o).concat(Object.values(p.up).filter(o=>!ids.has(o.id))); };
 let base = (c => c && Array.isArray(c.seances) ? c.seances : [])(jget(CACHE)); // dernière version en ligne connue de ce navigateur
 let online = null;        // {maj, n} une fois la version en ligne lue pendant cette visite
-let pend = jget(PEND);    // {up:{id:séance}, del:[id]} ; replace:true = séances d'avant la mise en ligne, qui remplaceront la version en ligne
+let pend = jget(PEND);    // {up:{id:séance}, del:[id]} ; replace:true = séances d'avant la mise en ligne, pas encore rapprochées de la version en ligne
 const fbKey = id => String(id).replace(/[.$#\[\]\/\x00-\x1f\x7f]/g,"_"); // Firebase refuse . $ # [ ] / dans une clé
 let seances = load().map((o,i)=>o.id ? (fbKey(o.id)===o.id ? o : {...o,id:fbKey(o.id)}) : {...o,id:"m"+i});
 if(pend && !pend.replace) seances = applyPend(base, pend);
-else if(seances.length) pend = {up:{},del:[],replace:true};
+else if(seances.length){ pend = {up:{},del:[],replace:true}; jset(EDIT, true); } // ce navigateur a déjà des séances : c'est celui du propriétaire
 else { seances = base.slice(); pend = {up:{},del:[]}; }
 function computePend(){
   if(pend.replace) return;
@@ -655,14 +656,16 @@ $("bkScope").onchange = $("bkDetail").onchange = drawBook;
 $("bkPrint").onclick = () => print();
 
 // ---- Version en ligne : base Firebase (Realtime Database) ----
-// Tout le monde lit /suivi (le lien suffit) ; seul le compte du propriétaire, une fois connecté, peut y écrire.
-// Rien de secret ci-dessous : l'adresse et la clé Web désignent le projet ; la protection vient des règles de la base :
-//   { "rules": { "suivi": { ".read": true, ".write": "auth != null && auth.uid === 'UID_DU_PROPRIETAIRE'" } } }
-const FIREBASE_URL = "https://entrainement-1fa74-default-rtdb.europe-west1.firebasedatabase.app";      // adresse de la base, ex. https://mon-projet-default-rtdb.europe-west1.firebasedatabase.app
+// Ouvrir le lien suffit pour voir les séances : tout le monde lit /suivi. Les modifications faites sur un appareil
+// « modifiable » partent en ligne toutes seules, sans bouton. Si les règles de la base réservent l'écriture à un compte,
+// la page demande la connexion au moment où un envoi est refusé.
+// Rien de secret ci-dessous : l'adresse et la clé Web désignent le projet ; la protection vient des règles de la base.
+const FIREBASE_URL = "https://entrainement-1fa74-default-rtdb.europe-west1.firebasedatabase.app";      // adresse de la base
 const FIREBASE_API_KEY = "AIzaSyCAbg5Hf76t74z6whSy0I3c4M-1fQ2DNmM";  // Console Firebase > Paramètres du projet > Général > Clé API Web
 const FB = FIREBASE_URL.trim().replace(/\/+$/,""), ROOT = "/suivi";
-let auth = FB ? jget(AUTH) : null; // {idToken, refreshToken, exp, email, uid} : session du propriétaire dans ce navigateur
-const sayS = m => $("syncMsg").textContent = m;
+let auth = FB ? jget(AUTH) : null; // {idToken, refreshToken, exp, email, uid} : compte connecté sur cet appareil, s'il y en a un
+let needLogin = false;             // la base a refusé un envoi : elle demande un compte
+const canEdit = () => !FB || !!auth || jget(EDIT)===true; // sinon : lecture seule (cas de la personne qui reçoit le lien)
 const DT = new Intl.DateTimeFormat("fr-FR",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"});
 const authErr = c => /EMAIL_NOT_FOUND|INVALID_PASSWORD|INVALID_LOGIN_CREDENTIALS|INVALID_EMAIL|MISSING_PASSWORD/.test(c) ? "e-mail ou mot de passe incorrect"
   : /USER_DISABLED/.test(c) ? "ce compte est désactivé" : /TOO_MANY_ATTEMPTS/.test(c) ? "trop de tentatives, réessayez dans quelques minutes"
@@ -674,23 +677,22 @@ async function signIn(email, password){
   const j = await r.json().catch(()=>({})); if(!r.ok) throw new Error(authErr((j.error && j.error.message) || "erreur "+r.status));
   auth = {idToken:j.idToken, refreshToken:j.refreshToken, exp:Date.now()+(+j.expiresIn||3600)*1000, email:j.email||email, uid:j.localId}; jset(AUTH, auth);
 }
-async function token(){ // jeton d'accès valide (renouvelé au besoin) ; null si personne n'est connecté
+async function token(){ // jeton d'accès valide (renouvelé au besoin) ; null si aucun compte n'est connecté
   if(!auth) return null;
   if(Date.now() < auth.exp-60000) return auth.idToken;
   const r = await fetch("https://securetoken.googleapis.com/v1/token?key="+encodeURIComponent(FIREBASE_API_KEY),
     {method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:"grant_type=refresh_token&refresh_token="+encodeURIComponent(auth.refreshToken)});
   const j = await r.json().catch(()=>({}));
-  if(!r.ok){ if(r.status>=400 && r.status<500){ auth = null; jset(AUTH, null); loginUi(); } throw new Error("votre session a expiré, reconnectez-vous"); }
+  if(!r.ok){ if(r.status>=400 && r.status<500){ auth = null; jset(AUTH, null); } return null; }
   auth = {...auth, idToken:j.id_token, refreshToken:j.refresh_token||auth.refreshToken, exp:Date.now()+(+j.expires_in||3600)*1000}; jset(AUTH, auth);
   return auth.idToken;
 }
-async function fbWrite(method, body){
-  const t = await token(); if(!t) throw new Error("connexion requise");
-  const r = await fetch(`${FB}${ROOT}.json?auth=${encodeURIComponent(t)}`, {method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-  if(!r.ok) throw new Error(r.status===401 || r.status===403 ? `le compte ${auth.email} n'a pas le droit d'écrire dans la base (vérifiez son identifiant UID dans les règles Firebase)`
-    : r.status===404 ? "base Firebase introuvable (adresse incorrecte)" : "Firebase a répondu "+r.status);
+async function fbWrite(body){ // n'écrit que les chemins cités : rien d'autre n'est touché dans la base
+  const t = await token(), r = await fetch(`${FB}${ROOT}.json${t ? "?auth="+encodeURIComponent(t) : ""}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  if(r.status===401 || r.status===403) throw Object.assign(new Error(auth ? `le compte ${auth.email} n'a pas le droit d'écrire dans la base (vérifiez son identifiant UID dans les règles Firebase)` : "la base en ligne demande une connexion pour enregistrer"), {login:true});
+  if(!r.ok) throw new Error(r.status===404 ? "base Firebase introuvable (adresse incorrecte)" : "Firebase a répondu "+r.status);
 }
-// Version en ligne : contenu de /suivi dans la base Firebase (null si aucune base n'est réglée ou si elle est injoignable)
+// Version en ligne : contenu de /suivi dans la base (null si aucune base n'est réglée ou si elle est injoignable)
 async function fetchOnline(){
   if(!FB) return null;
   try { const r = await fetch(`${FB}${ROOT}.json`, {cache:"no-store"}); if(!r.ok) return null; const j = await r.json() || {};
@@ -701,59 +703,60 @@ function setBase(list, maj){ base = list; online = {maj, n:list.length}; jset(CA
 async function refresh(){
   const r = await fetchOnline(); if(!r) return syncBar();
   computePend(); setBase(r.list, r.maj);
-  // Version en ligne déjà issue de ce navigateur : la liste locale est gardée telle quelle, et save() recalcule ses différences.
-  if(pend.replace && base.some((ids => o => ids.has(o.id))(new Set(seances.map(o=>o.id))))) pend = {up:{},del:[]};
-  else seances = applyPend(base, pend);
+  if(pend.replace){
+    // Séances d'avant la mise en ligne : on les rapproche de la version en ligne sans rien y supprimer. Celles qui y sont déjà
+    // (même identifiant, ou même séance au sens de l'import) ne sont pas ajoutées une seconde fois ; les autres partent en ligne.
+    const mine = new Set(seances.map(o=>o.id)), on = new Set(base.map(o=>o.id)), pool = base.filter(o=>!mine.has(o.id)).flatMap(o=>[o, ...(o.parts||[])]); // les morceaux d'une séance fusionnée comptent aussi
+    const keep = seances.filter(o=>{ if(on.has(o.id)) return true; const k = pool.findIndex(x=>same(x,o)); if(k<0) return true; pool.splice(k,1); return false; });
+    const kept = new Set(keep.map(o=>o.id)); seances = base.filter(o=>!kept.has(o.id)).concat(keep); pend = {up:{},del:[]};
+  } else seances = applyPend(base, pend);
   save();
   if(!nav && !editing) year = month = null; // tant que rien n'a été choisi : dernière année et dernier mois remplis
   render();
 }
-// Envoi des modifications : seules les séances ajoutées, modifiées ou supprimées partent (rien n'est écrasé chez un autre appareil).
-let busy = false, tried = -1, timer = 0; // tried : numéro (rev) de la modification locale au dernier envoi tenté
+// Envoi automatique : seules les séances ajoutées, modifiées ou supprimées partent, donc deux appareils ne s'écrasent pas.
+let busy = false, tried = -1, timer = 0, failMsg = ""; // tried : numéro (rev) de la modification locale au dernier envoi tenté
 async function publish(){
-  if(!FB) return;
-  if(!auth){ $("addbox").open = $("ghbox").open = true; $("ghbox").scrollIntoView({behavior:"smooth"}); $("logEmail").focus({preventScroll:true}); return sayS("Connectez-vous avec votre compte, en bas de la page, pour envoyer vos modifications en ligne."); }
-  if(busy) return; computePend(); const n = nPend(); if(!n) return;
-  busy = true; tried = rev; syncBar();
-  const sent = pend.replace ? {replace:true, list:seances.slice()} : {up:{...pend.up}, del:pend.del.slice()}, maj = new Date().toISOString(), strip = ({id,...o}) => o;
+  if(!FB || busy || pend.replace || !canEdit()) return; computePend(); const n = nPend(); if(!n) return;
+  busy = true; tried = rev;
+  const sent = {up:{...pend.up}, del:pend.del.slice()}, maj = new Date().toISOString(), strip = ({id,...o}) => o;
   try {
-    if(sent.replace) await fbWrite("PUT", {maj, seances:Object.fromEntries(sent.list.map(o=>[o.id,strip(o)]))}); // première mise en ligne : tout le contenu
-    else { const u = {maj}; for(const o of Object.values(sent.up)) u["seances/"+o.id] = strip(o); for(const id of sent.del) u["seances/"+id] = null; await fbWrite("PATCH", u); }
-    const list = sent.replace ? sent.list : applyPend(base, sent); if(sent.replace) pend = {up:{},del:[]};
-    setBase(list.slice(), maj); busy = false; const saved = save(); // save() recalcule ce qui a pu changer pendant l'envoi
-    sayS((sent.replace ? `Mise en ligne faite : ${plur(list.length,"séance","séances")}.` : `${plur(n,"modification envoyée","modifications envoyées")}.`) + (saved ? "" : NOSAVE)); syncBar();
-  } catch(e) { busy = false; sayS("Envoi impossible : " + (e instanceof TypeError ? "pas de connexion à la base en ligne" : e.message) + ". Vos modifications restent enregistrées dans ce navigateur."); syncBar(); }
+    const u = {maj}; for(const o of Object.values(sent.up)) u["seances/"+o.id] = strip(o); for(const id of sent.del) u["seances/"+id] = null;
+    await fbWrite(u);
+    failMsg = ""; needLogin = false; setBase(applyPend(base, sent).slice(), maj); busy = false; save(); // save() recalcule ce qui a pu changer pendant l'envoi
+  } catch(e) { busy = false; needLogin = !!e.login; failMsg = e instanceof TypeError ? "pas de connexion à la base en ligne" : e.message; if(needLogin) $("addbox").open = true; }
+  loginUi(); syncBar();
 }
+// Le bandeau n'apparaît que si un envoi a échoué ; en temps normal il n'y a rien à faire ni à voir.
 function syncBar(){
-  if(!FB){ $("sync").hidden = true; return; } // sans base en ligne, rien à synchroniser : tout reste dans ce navigateur
-  computePend(); const n = nPend(), d = online && online.maj ? " du "+DT.format(new Date(online.maj)) : "";
-  $("syncTxt").textContent = pend.replace && n ? `Vos ${plur(n,"séance n'est enregistrée","séances ne sont enregistrées")} que dans ce navigateur : mettez-les en ligne pour qu'elles soient visibles avec le lien.`
-    : n && busy ? `Envoi de ${plur(n,"modification","modifications")}…` : n ? `${plur(n,"modification non envoyée","modifications non envoyées")} en ligne.`
-    : online ? `${auth ? "Synchronisé. " : ""}Version en ligne${d} : ${plur(online.n,"séance","séances")}.` : "";
-  $("pub").hidden = !n || busy; $("pub").textContent = pend.replace ? "Mettre en ligne" : auth ? "Envoyer maintenant" : "Se connecter pour envoyer";
-  $("unpub").hidden = !n || busy || !!pend.replace || !online; $("sync").hidden = !$("syncTxt").textContent;
-  // Connecté : l'envoi part tout seul peu après chaque modification (sauf la toute première mise en ligne, qui se confirme d'un clic).
-  clearTimeout(timer); if(FB && auth && n && !pend.replace && !busy && rev!==tried) timer = setTimeout(publish, 1200);
+  if(!FB){ $("sync").hidden = true; return; }
+  computePend(); const n = pend.replace ? 0 : nPend();
+  $("sync").hidden = !(n && failMsg && !busy);
+  $("syncTxt").textContent = `${plur(n,"modification pas encore envoyée","modifications pas encore envoyées")} en ligne : ${failMsg}.` + (needLogin ? " Connectez-vous en bas de la page." : " Elles restent enregistrées dans ce navigateur.");
+  $("pub").hidden = needLogin; if(!n) failMsg = "";
+  clearTimeout(timer); if(n && canEdit() && !busy && rev!==tried) timer = setTimeout(publish, 1200); // envoi peu après chaque modification
+  loginUi();
 }
 function loginUi(){
-  $("fbInfo").textContent = FB ? "Les séances en ligne sont visibles par toute personne qui a le lien. Pour que vos ajouts et modifications y soient envoyés, connectez-vous une fois sur cet appareil avec votre compte."
-    : "La synchronisation en ligne n'est pas encore réglée dans cette page : vos séances restent dans ce navigateur.";
-  $("login").hidden = !FB || !!auth; $("logged").hidden = !auth; $("who").textContent = auth ? `Connecté : ${auth.email}.` : "";
+  const ed = canEdit(), d = online && online.maj ? " du "+DT.format(new Date(online.maj)) : "";
+  document.body.classList.toggle("ro", !ed);
+  $("boxTitle").textContent = ed ? "Ajouter, modifier ou importer des séances" : "Modifier les séances";
+  $("fbInfo").textContent = !FB ? "Les séances sont enregistrées dans ce navigateur."
+    : !ed ? "Cet appareil affiche les séances en lecture seule."
+    : "Les séances sont en ligne : toute personne qui a le lien les voit, et vos modifications sont envoyées toutes seules." + (online ? ` Version en ligne${d} : ${plur(online.n,"séance","séances")}.` : "");
+  $("lockLine").hidden = !FB || !!auth; $("lock").textContent = ed ? "Repasser cet appareil en lecture seule" : "Modifier les séances sur cet appareil";
+  $("login").hidden = !FB || !!auth || !needLogin; $("logged").hidden = !auth; $("who").textContent = auth ? `Connecté : ${auth.email}.` : "";
 }
+$("lock").onclick = () => { const ed = !canEdit(); jset(EDIT, ed); if(!ed){ picked.clear(); if(editing) resetForm(); } tried = -1; render(); };
 $("login").onsubmit = async e => {
   e.preventDefault(); $("logBtn").disabled = true; $("logMsg").textContent = "Connexion…";
-  try { await signIn($("logEmail").value.trim(), $("logPwd").value); $("logPwd").value = ""; $("logMsg").textContent = ""; loginUi(); sayS(""); tried = -1; syncBar(); }
+  try { await signIn($("logEmail").value.trim(), $("logPwd").value); $("logPwd").value = ""; $("logMsg").textContent = ""; needLogin = false; failMsg = ""; tried = -1; render(); }
   catch(err) { $("logMsg").textContent = "Connexion impossible : " + (err instanceof TypeError ? "pas de connexion à Firebase" : err.message) + "."; }
   $("logBtn").disabled = false;
 };
-$("logout").onclick = () => { auth = null; jset(AUTH, null); clearTimeout(timer); loginUi(); syncBar(); $("logMsg").textContent = "Déconnecté : vos prochaines modifications resteront dans ce navigateur."; };
+$("logout").onclick = () => { auth = null; jset(AUTH, null); tried = -1; render(); $("logMsg").textContent = "Déconnecté."; };
 $("pub").onclick = () => { tried = -1; publish(); };
-$("unpub").onclick = () => {
-  if(!confirm(`Abandonner vos ${plur(nPend(),"modification non envoyée","modifications non envoyées")} et revenir à la version en ligne ?`)) return;
-  pend = {up:{},del:[]}; seances = base.slice(); picked.clear(); if(editing) resetForm(); save(); render(); sayS("Modifications abandonnées.");
-};
-document.addEventListener("visibilitychange", () => { if(!document.hidden && !busy && !editing) refresh(); }); // en revenant sur l'onglet : relire la version en ligne
-loginUi();
+document.addEventListener("visibilitychange", () => { if(!document.hidden && !busy && !editing) refresh(); }); // en revenant sur l'onglet : relire la version en ligne, renvoyer ce qui attend
 
 render();
 refresh().then(() => { if(!seances.length) $("addbox").open = true; });
