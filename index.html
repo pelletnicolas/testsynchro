@@ -1071,6 +1071,7 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Capital emprunté (€)</label><input id="pb-capital" type="number" placeholder="120000" oninput="updatePbPreview()"></div>
  <div class="fg"><label>Taux annuel (%)</label><input id="pb-taux" type="number" step="0.01" placeholder="3.50" oninput="updatePbPreview()"></div>
  </div>
+ <div style="margin:-2px 0 8px"><button type="button" class="btn btn-sm" id="pb-btn-apport" onclick="pbAppliquerApport()">Calculer le capital avec l'apport visé</button></div>
  <div class="two-col">
  <div class="fg"><label>Durée (mois)</label><input id="pb-duree" type="number" placeholder="240" oninput="updatePbPreview()"></div>
  <div class="fg"><label>Banque</label><input id="pb-banque" type="text" placeholder="ex: Nom de la banque"></div>
@@ -5851,7 +5852,7 @@ function buildGuideHtml(){
   <ul><li>${U('Biens')} : liste du portefeuille projeté (réel + fictif). ${U('Emprunt')} : tableaux d'amortissement.</li>
   <li>${U('Trésorerie')} : encaissements et décaissements mois par mois sur 10 ans. La colonne <em>Apport CCA</em> ne contient que la part payée en comptes courants.</li>
   <li>${U('Résultat & IS')} : résultat fiscal simplifié (loyers − intérêts − charges − <strong>frais d'achat</strong> − amortissement) et impôt sur les sociétés. Les frais d'achat (notaire, courtage, travaux) sont déduits l'année de l'achat, ce qui crée en général un déficit cette année-là ; le déficit est <strong>reporté</strong> et vient réduire le résultat imposable des années suivantes. Dans ${U('Hypothèses')}, vous pouvez choisir de les étaler sur plusieurs années à la place. Cette estimation sert aussi à l'impôt estimé de Conseil ▸ Gestion. ${U('CCA')} : apports estimés par associé pour les biens fictifs.</li>
-  <li>${U('Hypothèses')} : valeurs par défaut utilisées par la Projection, la Banque et le Conseil : taux et durée du crédit, indexation des loyers, charges par défaut (copropriété, taxe foncière, assurance, entretien), CFE et taux d\'IS. Elles sont partagées entre associés ; les charges saisies sur la fiche d\'un bien passent toujours avant. ${U('↺ Réinitialiser')} remet les valeurs d\'origine.</li></ul>`);
+  <li>${U('Hypothèses')} : valeurs par défaut utilisées par la Projection, la Banque et le Conseil : taux et durée du crédit, <strong>apport visé dans les simulations d'achat</strong> (12 % du coût par défaut ; il préremplit le capital emprunté, notamment avec « Simuler un achat ici » du Marché, et le bouton « Calculer le capital avec l'apport visé » du formulaire de bien fictif), indexation des loyers, charges par défaut (copropriété, taxe foncière, assurance, entretien), CFE et taux d\'IS. Elles sont partagées entre associés ; les charges saisies sur la fiche d\'un bien passent toujours avant. ${U('↺ Réinitialiser')} remet les valeurs d\'origine.</li></ul>`);
  // ---- 7
  h+=sec(7,'Banque : viabilité et dossier PDF',`
   <p>L'onglet ${U('Banque')} (dans Projection) évalue si le projet tient devant un établissement de crédit.</p>
@@ -6017,7 +6018,7 @@ function renderHypotheses(){
  const el=document.getElementById('hyp-content');if(!el)return;
  const P=(key,label,unit,step,min)=>`<div class="status-row"><span>${label}</span><div style="display:flex;align-items:center;gap:6px"><input type="number" value="${BP_PARAMS[key]}" step="${step}" min="${min}" style="width:90px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);text-align:right" onchange="setHyp('${key}',this.value)"><span style="font-size:12px;color:var(--text2);white-space:nowrap">${unit}</span></div></div>`;
  el.innerHTML=`<div style="font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:14px">Ces hypothèses servent de <strong>valeurs par défaut</strong> à la Projection, à la Banque et au Conseil d'achat. Elles sont partagées entre associés et ne modifient jamais les données réelles : les charges saisies sur la fiche d'un bien passent toujours avant.</div>
- <div class="sl">Crédit</div><div class="card">${P('taux','Taux d\'intérêt annuel','%',0.1,0)}${P('duree','Durée du crédit','mois',12,60)}</div>
+ <div class="sl">Crédit</div><div class="card">${P('taux','Taux d\'intérêt annuel','%',0.1,0)}${P('duree','Durée du crédit','mois',12,60)}${P('apportPct','Apport visé dans les simulations d\'achat','% du coût',1,0)}<div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-top:6px">Sert à préremplir le capital emprunté d\'un bien fictif (coût total = prix + notaire + travaux, moins cet apport). Chaque bien reste modifiable. Le Conseil d\'achat a son propre réglage d\'apport, et la Banque son seuil minimum.</div></div>
  <div class="sl">Loyers</div><div class="card">${P('irl','Revalorisation des loyers et charges (IRL) / an','%/an',0.1,0)}</div>
  <div class="sl">Charges par bien (utilisées quand elles ne sont pas saisies sur la fiche)</div><div class="card">${P('coproAn','Charges de copropriété','€/an',10,0)}${P('fonciereAn','Taxe foncière','€/an',10,0)}${P('assurAn','Assurance PNO','€/an',5,0)}${P('entretienCoeff','Provision entretien','% du prix/an',0.1,0)}</div>
  <div class="sl">Impôts et taxes</div><div class="card"><div style="font-size:12px;color:var(--text3);margin-bottom:10px;padding:8px 10px;background:var(--amber-light);border-radius:var(--radius)">L'IS est calculé sur l'exercice N et payé en <strong>janvier N+1</strong> ; la CFE est due en <strong>janvier</strong> de chaque année.</div>${P('cfeAn','CFE annuelle de la SCI (totale)','€/an',50,0)}${P('isTaux1','Taux d\'IS réduit','%',1,0)}${P('isSeuil','Seuil du taux réduit','€',500,0)}${P('isTaux2','Taux d\'IS normal','%',1,0)}
@@ -6643,6 +6644,18 @@ function pbAirbnbGuard(){
  let note=document.getElementById('pb-airbnb-note');
  if(!note){note=document.createElement('div');note.id='pb-airbnb-note';note.style.cssText='font-size:11px;color:var(--red);margin-top:4px;line-height:1.4';modeEl.parentNode.appendChild(note);}
  note.textContent=off?'Airbnb non possible dans le quartier « '+q+' » (base de données du Marché) : seule la location longue durée est proposée.':'';
+}
+function pbCapitalPourApport(prix,notaire,travaux){
+ const p=Math.max(0,Math.min(100,Number(BP_PARAMS.apportPct)));const pct=isFinite(p)?p:12;
+ const cout=prix+(notaire===''||notaire===null||notaire===undefined?Math.round(prix*0.08):(Number(notaire)||0))+(Number(travaux)||0);
+ const fm=(typeof banqueCrit==='function'?banqueCrit().financeMax:100)||100;
+ return Math.max(0,Math.round(Math.min(prix*fm/100,cout*(1-pct/100))/100)*100);
+}
+function pbAppliquerApport(){
+ const g=id=>document.getElementById(id).value,prix=Number(g('pb-prix'))||0;
+ if(!(prix>0)){showToast("Renseignez d'abord le prix d'acquisition");return;}
+ document.getElementById('pb-capital').value=pbCapitalPourApport(prix,g('pb-notaire'),g('pb-travaux'));
+ updatePbPreview();showToast('Capital calculé avec un apport de '+String(BP_PARAMS.apportPct).replace('.',',')+' % du coût (réglable dans Projection ▸ Hypothèses)');
 }
 function updatePbPreview(){
  pbAirbnbGuard();
@@ -8377,7 +8390,7 @@ const MARKET = window.__BOOT.market;
 // HYPOTHÈSES GÉNÉRALES (modifiables) : taux, durée, indexation des loyers, charges par défaut, impôt, CFE
 // (anciens « paramètres du Business Plan » : le nom BP_PARAMS est conservé en interne)
 // ============================================================
-const BP_PARAMS_DEFAULT = window.__BOOT.bpParams;
+const BP_PARAMS_DEFAULT = Object.assign({apportPct:12}, window.__BOOT.bpParams);   // apportPct : apport visé dans les simulations d'achat (% du coût total)
 let BP_PARAMS = Object.assign({}, BP_PARAMS_DEFAULT);
 (function(){
  try {
@@ -8548,7 +8561,7 @@ function marcheSimuler(){
  set('pb-adresse','Achat '+q);set('pb-quartier',q);set('pb-etat',typ);set('pb-surface',S);
  set('pb-type',S<=25?'Studio':(S<=45?'T2':(S<=70?'T3':'T4+')));
  set('pb-prix',prix);set('pb-loyer',sd.nu?Math.round(sd.nu):'');
- set('pb-capital',prix);set('pb-taux',BP_PARAMS.taux);set('pb-duree',BP_PARAMS.duree);
+ set('pb-capital',prix?pbCapitalPourApport(prix,'',0):prix);set('pb-taux',BP_PARAMS.taux);set('pb-duree',BP_PARAMS.duree);
  updatePbPreview();
 }
 // Initialiser les sélecteurs du marché
