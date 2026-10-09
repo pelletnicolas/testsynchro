@@ -5222,9 +5222,26 @@ function projApportSplit(b,total){
  }
  return {mode,total,treso,cca,assocs,parts,perso,perAssoc:assocs.length?cca/assocs.length:0};
 }
-function projVerdictBadge(v){
+// Explication du verdict d'un achat : critères remplis ou non, chiffres du bien et objectifs, règle de calcul
+function projVerdictWhy(a){
+ if(!a)return '';
+ if(a.verdict==='nodata')return "Pas encore d'analyse : renseignez le loyer prévu (ou le prix Airbnb par nuit) et le prix d'achat.";
+ const cr=a.crit||projCriteres(),mk=a.marche,fr=v=>String(v).replace('.',','),sg=v=>(v>=0?'+':'')+euro(v,0);
+ const L=[];
+ L.push((a.okRdt?'✓':'✗')+' Rendement net '+pct1(a.rdtNet)+' — objectif ≥ '+fr(cr.rdtNet)+' % (loyers − charges, rapporté au coût total prix + frais)');
+ L.push((a.okCf?'✓':'✗')+' Cash-flow '+sg(a.cf)+'/mois — objectif ≥ '+euro(cr.cf,0)+' (loyers − mensualité − charges)');
+ if(a.okMarche!==null&&mk&&mk.complet){
+  const ep=mk.ecartRef;
+  L.push((mk.okPrix?'✓':'✗')+' Prix : '+mk.baseLabel+' '+ecTxt(ep)+' par rapport au marché du quartier — maximum accepté '+(cr.prixMarche>=0?'+':'−')+fr(Math.abs(cr.prixMarche))+' %');
+  if(mk.ecartLoyer!=null)L.push((mk.okLoyer?'✓':'✗')+' Loyer : '+ecTxt(mk.ecartLoyer)+' par rapport au '+(mk.ref?mk.ref.label:'loyer')+' du marché — maximum accepté '+(cr.loyerMarche>=0?'+':'−')+fr(Math.abs(cr.loyerMarche))+' %');
+ }else if(cr.marche){L.push('• Marché : non évalué (quartier, état ou surface à renseigner)');}
+ const titre={bon:'Intéressant : tous les critères sont remplis.',moyen:'À surveiller : certains critères sont remplis, d\'autres non.',faible:'Peu intéressant : aucun critère n\'est rempli.'}[a.verdict]||'';
+ return titre+'\n'+L.join('\n')+'\n\nRègle : tous les critères remplis = Intéressant ; au moins un = À surveiller ; aucun = Peu intéressant. Les objectifs se règlent dans Projection ▸ Analyse (critères).';
+}
+function projVerdictBadge(v,a){
  const t={bon:['badge-ok','Intéressant'],moyen:['badge-warn','À surveiller'],faible:['badge-red','Peu intéressant'],nodata:['badge-info','Loyer à renseigner']}[v]||['badge-info','—'];
- return `<span class="badge ${t[0]}">${t[1]}</span>`;
+ const tip=a?projVerdictWhy(a):({bon:'Intéressant : tous les critères de la Projection sont remplis.',moyen:'À surveiller : certains critères sont remplis, d\'autres non.',faible:'Peu intéressant : aucun critère n\'est rempli.',nodata:"Renseignez un loyer pour obtenir l'analyse."}[v]||'');
+ return `<span class="badge ${t[0]}" title="${escH(tip)}" style="cursor:help">${t[1]}</span>`;
 }
 // ============================================================
 // PROJECTION — tests de résistance, négociation, horizon 10 ans, trésorerie future, critères bancaires
@@ -5428,7 +5445,8 @@ const ecTxt=e=>e==null?'—':(e>=0?'+':'−')+pct1(Math.abs(e*100));
 const m2Txt=v=>Math.round(Number(v)||0).toLocaleString('fr-FR')+' €/m²';
 function marcheBadge(e){
  if(e==null)return '';
- return e<=-0.05?'<span class="badge badge-ok">Sous le marché</span>':(e>=0.05?'<span class="badge badge-red">Au-dessus du marché</span>':'<span class="badge badge-info">Dans le marché</span>');
+ const tp=t=>` title="${escH(t)}" style="cursor:help"`;
+ return e<=-0.05?`<span class="badge badge-ok"${tp('Prix inférieur d\'au moins 5 % à la valeur de marché du quartier (écart '+ecTxt(e)+')')}>Sous le marché</span>`:(e>=0.05?`<span class="badge badge-red"${tp('Prix supérieur d\'au moins 5 % à la valeur de marché du quartier (écart '+ecTxt(e)+')')}>Au-dessus du marché</span>`:`<span class="badge badge-info"${tp('Prix à moins de 5 % de la valeur de marché du quartier (écart '+ecTxt(e)+')')}>Dans le marché</span>`);
 }
 // Bloc « Positionnement par rapport au marché » d'une fiche d'achat
 function projMarcheBlock(b,a){
@@ -5442,7 +5460,7 @@ function projMarcheBlock(b,a){
   tile('Prix d\'achat '+marcheBadge(mk.ecartPrix),euro(mk.prix,0)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+euro(Math.round(mk.prixM/100)*100,0),ecTxt(mk.ecartPrix)+' · '+m2Txt(mk.pm2B)+' contre '+m2Txt(mk.pm2M))
  ];
  if(mk.renover&&mk.trav>0)tiles.push(tile('Travaux compris '+marcheBadge(mk.ecartPrixTrav),euro(mk.prix+mk.trav,0),ecTxt(mk.ecartPrixTrav)+' vs le marché (bien à rénover : comparé travaux inclus)'));
- if(mk.ref&&mk.ref.mien>0&&mk.ref.marche>0)tiles.push(tile(mk.ref.label[0].toUpperCase()+mk.ref.label.slice(1)+' '+(mk.ecartLoyer>=0.05?'<span class="badge badge-warn">Au-dessus du marché</span>':(mk.ecartLoyer<=-0.05?'<span class="badge badge-ok">Prudent</span>':'<span class="badge badge-info">Dans le marché</span>')),euro(mk.ref.mien,0)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+euro(Math.round(mk.ref.marche),0)+' '+mk.ref.unit,ecTxt(mk.ecartLoyer)+(mk.ecartLoyer>0.05?' · loyer plus ambitieux que le marché':'')));
+ if(mk.ref&&mk.ref.mien>0&&mk.ref.marche>0)tiles.push(tile(mk.ref.label[0].toUpperCase()+mk.ref.label.slice(1)+' '+(mk.ecartLoyer>=0.05?'<span class="badge badge-warn" style="cursor:help" title="Votre loyer est supérieur d\'au moins 5 % à celui du marché ('+ecTxt(mk.ecartLoyer)+') : hypothèse optimiste, à vérifier.">Au-dessus du marché</span>':(mk.ecartLoyer<=-0.05?'<span class="badge badge-ok" style="cursor:help" title="Votre loyer est inférieur d\'au moins 5 % à celui du marché ('+ecTxt(mk.ecartLoyer)+') : hypothèse prudente.">Prudent</span>':'<span class="badge badge-info" style="cursor:help" title="Votre loyer est à moins de 5 % de celui du marché ('+ecTxt(mk.ecartLoyer)+').">Dans le marché</span>')),euro(mk.ref.mien,0)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+euro(Math.round(mk.ref.marche),0)+' '+mk.ref.unit,ecTxt(mk.ecartLoyer)+(mk.ecartLoyer>0.05?' · loyer plus ambitieux que le marché':'')));
  if(mk.nuM>0||mk.meubleM>0)tiles.push(tile('Loyers du marché ('+escH(mk.typ)+')','Nu '+(mk.nuM>0?euro(Math.round(mk.nuM/10)*10,0):'—')+' · meublé '+(mk.meubleM>0?euro(Math.round(mk.meubleM/10)*10,0):'—'),'état : '+escH(mk.etat)+' · comparé au loyer '+(mk.meuble?'meublé':'nu')+' de ce bien'));
  if(mk.airbnbOk===false&&(b.modeLocation==='A'||b.modeLocation==='B'))tiles.push(tile('Airbnb <span class="badge badge-warn">Non possible</span>','Quartier sans Airbnb','ce bien est calculé en location longue durée, au loyer saisi : le revenu Airbnb est ignoré'));
  if(mk.ab)tiles.push(tile('Airbnb / nuit',euro(mk.ab.mien,0)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+euro(mk.ab.marche,0),ecTxt(mk.ab.ecart)));
@@ -5460,15 +5478,15 @@ function projAnalyseCard(b){
  const a=projAnalyse(b);
  const h=projHorizon(b);
  const col={bon:'var(--green)',moyen:'var(--amber)',faible:'var(--red)',nodata:'var(--border2)'}[a.verdict];
- const chip=(ok,txt)=>`<span style="font-size:11px;padding:2px 9px;border-radius:99px;font-weight:600;background:${ok?'var(--green-light)':'var(--red-light)'};color:${ok?'var(--green)':'var(--red)'}">${ok?'✓':'✗'} ${txt}</span>`;
+ const chip=(ok,txt,tip)=>`<span title="${escH(tip||(ok?'Critère rempli':'Critère non rempli'))}" style="cursor:help;font-size:11px;padding:2px 9px;border-radius:99px;font-weight:600;background:${ok?'var(--green-light)':'var(--red-light)'};color:${ok?'var(--green)':'var(--red)'}">${ok?'✓':'✗'} ${txt}</span>`;
  const m=(label,val,sub)=>`<div><div class="kpi-label">${label}</div><div style="font-size:15px;font-weight:600">${val}</div>${sub?`<div style="font-size:10px;color:var(--text3);margin-top:1px">${sub}</div>`:''}</div>`;
  const modeTxt={A:'bail + Airbnb été (loyer seul compté)',B:'full Airbnb, moyenne annuelle',C:'longue durée'}[b.modeLocation||'C'];
  const mk=a.marche&&a.marche.complet?a.marche:null;
  let details='';
  if(a.verdict!=='nodata'){
   const st=projStress(b),ng=projNegociation(b);
-  const stRows=[['<strong>Situation de départ</strong>',euro(a.mens,0),cfTxt(a.cf),pct1(a.rdtNet),projVerdictBadge(a.verdict)]].concat(
-   st.map(x=>[x.label,euro(x.a.mens,0),cfTxt(x.a.cf),pct1(x.a.rdtNet),projVerdictBadge(x.a.verdict)]));
+  const stRows=[['<strong>Situation de départ</strong>',euro(a.mens,0),cfTxt(a.cf),pct1(a.rdtNet),projVerdictBadge(a.verdict,a)]].concat(
+   st.map(x=>[x.label,euro(x.a.mens,0),cfTxt(x.a.cf),pct1(x.a.rdtNet),projVerdictBadge(x.a.verdict,x.a)]));
   const tient=st.filter(x=>x.a.verdict==='bon').length;
   const ngRows=ng.rows.map(r=>[r.p===0?'Prix demandé':'Prix négocié −'+r.p+' %',euro(r.a.prix),...(mk?[r.a.marche&&r.a.marche.complet?ecTxt(r.a.marche.ecartRef):'—']:[]),euro(r.a.apport,0),cfTxt(r.a.cf),pct1(r.a.rdtNet),projVerdictBadge(r.a.verdict)]);
   const cibleTxt=ng.cible?(ng.cible.deja?'Vos critères sont déjà atteints au prix demandé.':`Pour atteindre vos critères, visez un prix d'environ <strong>${euro(Math.ceil(ng.cible.prix/100)*100)}</strong> (−${String(ng.cible.p).replace('.',',')} %).`):'Vos critères ne sont pas atteints, même avec 40 % de négociation : revoyez le loyer, les charges ou le financement.';
@@ -5500,12 +5518,12 @@ function projAnalyseCard(b){
     <div style="font-size:12px;color:var(--text3);margin-top:2px">${escH([b.type,b.surface?b.surface+' m²':'',b.quartier,b.etat].filter(Boolean).join(' · '))}</div>
    </div>
    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-    ${projVerdictBadge(a.verdict)}
+    ${projVerdictBadge(a.verdict,a)}
     <button class="btn btn-sm" title="Modifier" onclick="openEditProjBien('${b.id}')" style="padding:3px 7px">${ICON_EDIT}</button>
     <button class="btn btn-danger btn-sm" title="Supprimer" onclick="deleteProjBien('${b.id}')">${ICON_TRASH}</button>
    </div>
   </div>
-  ${a.verdict!=='nodata'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 14px">${chip(a.okRdt,'Rendement net '+pct1(a.rdtNet)+' (objectif ≥ '+String(a.crit.rdtNet).replace('.',',')+' %)')}${chip(a.okCf,'Cash-flow '+(a.cf>=0?'+':'')+euro(a.cf,0)+'/mois (objectif ≥ '+euro(a.crit.cf,0)+')')}${a.okMarche!==null&&mk?chip(a.okMarche,'Marché : '+mk.baseLabel+' '+ecTxt(mk.ecartRef)+(mk.ecartLoyer!=null?' · loyer '+ecTxt(mk.ecartLoyer):'')):''}</div>`:`<div style="font-size:12px;color:var(--text3);margin:-4px 0 12px">Renseignez un loyer (ou un prix Airbnb) pour obtenir l'analyse.</div>`}
+  ${a.verdict!=='nodata'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 14px">${chip(a.okRdt,'Rendement net '+pct1(a.rdtNet)+' (objectif ≥ '+String(a.crit.rdtNet).replace('.',',')+' %)','Rendement net = (loyers − charges) × 12 ÷ coût total (prix + notaire + travaux). '+(a.okRdt?'Objectif atteint.':'En dessous de l\'objectif.')+' Objectif réglable dans Projection ▸ Analyse (critères).')}${chip(a.okCf,'Cash-flow '+(a.cf>=0?'+':'')+euro(a.cf,0)+'/mois (objectif ≥ '+euro(a.crit.cf,0)+')','Cash-flow mensuel = loyers − mensualité du prêt − charges du bien. '+(a.okCf?'Objectif atteint.':'En dessous de l\'objectif.')+' Objectif réglable dans Projection ▸ Analyse (critères).')}${a.okMarche!==null&&mk?chip(a.okMarche,'Marché : '+mk.baseLabel+' '+ecTxt(mk.ecartRef)+(mk.ecartLoyer!=null?' · loyer '+ecTxt(mk.ecartLoyer):''),'Comparaison avec les prix et loyers du quartier (onglet Marché) : le prix ne doit pas dépasser le marché de plus de '+String(a.crit.prixMarche).replace('.',',')+' %, ni le loyer de plus de '+String(a.crit.loyerMarche).replace('.',',')+' %. Écart du prix : '+ecTxt(mk.ecartRef)+(mk.ecartLoyer!=null?' ; écart du loyer : '+ecTxt(mk.ecartLoyer):'')+'.'):''}</div>`:`<div style="font-size:12px;color:var(--text3);margin:-4px 0 12px">Renseignez un loyer (ou un prix Airbnb) pour obtenir l'analyse.</div>`}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
    ${m('Coût total',euro(a.coutTotal),'prix '+euro(a.prix)+' + frais '+euro(a.frais))}
    ${m('Emprunt',euro(a.credit),a.coutTotal>0?pct1(a.credit/a.coutTotal*100)+' du coût total':'')}
@@ -5548,7 +5566,7 @@ function projComparatifHtml(fict){
    <td style="text-align:right;${hl(r.a.rdtNet,bRn)}">${pct1(r.a.rdtNet)}</td>
    <td style="text-align:right">${r.a.marche&&r.a.marche.complet?`<span style="color:${r.a.marche.ecartRef<=-0.05?'var(--green)':(r.a.marche.ecartRef>=0.05?'var(--red)':'var(--text)')};font-weight:600">${ecTxt(r.a.marche.ecartRef)}</span>`:'—'}</td>
    <td style="text-align:right;${hl(r.gain,bGain)}">${r.gain==null?'—':cfTxt(r.gain)}</td>
-   <td>${projVerdictBadge(r.a.verdict)}</td></tr>`).join('')}
+   <td>${projVerdictBadge(r.a.verdict,r.a)}</td></tr>`).join('')}
   </tbody></table></div></div>`;
 }
 function renderProjAnalyse(){
@@ -5839,6 +5857,7 @@ function buildGuideHtml(){
   <li>Prix, date d'achat, frais de notaire (estimés à 8 % si vides), travaux ; emprunt (capital, taux, durée) ; loyer et mode de gestion A / B / C ; charges annuelles.</li>
   <li><strong>Financement de l'apport</strong> : par les <em>comptes courants des associés</em> (par défaut), par la <em>trésorerie de la SCI</em>, ou les deux. La part en comptes courants se répartit <strong>à parts égales</strong> entre les associés cochés, ou par <strong>montants personnalisés</strong> pour chaque associé (si le total saisi diffère, les montants sont ajustés proportionnellement ; un indicateur le signale).</li></ul>
   <p><strong>Comparaison avec le marché.</strong> Le quartier, l'<strong>état du bien</strong> (Ancien, Ancien à rénover, Récent, Neuf) et la surface déterminent les prix et loyers de référence de l'onglet Marché. Pour une location longue durée, choisissez aussi <strong>Nue</strong> ou <strong>Meublée</strong> : le loyer saisi est alors comparé au loyer nu ou au loyer meublé du marché (le mode A est toujours comparé au meublé, le mode B au prix Airbnb). La fiche du bien affiche les deux loyers de référence, l'état retenu, l'écart et le rendement du marché.</p>
+  <p><strong>Pourquoi ce verdict ?</strong> Passez la souris sur le mot « Intéressant », « À surveiller » ou « Peu intéressant » (et sur les pastilles ✓ / ✗ et les mentions « Sous le marché », « Prudent »…) : une bulle détaille chaque critère avec le chiffre du bien et l'objectif à atteindre. Règle : tous les critères remplis = Intéressant ; au moins un = À surveiller ; aucun = Peu intéressant.</p>
   <p>Dans le revenu locatif, saisissez le <strong>loyer hors charges</strong> et, à part, les <strong>charges locataire</strong> (provisions facturées en plus du loyer) : le cash-flow, le résultat et l'IS de la simulation les ajoutent au loyer, comme pour un bien réel.</p>
   <p>Un aperçu en direct affiche le coût total, l'apport, la mensualité, le cash-flow, les rendements, l'écart avec le marché et le verdict. Raccourci : dans l'onglet Marché, ${U('Simuler un achat ici →')} crée un bien fictif au prix du marché.</p>
   <h3>Les critères et le verdict</h3>
@@ -6706,7 +6725,7 @@ function updatePbPreview(){
   ${a.rev>0&&a.coc!=null?line('Rentabilité sur apport',pct1(a.coc)):''}
   ${pbMarcheLines(a,line)}
   ${!a.chargesSaisies?'<div style="color:var(--text3);padding-top:4px">Charges non saisies : estimation par défaut de '+euro(a.charges,0)+'/mois.</div>':''}
-  <div style="padding-top:6px;text-align:right">${projVerdictBadge(a.verdict)}</div>
+  <div style="padding-top:6px;text-align:right">${projVerdictBadge(a.verdict,a)}</div>
  </div>`;
 }
 function pbMarcheLines(a,line){
@@ -7411,7 +7430,7 @@ function renderProjDashboard(){
  <div style="font-weight:500;font-size:14px">${escH(b.nom||b.adresse)}${b._fictif?' <span style="font-size:10px;color:var(--amber);font-weight:700;vertical-align:middle">FICTIF</span>':''}</div>
  <div style="font-size:12px;color:var(--text3);margin-top:2px">${escH(b.adresse)}${b.ville?' · '+escH(b.ville):''}</div>
  </div>
- ${b._fictif?projVerdictBadge(projAnalyse(b).verdict):''}
+ ${b._fictif?(()=>{const a2=projAnalyse(b);return projVerdictBadge(a2.verdict,a2);})():''}
  </div>
  <div class="three-col">
  <div><div class="kpi-label">Prix</div><div style="font-size:14px;font-weight:500">${euro(b.prix)}</div></div>
@@ -7440,7 +7459,7 @@ function renderProjBiens(){
  <div class="bien-row-sub">${b.type} ${b.surface}m² · ${(b.ville||'').split('·')[0].trim()} · ${euro(loyer)}/mois · CF ${cf>=0?'+':''}${euro(cf,0)}</div>
  </div>
  <div class="bien-row-right">
- ${b._fictif?projVerdictBadge(projAnalyse(b).verdict)+` <button class="btn btn-sm" title="Modifier" onclick="openEditProjBien('${b.id}');event.stopPropagation()" style="padding:3px 7px">${ICON_EDIT}</button> <button class="btn btn-danger btn-sm" title="Supprimer" onclick="deleteProjBien('${b.id}');event.stopPropagation()">${ICON_TRASH}</button>`:''}
+ ${b._fictif?(()=>{const a2=projAnalyse(b);return projVerdictBadge(a2.verdict,a2);})()+` <button class="btn btn-sm" title="Modifier" onclick="openEditProjBien('${b.id}');event.stopPropagation()" style="padding:3px 7px">${ICON_EDIT}</button> <button class="btn btn-danger btn-sm" title="Supprimer" onclick="deleteProjBien('${b.id}');event.stopPropagation()">${ICON_TRASH}</button>`:''}
  </div>
  </div>`;
  }).join('')+`</div>`;
