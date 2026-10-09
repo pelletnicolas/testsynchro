@@ -2964,7 +2964,7 @@ function renderDashboard(){
  <div class="kpi"><div class="kpi-label">Valeur nette SCI</div><div class="kpi-val ${valNette>=0?'kpi-pos':'kpi-neg'}">${valNette>=0?'+':''}${euro(valNette)}</div></div>
  <div class="kpi"><div class="kpi-label">Trésorerie</div><div class="kpi-val kpi-pos">${euro(tresorerie,2)}</div></div>
  <div class="kpi"><div class="kpi-label">Mensualités</div><div class="kpi-val">${euro(totalMens,0)}<span class="unit">/mois</span></div></div>
- <div class="kpi"><div class="kpi-label">Loyers encaissés</div><div class="kpi-val">${euro(totalLoyerMois,0)}<span class="unit">/mois</span></div></div>
+ <div class="kpi" title="Moyenne mensuelle lissée sur 12 mois : loyers et charges des fiches ; en mode A ou B, chiffre d'affaires annuel estimé ÷ 12. La rentrée d'argent réelle varie d'un mois à l'autre (voir l'onglet Loyers)."><div class="kpi-label">Loyers moyens</div><div class="kpi-val">${euro(totalLoyerMois,0)}<span class="unit">/mois</span></div><div style="font-size:10.5px;color:var(--text3);margin-top:2px">moyenne lissée sur 12 mois</div></div>
  `;
 
  // Déterminer les couleurs selon thème
@@ -3221,7 +3221,7 @@ function bienDrawerContent(b){
  const charges=Number(b.charges||0);
  return `<div class="status-row"><span>Loyer HC</span><span>${euro(loyer)}/mois</span></div>
  <div class="status-row"><span>Charges locataire</span><span>${euro(charges)}/mois</span></div>
- <div class="status-row"><span>Total encaissé</span><span style="font-weight:500">${euro(loyer+charges)}/mois</span></div>
+ <div class="status-row"><span>Total mensuel (loyer + charges)</span><span style="font-weight:500">${euro(loyer+charges)}/mois</span></div>
  ${mode==='A'?`<div class="status-row"><span>Airbnb été (Juin–Août)</span><span style="font-weight:500;color:var(--blue)">${euro(Math.round(airbnbCaMois(b.airbnb_nuit,7)))}/mois en haute saison</span></div>`:''}
  <div class="status-row"><span>Locataire</span><span>${b.locataire||'—'}</span></div>`;
  })()}
@@ -5714,7 +5714,7 @@ function renderProjBanque(){
  const capT=c=>!c?'—':(c.extra>0?`<span style="color:var(--green);font-weight:600">+${euro(c.extra,0)}/mois</span> <span style="color:var(--text3);font-size:11px">≈ ${euro(Math.round(c.loan/1000)*1000)} d'emprunt</span>`:`<span style="color:var(--red);font-weight:600">${euro(c.extra,0)}/mois</span> <span style="color:var(--text3);font-size:11px">déjà au-delà</span>`);
  document.getElementById('proj-banque-sci').innerHTML=`<div style="overflow-x:auto"><table class="jtable" style="font-size:13px"><thead><tr><th>Indicateur</th><th style="text-align:right">Aujourd'hui</th><th style="text-align:right">${has?'Après vos achats':'Après achats'}</th></tr></thead><tbody>
   ${row('Biens',sciB.n,cell(c=>c.n))}
-  ${row('Loyers / mois',euro(sciB.rev,0),cell(c=>euro(c.rev,0)))}
+  ${row('Loyers moyens / mois',euro(sciB.rev,0),cell(c=>euro(c.rev,0)))}
   ${row('Mensualités / mois',euro(sciB.mens,0),cell(c=>euro(c.mens,0)))}
   ${row('Charges / mois',euro(sciB.charges,0),cell(c=>euro(c.charges,0)))}
   ${row('Cash-flow / mois',cfTxt(sciB.cf),cell(c=>cfTxt(c.cf)))}
@@ -5801,7 +5801,7 @@ function buildGuideHtml(){
  // ---- 3
  h+=sec(3,'Gestion : biens, emprunts, locataires',`
   <h3>Dashboard</h3>
-  <p>Vue d'ensemble du patrimoine : nombre de biens, valeur estimée, capital restant dû, valeur nette de la SCI, trésorerie, mensualités et loyers encaissés. En dessous : alertes et statuts, derniers mouvements, et les graphiques (répartition de la valeur, par type de bien, cash-flow mensuel par bien, avancement des remboursements).</p>
+  <p>Vue d'ensemble du patrimoine : nombre de biens, valeur estimée, capital restant dû, valeur nette de la SCI, trésorerie, mensualités et loyers moyens mensuels (moyenne lissée sur 12 mois ; la rentrée d'argent réelle, mois par mois, se suit dans l'onglet Loyers). En dessous : alertes et statuts, derniers mouvements, et les graphiques (répartition de la valeur, par type de bien, cash-flow mensuel par bien, avancement des remboursements).</p>
   <h3>Biens</h3>
   <p>Le bouton ${U('+ Ajouter un bien')} ouvre le formulaire : identification, acquisition (prix, notaire, travaux), emprunt (capital, taux, durée, début), location, <strong>mode de gestion</strong>, charges annuelles (copropriété, taxe foncière, assurance PNO, entretien) et <strong>apports des associés</strong> en compte courant. Cliquez sur un bien pour ouvrir sa fiche, la modifier ou le supprimer.</p>
   <p><strong>Le cash-flow d'un bien</strong> affiché dans la fiche est le revenu mensuel moins la mensualité du crédit moins les charges du bien (copropriété, taxe foncière, assurance, entretien, saisies <em>par an</em> dans la fiche et divisées par 12), avant impôt sur les sociétés, CFE, honoraires comptables et vacance. Le revenu est le loyer et les charges locataire (mode C), ou le <strong>chiffre d'affaires annuel estimé divisé par 12</strong> en mode A (9 mois de bail plus l'Airbnb de juin à août) et en mode B (Airbnb toute l'année). L'Airbnb est donc compté en entier : pour être plus prudent, réglez le prix par nuit, les nuits louées, le taux d'occupation et le multiplicateur de chaque saison dans ${U('⚙ Hypothèses Airbnb')}. Dans la fiche, la rubrique <em>Comment est calculé ce cash-flow ?</em> détaille chaque ligne et indique si la mensualité est saisie à la main ou calculée d'après le capital, le taux et la durée.</p>
@@ -6104,7 +6104,7 @@ function refreshAccueilStats(){
  const root=document.getElementById('screen-accueil');if(!root)return;
  const st=[...root.querySelectorAll('.ac-stat')];if(st.length<4)return;
  const biens=biensList(),valeur=biens.reduce((t,b)=>t+valeurBien(b),0),loyers=biens.reduce((t,b)=>t+bienRevenuMensuel(b),0);
- const vals=[[String(biens.length),'Biens'],[String(ASSOCIES.length),'Associés'],[valeur>0?euro(valeur):'—','Patrimoine estimé'],[loyers>0?euro(loyers,0):'—','Loyers / mois']];
+ const vals=[[String(biens.length),'Biens'],[String(ASSOCIES.length),'Associés'],[valeur>0?euro(valeur):'—','Patrimoine estimé'],[loyers>0?euro(loyers,0):'—','Loyers moyens / mois']];
  st.slice(0,4).forEach((el,i)=>{const n=el.querySelector('.ac-stat-num'),l=el.querySelector('.ac-stat-label');if(n)n.textContent=vals[i][0];if(l)l.textContent=vals[i][1];});
 }
 function adaptAccueil(){
@@ -6322,7 +6322,7 @@ function renderConseil(){
  const alertes=D.alertes.map(a=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)"><span style="font-weight:700;width:16px;flex:none;color:${{crit:'var(--red)',warn:'var(--amber)',ok:'var(--green)',info:'var(--blue)'}[a.niveau]}">${{crit:'✗',warn:'!',ok:'✓',info:'i'}[a.niveau]}</span><div><div style="font-size:13px;font-weight:600">${E(a.titre)}${a.niveau==='crit'?' <span style="font-size:10px;color:var(--red)">· bloquant</span>':''}</div><div style="font-size:12px;color:var(--text2)">${E(a.texte)}</div>${a.conseil?`<div style="font-size:12px;color:var(--text);margin-top:2px">→ ${E(a.conseil)}</div>`:''}</div></div>`).join('');
  const diag=`<div class="card" style="border-left:3px solid ${col};margin-bottom:14px"><div class="card-header"><div><div style="font-weight:600;font-size:15px">Où en est la SCI ?</div><div style="font-size:12px;color:var(--text3);margin-top:2px">${D.nBiens} bien${D.nBiens>1?'s':''}${P.inclure?' + vos achats envisagés':''}</div></div><span class="badge ${D.verdict==='oui'?'badge-ok':(D.verdict==='conditions'?'badge-warn':'badge-red')}">${vTxt}</span></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:12px">
-  ${kp('Trésorerie',euro(D.solde,0),'solde de la Comptabilité')}${kp('Loyers / mois',euro(s.rev,0))}${kp('Mensualités / mois',euro(s.mens,0))}
+  ${kp('Trésorerie',euro(D.solde,0),'solde de la Comptabilité')}${kp('Loyers moyens / mois',euro(s.rev,0))}${kp('Mensualités / mois',euro(s.mens,0))}
   ${kp('Cash-flow / mois',cfTxt(s.cf),'avant impôt')}${kp('Couverture bancaire',s.couv==null?'—':Math.round(s.couv*100)+' %','seuil '+Math.round(crit.couvMin*100)+' % (loyers retenus à '+crit.loyersPct+' %)')}
   ${kp('Endettement',s.ltv==null?'—':pct1(s.ltv),'capital dû ÷ valeur')}
   ${kp('Capacité d\'emprunt en plus',D.cap?(D.cap.extra>0?euro(Math.round(D.cap.loan/1000)*1000,0):'aucune'):'—',D.cap&&D.cap.extra>0?'≈ '+euro(D.cap.extra,0)+'/mois de mensualités':'les loyers retenus ne suffisent pas')}
@@ -6372,7 +6372,7 @@ function renderConseil(){
    ${x.alt.length?`<strong>Autres secteurs possibles</strong> : ${x.alt.map(a=>E(a.q)+' ('+E(a.etat)+' '+a.S+' m², '+euro(a.prix,0)+', '+pct1(a.rdt)+')').join(' · ')}`:''}</div></div>`;
   }).join('');
   plan+=`<div class="sl">Effet sur la SCI</div><div class="card" style="margin-bottom:14px"><div style="overflow-x:auto"><table class="jtable" style="font-size:13px"><thead><tr><th>Indicateur</th><th style="text-align:right">Aujourd'hui</th><th style="text-align:right">Après le plan</th></tr></thead><tbody>
-   <tr><td>Biens</td><td style="text-align:right">${s.n}</td><td style="text-align:right">${A2.sci.n}</td></tr><tr><td>Loyers / mois</td><td style="text-align:right">${euro(s.rev,0)}</td><td style="text-align:right">${euro(A2.sci.rev,0)}</td></tr>
+   <tr><td>Biens</td><td style="text-align:right">${s.n}</td><td style="text-align:right">${A2.sci.n}</td></tr><tr><td>Loyers moyens / mois</td><td style="text-align:right">${euro(s.rev,0)}</td><td style="text-align:right">${euro(A2.sci.rev,0)}</td></tr>
    <tr><td>Mensualités / mois</td><td style="text-align:right">${euro(s.mens,0)}</td><td style="text-align:right">${euro(A2.sci.mens,0)}</td></tr><tr><td>Cash-flow / mois</td><td style="text-align:right">${cfTxt(s.cf)}</td><td style="text-align:right">${cfTxt(A2.sci.cf)}</td></tr>
    <tr><td>Couverture bancaire</td><td style="text-align:right">${s.couv==null?'—':Math.round(s.couv*100)+' %'}</td><td style="text-align:right">${A2.sci.couv==null?'—':Math.round(A2.sci.couv*100)+' %'}</td></tr><tr><td>Endettement</td><td style="text-align:right">${s.ltv==null?'—':pct1(s.ltv)}</td><td style="text-align:right">${A2.sci.ltv==null?'—':pct1(A2.sci.ltv)}</td></tr>
    <tr><td>Trésorerie : point bas sur 10 ans</td><td style="text-align:right">${euro(D.fwd.min,0)}</td><td style="text-align:right">${euro(A2.fwd.min,0)} <span style="color:var(--text3);font-size:11px">(${moisLong(A2.fwd.minAt.an,A2.fwd.minAt.m)})</span></td></tr></tbody></table></div>
@@ -6421,14 +6421,14 @@ function buildConseilHtml(){
  const table=(head,rows)=>`<table><thead><tr>${head.map((h,i)=>`<th${i>0?' class="r"':''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td${i>0?' class="r"':''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
  let h=`<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0A2A5A;padding-bottom:10px;margin-bottom:8px"><div><h1>Note de conseil d'achat</h1><div class="muted">Diagnostic de la SCI et proposition d'achats<br>Établie le ${new Date().toLocaleDateString('fr-FR')} — simulation indicative</div></div>${logo?`<img src="${logo}" alt="SCI PERIPE" style="height:64px">`:'<strong>SCI PERIPE</strong>'}</div>`;
  h+=`<h2>1. Situation de la SCI</h2><div class="callout ${D.verdict==='non'?'alert':(D.verdict==='conditions'?'':'info')}"><strong>${{oui:'La SCI peut envisager un achat.',conditions:'Un achat est possible, avec des précautions.',non:'Pas d\'achat tant que les points bloquants ne sont pas levés.'}[D.verdict]}</strong></div>`;
- h+=table(['Indicateur','Valeur'],[['Biens',s.n],['Trésorerie',euro(D.solde,0)],['Loyers / mois',euro(s.rev,0)],['Mensualités / mois',euro(s.mens,0)],['Cash-flow / mois',cfc(s.cf)],['Couverture bancaire (loyers retenus ÷ mensualités)',(s.couv==null?'—':Math.round(s.couv*100)+' %')+' · seuil '+Math.round(crit.couvMin*100)+' %'],['Endettement (capital dû ÷ valeur)',s.ltv==null?'—':pct1(s.ltv)],['Capacité d\'emprunt supplémentaire',D.cap&&D.cap.extra>0?euro(Math.round(D.cap.loan/1000)*1000,0):'aucune'],['Rendement total réel · prévu',(D.rentaReelle==null?'—':pct1(D.rentaReelle))+' · '+(D.rentaPrevue==null?'—':pct1(D.rentaPrevue))]]);
+ h+=table(['Indicateur','Valeur'],[['Biens',s.n],['Trésorerie',euro(D.solde,0)],['Loyers moyens / mois',euro(s.rev,0)],['Mensualités / mois',euro(s.mens,0)],['Cash-flow / mois',cfc(s.cf)],['Couverture bancaire (loyers retenus ÷ mensualités)',(s.couv==null?'—':Math.round(s.couv*100)+' %')+' · seuil '+Math.round(crit.couvMin*100)+' %'],['Endettement (capital dû ÷ valeur)',s.ltv==null?'—':pct1(s.ltv)],['Capacité d\'emprunt supplémentaire',D.cap&&D.cap.extra>0?euro(Math.round(D.cap.loan/1000)*1000,0):'aucune'],['Rendement total réel · prévu',(D.rentaReelle==null?'—':pct1(D.rentaReelle))+' · '+(D.rentaPrevue==null?'—':pct1(D.rentaPrevue))]]);
  h+=table(['Point relevé','Constat'],D.alertes.map(a=>[`<span class="${{crit:'ko',warn:'wa',ok:'ok',info:'muted'}[a.niveau]}">${{crit:'✗',warn:'!',ok:'✓',info:'i'}[a.niveau]}</span> ${E(a.titre)}`,E(a.texte)+(a.conseil?' → '+E(a.conseil):'')]));
  h+=`<h2>2. Hypothèses retenues</h2>`+table(['Hypothèse','Valeur'],[['Moyens des associés',euro(P.apportInit,0)+' immédiatement + '+euro(P.apportMensuel,0)+'/mois'],['Projet',P.nbMax+' achat'+(P.nbMax>1?'s':'')+' maximum sur '+P.horizon+' mois, '+euro(P.budgetMax,0)+' maximum par bien, '+P.surfMin+' à '+P.surfMax+' m²'],['État · location',P.etats.join(', ')+' · '+P.modes.map(m=>({C:'nue',A:'meublée',B:'Airbnb'}[m])).join(', ')],['Secteurs',P.zones.length?P.zones.join(', '):'toutes les zones'],['Négociation · prudence sur les loyers',P.decote+' % sous le marché · '+P.prudence+' % sur les loyers'],['Apport',P.apportMode==='cible'?'visé à '+P.apportPct+' % du coût d\'acquisition (critères bancaires souples : écarts signalés)':'ajusté pour respecter les critères bancaires'],['Critères',`rendement net ≥ ${String(D.cr.rdtNet).replace('.',',')} %, cash-flow ≥ ${euro(D.cr.cf,0)}, couverture ≥ ${Math.round(crit.couvMin*100)} %, apport ≥ ${crit.apportMin} %, réserve ${crit.reserveMois} mois`]]);
  if(Rz.plan.length){
   h+=`<h2>3. Proposition d'achats</h2>`+table(['Quand · où','Quoi','Prix cible','Apport','Mensualité','Cash-flow','Rdt net'],Rz.plan.map(x=>[`<strong>${moisLong(x.an,x.mois)}</strong> · ${E(x.c.q)}`,E(x.b.type)+' '+x.c.S+' m² · '+E(x.c.etat),euro(x.c.prix,0),euro(x.apport.total,0),euro(x.a.mens,0),cfc(x.a.cf),pct1(x.a.rdtNet)]));
   Rz.plan.forEach(x=>{h+=`<h3>n° ${x.i} · ${moisLong(x.an,x.mois)} — ${E(x.c.q)} (${E(x.c.zone)}) <span class="tag ${x.v.verdict==='pret'?'ok':(x.v.verdict==='fragile'?'ko':'wa')}" style="float:right">${{pret:'Prêt pour la banque',consolider:'À consolider',fragile:'Fragile'}[x.v.verdict]}</span></h3>
    <div>${MODE_LABEL[x.c.mode]} · prix cible ${euro(x.c.prix,0)} (marché −${P.decote} %, ${m2Txt(x.c.prix/x.c.S)}) · ${x.c.mode==='C'?'loyer prévu '+euro(x.a.rev,0)+'/mois (marché '+euro(x.c.loyerM,0)+' −'+P.prudence+' %)':(x.c.mode==='A'?'revenu moyen '+euro(x.a.rev,0)+'/mois (bail '+euro(x.b.loyer,0)+', marché meublé '+euro(x.c.loyerM,0)+' −'+P.prudence+' %, + Airbnb d\'été '+euro(x.b.airbnb_nuit,0)+'/nuit, marché '+euro(x.c.nuitM,0)+' −'+P.prudence+' %)':'revenu moyen '+euro(x.a.rev,0)+'/mois (Airbnb '+euro(x.b.airbnb_nuit,0)+'/nuit, marché '+euro(x.c.nuitM,0)+' −'+P.prudence+' %)')} · prêt ${euro(x.f.L,0)} sur ${Math.round(x.b.duree/12)} ans à ${String(x.b.taux).replace('.',',')} % (${euro(x.a.mens,0)}/mois) · apport ${euro(x.apport.total,0)}${x.apport.treso>0?' dont '+euro(x.apport.treso,0)+' de trésorerie':''}${x.apport.cca>0?' et '+euro(x.apport.cca,0)+' en comptes courants ('+euro(x.apport.perAssoc,0)+' par associé)':''} · couverture après achat ${x.sci.couv==null?'—':Math.round(x.sci.couv*100)+' %'} · tests de résistance ${x.stress.tient}/${x.stress.total}.</div>`+table(['','Contrôle bancaire','Constat'],x.v.checks.map(c=>[`<span class="${c.ok?'ok':(c.level==='crit'?'ko':'wa')}">${c.ok?'✓':'✗'}</span>`,c.label,E(c.detail)]));});
-  h+=`<h2>4. Effet sur la SCI</h2>`+table(['Indicateur','Aujourd\'hui','Après le plan'],[['Biens',s.n,A2.sci.n],['Loyers / mois',euro(s.rev,0),euro(A2.sci.rev,0)],['Mensualités / mois',euro(s.mens,0),euro(A2.sci.mens,0)],['Cash-flow / mois',cfc(s.cf),cfc(A2.sci.cf)],['Couverture bancaire',s.couv==null?'—':Math.round(s.couv*100)+' %',A2.sci.couv==null?'—':Math.round(A2.sci.couv*100)+' %'],['Endettement',s.ltv==null?'—':pct1(s.ltv),A2.sci.ltv==null?'—':pct1(A2.sci.ltv)],['Trésorerie : point bas sur 10 ans',euro(D.fwd.min,0),euro(A2.fwd.min,0)+' ('+moisLong(A2.fwd.minAt.an,A2.fwd.minAt.m)+')']]);
+  h+=`<h2>4. Effet sur la SCI</h2>`+table(['Indicateur','Aujourd\'hui','Après le plan'],[['Biens',s.n,A2.sci.n],['Loyers moyens / mois',euro(s.rev,0),euro(A2.sci.rev,0)],['Mensualités / mois',euro(s.mens,0),euro(A2.sci.mens,0)],['Cash-flow / mois',cfc(s.cf),cfc(A2.sci.cf)],['Couverture bancaire',s.couv==null?'—':Math.round(s.couv*100)+' %',A2.sci.couv==null?'—':Math.round(A2.sci.couv*100)+' %'],['Endettement',s.ltv==null?'—':pct1(s.ltv),A2.sci.ltv==null?'—':pct1(A2.sci.ltv)],['Trésorerie : point bas sur 10 ans',euro(D.fwd.min,0),euro(A2.fwd.min,0)+' ('+moisLong(A2.fwd.minAt.an,A2.fwd.minAt.m)+')']]);
  }else{
   h+=`<h2>3. Proposition d'achats</h2><div class="callout alert"><strong>Aucun achat n'est finançable dans les ${P.horizon} prochains mois avec les moyens indiqués.</strong>${Rz.besoin?` Meilleur bien repéré : ${E(Rz.besoin.x.c.q)} (${E(Rz.besoin.x.c.b.type)} ${Rz.besoin.x.c.S} m², ${euro(Rz.besoin.x.c.prix,0)}), apport nécessaire ${euro(Rz.besoin.apport,0)} ; il manque environ ${euro(Rz.besoin.manque,0)} en comptes courants d'associés (soit ${euro(Rz.besoin.suggere,0)} par mois sur l'horizon).`:' Aucune combinaison ne respecte à la fois le budget, les critères de rendement et de cash-flow et la couverture exigée par la banque.'}</div>`;
  }
@@ -6460,7 +6460,7 @@ function buildDossierHtml(selId,inclAssoc){
  h+=`<h2>1. La SCI et son patrimoine actuel</h2>
   <div>SCI à l'impôt sur les sociétés — <strong>${n} associé${n>1?'s':''}</strong> : ${ASSOCIES.map(a=>E(a.n)).join(', ')} (parts égales).</div>`;
  if(reels.length){
-  h+=table(['Bien','Prix','Capital restant dû','Mensualité','Loyer / mois','Cash-flow'],reels.map(b=>{const a=projAnalyse(b);return [E(b.nom||b.adresse)+(b.ville?' <span class="muted">· '+E(b.ville)+'</span>':''),euro(a.prix),euro(Number(b.capitalRestant||b.capital)||0),euro(a.mens,0),euro(a.rev,0),cfc(a.cf)];}).concat([['<strong>Total</strong>',euro(reels.reduce((s,b)=>s+(Number(b.prix)||0),0)),euro(sciB.crd),euro(sciB.mens,0),euro(sciB.rev,0),cfc(sciB.cf)]]),1);
+  h+=table(['Bien','Prix','Capital restant dû','Mensualité','Loyer moyen / mois','Cash-flow'],reels.map(b=>{const a=projAnalyse(b);return [E(b.nom||b.adresse)+(b.ville?' <span class="muted">· '+E(b.ville)+'</span>':''),euro(a.prix),euro(Number(b.capitalRestant||b.capital)||0),euro(a.mens,0),euro(a.rev,0),cfc(a.cf)];}).concat([['<strong>Total</strong>',euro(reels.reduce((s,b)=>s+(Number(b.prix)||0),0)),euro(sciB.crd),euro(sciB.mens,0),euro(sciB.rev,0),cfc(sciB.cf)]]),1);
   h+=`<div class="note">Charges retenues : ${euro(sciB.charges,0)}/mois · endettement (capital dû ÷ valeur) ${pct1(sciB.ltv)} · loyers retenus ÷ mensualités ${sciB.couv==null?'—':Math.round(sciB.couv*100)+' %'}.</div>`;
  }else h+=`<div class="muted" style="margin-top:6px">La SCI ne détient pas encore de bien : ce dossier présente son premier investissement.</div>`;
  // 2. projets
@@ -6479,7 +6479,7 @@ function buildDossierHtml(selId,inclAssoc){
  // 3. SCI après
  if(sel.length){
   h+=`<h2>3. La SCI après l'opération</h2>`+table(['Indicateur','Aujourd\'hui','Après l\'opération'],[
-   ['Loyers / mois',euro(sciB.rev,0),euro(sciA.rev,0)],['Mensualités / mois',euro(sciB.mens,0),euro(sciA.mens,0)],['Cash-flow / mois',cfc(sciB.cf),cfc(sciA.cf)],
+   ['Loyers moyens / mois',euro(sciB.rev,0),euro(sciA.rev,0)],['Mensualités / mois',euro(sciB.mens,0),euro(sciA.mens,0)],['Cash-flow / mois',cfc(sciB.cf),cfc(sciA.cf)],
    ['Loyers retenus ÷ mensualités',sciB.couv==null?'—':Math.round(sciB.couv*100)+' %',sciA.couv==null?'—':Math.round(sciA.couv*100)+' %'],
    ['Endettement (capital dû ÷ valeur)',pct1(sciB.ltv),pct1(sciA.ltv)],
    ['Trésorerie : point bas sur 10 ans',euro(fwB.min,0),euro(fwA.min,0)+' ('+moisLong(fwA.minAt.an,fwA.minAt.m)+')']],1);
@@ -7565,7 +7565,7 @@ function locataireDrawerContent(b){
  <div class="status-row"><span>Loyer HC</span><span style="font-weight:600">${euro(loyer)}/mois</span></div>
  <div class="status-row"><span>Charges locataire</span><span>${euro(charges)}/mois</span></div>
  <div class="status-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:10px">
- <span style="font-weight:500">Total encaissé</span>
+ <span style="font-weight:500">Total mensuel (loyer + charges)</span>
  <span style="font-size:16px;font-weight:700;color:var(--green)">${euro(loyer+charges)}/mois</span>
  </div>
  ${bienChargesAn(b)>0?`
