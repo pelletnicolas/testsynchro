@@ -1104,7 +1104,7 @@ canvas{max-width:100%;display:block}
  </div>
  <div class="two-col">
  <div class="fg"><label>Charges locataire (€/mois) <span style="font-weight:400;color:var(--text3)">— provisions facturées en plus du loyer</span></label><input id="pb-charges" type="number" placeholder="50" oninput="updatePbPreview()"></div>
- <div></div>
+ <div class="fg" id="pb-meuble-wrap"><label>Location longue durée <span style="font-weight:400;color:var(--text3)">— compare au loyer du marché</span></label><select id="pb-meuble" onchange="updatePbPreview()"><option value="non">Nue</option><option value="oui">Meublée</option></select></div>
  </div>
  <div class="two-col">
  <div class="fg"><label>Prix Airbnb / nuit (€) <span style="font-weight:400;color:var(--text3)">— Modes A et B</span></label><input id="pb-airbnb" type="number" placeholder="0" oninput="updatePbPreview()"></div>
@@ -5158,14 +5158,14 @@ function projMarche(b){
  const ecartPrixTrav=prixM>0&&prix>0?(prix+trav)/prixM-1:null;
  const ecartRef=renover?ecartPrixTrav:ecartPrix;      // un bien à rénover se compare, travaux compris, au prix du marché
  let ref=null;
- if(mode==='C')ref={label:'loyer nu',unit:'€/mois',marche:nuM,mien:loyer};
+ if(mode==='C')ref=b.meuble?{label:'loyer meublé',unit:'€/mois',marche:meubleM,mien:loyer}:{label:'loyer nu',unit:'€/mois',marche:nuM,mien:loyer};
  else if(mode==='A')ref={label:'loyer meublé',unit:'€/mois',marche:meubleM,mien:loyer};
  else ref={label:'prix Airbnb / nuit',unit:'€/nuit',marche:abNuitM,mien:Number(b.airbnb_nuit)||0};
  const ecartLoyer=ref&&ref.marche>0&&ref.mien>0?ref.mien/ref.marche-1:null;
  const ab=(mode==='A'&&abNuitM&&Number(b.airbnb_nuit)>0)?{mien:Number(b.airbnb_nuit),marche:abNuitM,ecart:Number(b.airbnb_nuit)/abNuitM-1}:null;
- const rdtM=prixM>0?((mode==='B'?abAnM:(mode==='A'?meubleM*12:nuM*12))/prixM*100):null;
+ const rdtM=prixM>0?((mode==='B'?abAnM:(mode==='A'||(mode==='C'&&b.meuble)?meubleM*12:nuM*12))/prixM*100):null;
  return {complet:true,q,zone:MARKET.zones[q]||'',typ,S,renover,prix,trav,prixM,pm2M:prixM/S,pm2B:prix>0?prix/S:null,
-  ecartPrix,ecartPrixTrav,ecartRef,baseLabel:renover?'prix + travaux':'prix',ref,ecartLoyer,ab,rdtM,abNuitM,abAnM,airbnbOk:marcheAirbnbOk(q)};
+  ecartPrix,ecartPrixTrav,ecartRef,baseLabel:renover?'prix + travaux':'prix',nuM,meubleM,etat:b.etat||'Ancien',meuble:mode==='A'||(mode==='C'&&!!b.meuble),ref,ecartLoyer,ab,rdtM,abNuitM,abAnM,airbnbOk:marcheAirbnbOk(q)};
 }
 function projAnalyse(b){
  const prix=Number(b.prix)||0;
@@ -5443,6 +5443,7 @@ function projMarcheBlock(b,a){
  ];
  if(mk.renover&&mk.trav>0)tiles.push(tile('Travaux compris '+marcheBadge(mk.ecartPrixTrav),euro(mk.prix+mk.trav,0),ecTxt(mk.ecartPrixTrav)+' vs le marché (bien à rénover : comparé travaux inclus)'));
  if(mk.ref&&mk.ref.mien>0&&mk.ref.marche>0)tiles.push(tile(mk.ref.label[0].toUpperCase()+mk.ref.label.slice(1)+' '+(mk.ecartLoyer>=0.05?'<span class="badge badge-warn">Au-dessus du marché</span>':(mk.ecartLoyer<=-0.05?'<span class="badge badge-ok">Prudent</span>':'<span class="badge badge-info">Dans le marché</span>')),euro(mk.ref.mien,0)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+euro(Math.round(mk.ref.marche),0)+' '+mk.ref.unit,ecTxt(mk.ecartLoyer)+(mk.ecartLoyer>0.05?' · loyer plus ambitieux que le marché':'')));
+ if(mk.nuM>0||mk.meubleM>0)tiles.push(tile('Loyers du marché ('+escH(mk.typ)+')','Nu '+(mk.nuM>0?euro(Math.round(mk.nuM/10)*10,0):'—')+' · meublé '+(mk.meubleM>0?euro(Math.round(mk.meubleM/10)*10,0):'—'),'état : '+escH(mk.etat)+' · comparé au loyer '+(mk.meuble?'meublé':'nu')+' de ce bien'));
  if(mk.airbnbOk===false&&(b.modeLocation==='A'||b.modeLocation==='B'))tiles.push(tile('Airbnb <span class="badge badge-warn">Non possible</span>','Quartier sans Airbnb','ce bien est calculé en location longue durée, au loyer saisi : le revenu Airbnb est ignoré'));
  if(mk.ab)tiles.push(tile('Airbnb / nuit',euro(mk.ab.mien,0)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+euro(mk.ab.marche,0),ecTxt(mk.ab.ecart)));
  if(mk.rdtM!=null&&a.rdtBrut!=null)tiles.push(tile('Rendement brut',pct1(a.rdtBrut)+' <span style="font-weight:400;color:var(--text3)">vs</span> '+pct1(mk.rdtM),'rendement du marché pour ce quartier'));
@@ -5837,6 +5838,7 @@ function buildGuideHtml(){
   <ul><li><strong>Quartier</strong>, <strong>état du bien</strong> (Ancien, Ancien à rénover, Récent, Neuf), type et <strong>surface</strong> : ils servent à comparer le bien au marché.</li>
   <li>Prix, date d'achat, frais de notaire (estimés à 8 % si vides), travaux ; emprunt (capital, taux, durée) ; loyer et mode de gestion A / B / C ; charges annuelles.</li>
   <li><strong>Financement de l'apport</strong> : par les <em>comptes courants des associés</em> (par défaut), par la <em>trésorerie de la SCI</em>, ou les deux. La part en comptes courants se répartit <strong>à parts égales</strong> entre les associés cochés, ou par <strong>montants personnalisés</strong> pour chaque associé (si le total saisi diffère, les montants sont ajustés proportionnellement ; un indicateur le signale).</li></ul>
+  <p><strong>Comparaison avec le marché.</strong> Le quartier, l'<strong>état du bien</strong> (Ancien, Ancien à rénover, Récent, Neuf) et la surface déterminent les prix et loyers de référence de l'onglet Marché. Pour une location longue durée, choisissez aussi <strong>Nue</strong> ou <strong>Meublée</strong> : le loyer saisi est alors comparé au loyer nu ou au loyer meublé du marché (le mode A est toujours comparé au meublé, le mode B au prix Airbnb). La fiche du bien affiche les deux loyers de référence, l'état retenu, l'écart et le rendement du marché.</p>
   <p>Dans le revenu locatif, saisissez le <strong>loyer hors charges</strong> et, à part, les <strong>charges locataire</strong> (provisions facturées en plus du loyer) : le cash-flow, le résultat et l'IS de la simulation les ajoutent au loyer, comme pour un bien réel.</p>
   <p>Un aperçu en direct affiche le coût total, l'apport, la mensualité, le cash-flow, les rendements, l'écart avec le marché et le verdict. Raccourci : dans l'onglet Marché, ${U('Simuler un achat ici →')} crée un bien fictif au prix du marché.</p>
   <h3>Les critères et le verdict</h3>
@@ -6560,6 +6562,7 @@ function pbFormBien(){
   surface:Number(pbVal('pb-surface'))||0,
   quartier:pbVal('pb-quartier'),
   etat:pbVal('pb-etat')||'Ancien',
+  meuble:pbVal('pb-meuble')==='oui',
   prix,
   dateAchat:pbVal('pb-dateachat'),
   notaire:notaireAuto?Math.round(prix*0.08):(Number(notRaw)||0),
@@ -6595,6 +6598,7 @@ function openAddProjBienModal(){
  ['pb-adresse','pb-ville','pb-banque','pb-prix','pb-notaire','pb-capital','pb-taux','pb-loyer','pb-charges','pb-copro','pb-fonciere','pb-assurpno','pb-entretien','pb-surface','pb-airbnb','pb-edit-id'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
  document.getElementById('pb-travaux').value=0;
  document.getElementById('pb-duree').value=240;
+ document.getElementById('pb-meuble').value='non';
  document.getElementById('pb-apport-mode').value='cca';
  document.getElementById('pb-apport-treso').value='';
  document.getElementById('pb-apport-treso-wrap').style.display='none';
@@ -6621,7 +6625,7 @@ function openEditProjBien(id){
  set('pb-edit-id',b.id);set('pb-adresse',b.adresse);set('pb-ville',b.ville);set('pb-type',b.type||'Studio');set('pb-surface',b.surface);
  set('pb-prix',b.prix);set('pb-dateachat',b.dateAchat);set('pb-notaire',b.notaire);set('pb-travaux',b.travaux||0);
  set('pb-capital',b.capital);set('pb-taux',b.taux);set('pb-duree',b.duree||240);set('pb-banque',b.banque);set('pb-debut',b.debut);
- set('pb-loyer',b.loyer);set('pb-charges',b.charges);set('pb-mode',b.modeLocation||'C');set('pb-airbnb',b.airbnb_nuit);
+ set('pb-loyer',b.loyer);set('pb-charges',b.charges);set('pb-meuble',b.meuble?'oui':'non');set('pb-mode',b.modeLocation||'C');set('pb-airbnb',b.airbnb_nuit);
  const ca=b.chargesAnnuelles||{};
  set('pb-copro',ca.copro);set('pb-fonciere',ca.fonciere);set('pb-assurpno',ca.assurpno);set('pb-entretien',ca.entretien);
  document.getElementById('pb-apport-mode').value=b.apportMode||'cca';
@@ -6659,6 +6663,7 @@ function pbAppliquerApport(){
 }
 function updatePbPreview(){
  pbAirbnbGuard();
+ {const mw=document.getElementById('pb-meuble-wrap'),mm=document.getElementById('pb-mode');if(mw&&mm)mw.style.display=mm.value==='C'?'':'none';}
  const b=pbFormBien();
  const a=projAnalyse(b);
  const mpEl=document.getElementById('pb-mens-preview');
@@ -8560,7 +8565,7 @@ function marcheSimuler(){
  const prix=sd.achat?Math.round(sd.achat/1000)*1000:'';
  set('pb-adresse','Achat '+q);set('pb-quartier',q);set('pb-etat',typ);set('pb-surface',S);
  set('pb-type',S<=25?'Studio':(S<=45?'T2':(S<=70?'T3':'T4+')));
- set('pb-prix',prix);set('pb-loyer',sd.nu?Math.round(sd.nu):'');
+ set('pb-prix',prix);set('pb-loyer',sd.nu?Math.round(sd.nu):'');set('pb-meuble','non');
  set('pb-capital',prix?pbCapitalPourApport(prix,'',0):prix);set('pb-taux',BP_PARAMS.taux);set('pb-duree',BP_PARAMS.duree);
  updatePbPreview();
 }
