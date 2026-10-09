@@ -1102,6 +1102,10 @@ canvas{max-width:100%;display:block}
  </select></div>
  </div>
  <div class="two-col">
+ <div class="fg"><label>Charges locataire (€/mois) <span style="font-weight:400;color:var(--text3)">— provisions facturées en plus du loyer</span></label><input id="pb-charges" type="number" placeholder="50" oninput="updatePbPreview()"></div>
+ <div></div>
+ </div>
+ <div class="two-col">
  <div class="fg"><label>Prix Airbnb / nuit (€) <span style="font-weight:400;color:var(--text3)">— Modes A et B</span></label><input id="pb-airbnb" type="number" placeholder="0" oninput="updatePbPreview()"></div>
  <div class="fg" style="display:flex;align-items:flex-end"><button class="btn btn-sm" onclick="openAirbnbParams()">⚙ Hypothèses Airbnb</button></div>
  </div>
@@ -4119,11 +4123,18 @@ function gExercice(today,mois){
 // Impôt sur les sociétés estimé pour l'année « an », avec le moteur de la Projection (loyers, charges, intérêts, amortissement des fiches)
 function gestionIsEstime(an){
  const biens=biensList().filter(b=>b.dateAchat&&+b.dateAchat.slice(0,4)<=an);
- let ca=0,charges=0,interets=0,amort=0,assur=0;
- biens.forEach(b=>{const y=projCalcIS(bienToProj(b),an);ca+=y.ca;charges+=y.charges;interets+=y.interets;amort+=y.amort;assur+=y.assurance||0;});
- const resultat=ca-charges-interets-amort,seuil=BP_PARAMS.isSeuil||42500,t1=(BP_PARAMS.isTaux1||15)/100,t2=(BP_PARAMS.isTaux2||25)/100,base=Math.max(0,resultat);
- const is=base<=seuil?base*t1:seuil*t1+(base-seuil)*t2;
- return {an,n:biens.length,ca,charges,interets,amort,assurance:assur,resultat,is,seuil,t1,t2};
+ const a0=biens.reduce((m,b)=>Math.min(m,+b.dateAchat.slice(0,4)),an);
+ const seuil=BP_PARAMS.isSeuil||42500,t1=(BP_PARAMS.isTaux1||15)/100,t2=(BP_PARAMS.isTaux2||25)/100;
+ let def=0,r={ca:0,charges:0,interets:0,amort:0,assur:0,frais:0,brut:0,util:0,base:0};
+ for(let y=a0;y<=an;y++){
+  let ca=0,charges=0,interets=0,amort=0,assur=0,frais=0;
+  biens.forEach(b=>{const z=projCalcBrut(bienToProj(b),y);ca+=z.ca;charges+=z.charges;interets+=z.interets;amort+=z.amort;frais+=z.fraisAcq||0;assur+=z.assurance||0;});
+  const brut=ca-charges-interets-amort-frais;let util=0,base=0;
+  if(brut<0)def+=-brut;else{util=Math.min(def,brut);def-=util;base=brut-util;}
+  r={ca,charges,interets,amort,assur,frais,brut,util,base};
+ }
+ const is=r.base<=seuil?r.base*t1:seuil*t1+(r.base-seuil)*t2;
+ return {an,n:biens.length,ca:r.ca,charges:r.charges,interets:r.interets,amort:r.amort,fraisAcq:r.frais,assurance:r.assur,brut:r.brut,deficitUtilise:r.util,deficitReporte:def,resultat:r.base,is,seuil,t1,t2};
 }
 const gestionTf=an=>biensList().filter(b=>b.dateAchat&&b.dateAchat<=an+'-01-01').reduce((t,b)=>t+(Number((b.chargesAnnuelles||{}).fonciere)||0),0);   // taxe foncière due par le propriétaire au 1er janvier
 // CFE : la location nue de logements d'habitation n'y est pas soumise ; la location meublée habituelle (bail meublé, Airbnb) l'est
@@ -4185,7 +4196,7 @@ function gestionVigilance(today,P){
  const add=(niveau,titre,texte)=>V.push({niveau,titre,texte});
  if(!n)add('info','Aucun bien pour l\'instant','Les échéances propres aux biens (taxe foncière, CFE, baux) apparaîtront dès que vous aurez ajouté un bien. Les obligations de la société (déclaration de résultats, approbation des comptes, registres) existent dès sa création, même sans activité.');
  if(n){
-  if(est.resultat>0)add('info','Impôt sur les sociétés estimé : '+euro(est.is,0),'Résultat fiscal estimé de l\'exercice '+euro(est.resultat,0)+' (loyers '+euro(est.ca,0)+', charges '+euro(est.charges,0)+', intérêts '+euro(est.interets,0)+', amortissements '+euro(est.amort,0)+'). Mettez environ '+euro(est.is/12,0)+' par mois de côté pour régler les acomptes et le solde.');
+  if(est.resultat>0)add('info','Impôt sur les sociétés estimé : '+euro(est.is,0),'Résultat fiscal estimé de l\'exercice '+euro(est.resultat,0)+' (loyers '+euro(est.ca,0)+', charges '+euro(est.charges,0)+', intérêts '+euro(est.interets,0)+', amortissements '+euro(est.amort,0)+(est.fraisAcq>0?', frais d\'achat déduits '+euro(est.fraisAcq,0):'')+(est.deficitUtilise>0?', déficits antérieurs imputés '+euro(est.deficitUtilise,0):'')+'). Mettez environ '+euro(est.is/12,0)+' par mois de côté pour régler les acomptes et le solde.');
   else add('info','Pas d\'impôt attendu cette année','Le résultat fiscal estimé de l\'exercice est de '+euro(est.resultat,0)+' : pas d\'IS, et un déficit se reporte sur les exercices suivants. Déclarez-le quand même (liasse fiscale obligatoire).');
   add('info','Taux réduit d\'IS à 15 %','Le taux de 15 % jusqu\'à '+euro(est.seuil,0)+' de bénéfice suppose notamment un capital entièrement libéré et détenu à 75 % au moins par des personnes physiques, et un chiffre d\'affaires inférieur à 10 M€. Faites confirmer ces conditions par votre expert-comptable.');
   if(cfe.due)add('warn','CFE due pour vos locations meublées','Les biens en meublé ou en Airbnb ('+E(cfe.biens.map(nom).join(', '))+') rendent la SCI redevable de la CFE (15 décembre ; déclaration initiale de l\'année de création). Elle est exonérée la première année.');
@@ -4262,6 +4273,9 @@ function renderConseilGestion(){
   ${(isCur.assurance||isRef.assurance)?`<tr style="color:var(--text2)"><td style="padding-left:18px">dont assurance emprunteur et frais (tableau de la banque)</td><td style="text-align:right">−${euro(isCur.assurance,0)}</td><td style="text-align:right">−${euro(isRef.assurance,0)}</td></tr>`:''}
   <tr><td>Intérêts d'emprunt</td><td style="text-align:right">−${euro(isCur.interets,0)}</td><td style="text-align:right">−${euro(isRef.interets,0)}</td></tr>
   <tr><td>Amortissements</td><td style="text-align:right">−${euro(isCur.amort,0)}</td><td style="text-align:right">−${euro(isRef.amort,0)}</td></tr>
+  ${(isCur.fraisAcq||isRef.fraisAcq)?`<tr><td>Frais d'achat (notaire, courtage, travaux)</td><td style="text-align:right">−${euro(isCur.fraisAcq,0)}</td><td style="text-align:right">−${euro(isRef.fraisAcq,0)}</td></tr>`:''}
+  ${(isCur.deficitUtilise||isRef.deficitUtilise)?`<tr><td>Déficits des exercices précédents imputés</td><td style="text-align:right">−${euro(isCur.deficitUtilise,0)}</td><td style="text-align:right">−${euro(isRef.deficitUtilise,0)}</td></tr>`:''}
+  ${(isCur.deficitReporte||isRef.deficitReporte)?`<tr style="color:var(--text2)"><td style="padding-left:18px">déficit restant à reporter</td><td style="text-align:right">${euro(isCur.deficitReporte,0)}</td><td style="text-align:right">${euro(isRef.deficitReporte,0)}</td></tr>`:''}
   <tr style="font-weight:600;background:var(--surface2)"><td>Résultat fiscal estimé</td><td style="text-align:right">${euro(isCur.resultat,0)}</td><td style="text-align:right">${euro(isRef.resultat,0)}</td></tr>
   <tr style="font-weight:600"><td>Impôt sur les sociétés estimé</td><td style="text-align:right">${euro(isCur.is,0)}</td><td style="text-align:right">${euro(isRef.is,0)}</td></tr></tbody></table></div>
   <div style="font-size:12px;color:var(--text2);line-height:1.55;margin-top:8px">${acomptesDus?`Les acomptes de l'exercice en cours (15 mars, 15 juin, 15 septembre, 15 décembre) sont d'environ <strong>${euro(isRef.is/4,0)}</strong> chacun (un quart de l'IS du dernier exercice). Solde estimé de l'exercice en cours : <strong>${euro(Math.max(0,isCur.is-isRef.is),0)}</strong>, à régler ${P.mois===12?'le 15 mai':'le 15 du 4e mois après la clôture'}.`:`Pas d'acompte : l'IS du dernier exercice (estimé ${euro(isRef.is,0)}) n'excède pas 3 000 € ou il s'agit de la première période. L'impôt de l'exercice en cours (${euro(isCur.is,0)}) se règle en une fois, ${P.mois===12?'le 15 mai':'le 15 du 4e mois après la clôture'}.`}<br><span style="color:var(--text3)">Estimation simplifiée : amortissement de 80 % du prix sur 40 ans, frais d'acquisition et travaux non déduits, déficits antérieurs non reportés. Votre expert-comptable affinera (ventilation terrain / construction, composants, frais d'acquisition).</span></div></div>
@@ -4988,7 +5002,7 @@ function distribCalc(today){
  const premier=Gp.creation&&Gp.creation>ex.precFin,dispAcompte=isRef.is<=3000||premier;
  let nAcomptes=0;[...new Set([+ex.debut.slice(0,4),+ex.fin.slice(0,4)])].forEach(y=>['03-15','06-15','09-15','12-15'].forEach(md=>{const d0=y+'-'+md;if(d0>=ex.debut&&d0<=ex.fin&&gOuvre(d0)<=T)nAcomptes++;}));   // acomptes d'IS de l'exercice dont l'échéance est passée
  const acomptes=dispAcompte?0:nAcomptes*isRef.is/4,isAuto=Math.max(0,Math.round(isCur.is-acomptes)),isRestant=P.isRestant!==null?P.isRestant:isAuto;
- const benefAuto=Math.max(0,Math.round(isCur.resultat-isCur.is)),benef=(P.benef!==null?P.benef:benefAuto)+P.report;
+ const benefAuto=Math.max(0,Math.round(isCur.brut-isCur.is)),benef=(P.benef!==null?P.benef:benefAuto)+P.report;
  const solde={};ccaList().forEach(c=>{solde[c.assoc]=(solde[c.assoc]||0)+(Number(c.apport)||0)-(Number(c.remb)||0);});
  const assoc=ASSOCIES.map(a=>({a,part:P.parts[a.k],cca:Math.round((solde[a.n]||0)*100)/100,tmi:P.tmi[a.k],dispense:P.dispense[a.k]}));
  const sumParts=assoc.reduce((t,x)=>t+x.part,0),sumCca=assoc.reduce((t,x)=>t+Math.max(0,x.cca),0);
@@ -5822,6 +5836,7 @@ function buildGuideHtml(){
   <ul><li><strong>Quartier</strong>, <strong>état du bien</strong> (Ancien, Ancien à rénover, Récent, Neuf), type et <strong>surface</strong> : ils servent à comparer le bien au marché.</li>
   <li>Prix, date d'achat, frais de notaire (estimés à 8 % si vides), travaux ; emprunt (capital, taux, durée) ; loyer et mode de gestion A / B / C ; charges annuelles.</li>
   <li><strong>Financement de l'apport</strong> : par les <em>comptes courants des associés</em> (par défaut), par la <em>trésorerie de la SCI</em>, ou les deux. La part en comptes courants se répartit <strong>à parts égales</strong> entre les associés cochés, ou par <strong>montants personnalisés</strong> pour chaque associé (si le total saisi diffère, les montants sont ajustés proportionnellement ; un indicateur le signale).</li></ul>
+  <p>Dans le revenu locatif, saisissez le <strong>loyer hors charges</strong> et, à part, les <strong>charges locataire</strong> (provisions facturées en plus du loyer) : le cash-flow, le résultat et l'IS de la simulation les ajoutent au loyer, comme pour un bien réel.</p>
   <p>Un aperçu en direct affiche le coût total, l'apport, la mensualité, le cash-flow, les rendements, l'écart avec le marché et le verdict. Raccourci : dans l'onglet Marché, ${U('Simuler un achat ici →')} crée un bien fictif au prix du marché.</p>
   <h3>Les critères et le verdict</h3>
   <p>En haut de l'onglet, vous réglez ce qui rend un bien « intéressant » : <strong>rendement net minimum</strong>, <strong>cash-flow minimum</strong>, <strong>horizon</strong> du gain net, et le critère <strong>Marché</strong> (prix ≤ marché +x %, loyer prévu ≤ marché +y %). Verdict : <span class="ok">Intéressant</span> si tous les critères sont respectés, <span class="ko">Peu intéressant</span> si aucun, <span class="wa">À surveiller</span> sinon. Ces réglages sont partagés.</p>
@@ -5835,7 +5850,7 @@ function buildGuideHtml(){
   <h3>Les autres onglets de la Projection</h3>
   <ul><li>${U('Biens')} : liste du portefeuille projeté (réel + fictif). ${U('Emprunt')} : tableaux d'amortissement.</li>
   <li>${U('Trésorerie')} : encaissements et décaissements mois par mois sur 10 ans. La colonne <em>Apport CCA</em> ne contient que la part payée en comptes courants.</li>
-  <li>${U('Résultat & IS')} : résultat fiscal simplifié (loyers − intérêts − charges − amortissement) et impôt sur les sociétés. ${U('CCA')} : apports estimés par associé pour les biens fictifs.</li>
+  <li>${U('Résultat & IS')} : résultat fiscal simplifié (loyers − intérêts − charges − <strong>frais d'achat</strong> − amortissement) et impôt sur les sociétés. Les frais d'achat (notaire, courtage, travaux) sont déduits l'année de l'achat, ce qui crée en général un déficit cette année-là ; le déficit est <strong>reporté</strong> et vient réduire le résultat imposable des années suivantes. Dans ${U('Hypothèses')}, vous pouvez choisir de les étaler sur plusieurs années à la place. Cette estimation sert aussi à l'impôt estimé de Conseil ▸ Gestion. ${U('CCA')} : apports estimés par associé pour les biens fictifs.</li>
   <li>${U('Hypothèses')} : valeurs par défaut utilisées par la Projection, la Banque et le Conseil : taux et durée du crédit, indexation des loyers, charges par défaut (copropriété, taxe foncière, assurance, entretien), CFE et taux d\'IS. Elles sont partagées entre associés ; les charges saisies sur la fiche d\'un bien passent toujours avant. ${U('↺ Réinitialiser')} remet les valeurs d\'origine.</li></ul>`);
  // ---- 7
  h+=sec(7,'Banque : viabilité et dossier PDF',`
@@ -6005,7 +6020,10 @@ function renderHypotheses(){
  <div class="sl">Crédit</div><div class="card">${P('taux','Taux d\'intérêt annuel','%',0.1,0)}${P('duree','Durée du crédit','mois',12,60)}</div>
  <div class="sl">Loyers</div><div class="card">${P('irl','Revalorisation des loyers et charges (IRL) / an','%/an',0.1,0)}</div>
  <div class="sl">Charges par bien (utilisées quand elles ne sont pas saisies sur la fiche)</div><div class="card">${P('coproAn','Charges de copropriété','€/an',10,0)}${P('fonciereAn','Taxe foncière','€/an',10,0)}${P('assurAn','Assurance PNO','€/an',5,0)}${P('entretienCoeff','Provision entretien','% du prix/an',0.1,0)}</div>
- <div class="sl">Impôts et taxes</div><div class="card"><div style="font-size:12px;color:var(--text3);margin-bottom:10px;padding:8px 10px;background:var(--amber-light);border-radius:var(--radius)">L'IS est calculé sur l'exercice N et payé en <strong>janvier N+1</strong> ; la CFE est due en <strong>janvier</strong> de chaque année.</div>${P('cfeAn','CFE annuelle de la SCI (totale)','€/an',50,0)}${P('isTaux1','Taux d\'IS réduit','%',1,0)}${P('isSeuil','Seuil du taux réduit','€',500,0)}${P('isTaux2','Taux d\'IS normal','%',1,0)}</div>
+ <div class="sl">Impôts et taxes</div><div class="card"><div style="font-size:12px;color:var(--text3);margin-bottom:10px;padding:8px 10px;background:var(--amber-light);border-radius:var(--radius)">L'IS est calculé sur l'exercice N et payé en <strong>janvier N+1</strong> ; la CFE est due en <strong>janvier</strong> de chaque année.</div>${P('cfeAn','CFE annuelle de la SCI (totale)','€/an',50,0)}${P('isTaux1','Taux d\'IS réduit','%',1,0)}${P('isSeuil','Seuil du taux réduit','€',500,0)}${P('isTaux2','Taux d\'IS normal','%',1,0)}
+ <div class="status-row"><span>Frais d'achat (notaire, courtage, travaux) dans le résultat fiscal</span><div style="display:flex;align-items:center;gap:6px"><select onchange="setHypTxt('fraisAcqMode',this.value)" style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text)"><option value="immediat"${BP_PARAMS.fraisAcqMode!=='etale'?' selected':''}>Déduits l'année de l'achat</option><option value="etale"${BP_PARAMS.fraisAcqMode==='etale'?' selected':''}>Étalés sur plusieurs années</option></select></div></div>
+ ${BP_PARAMS.fraisAcqMode==='etale'?P('fraisAcqAns','Durée d\'étalement des frais d\'achat','ans',1,1):''}
+ <div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-top:6px">Un déficit (par exemple l'année de l'achat) est reporté sur les bénéfices des années suivantes. Le choix définitif se fait avec la liasse fiscale de la SCI.</div></div>
  <div class="sl">Modes de location</div><div class="card">
  <div class="status-row"><span style="font-weight:600">Mode A</span><span style="font-size:12px;color:var(--text2)">Bail meublé de septembre à mai (9 mois) + Airbnb en juin, juillet, août</span></div>
  <div class="status-row"><span style="font-weight:600">Mode B</span><span style="font-size:12px;color:var(--text2)">Full Airbnb, selon la saisonnalité (⚙ Hypothèses Airbnb)</span></div>
@@ -6555,7 +6573,7 @@ function pbFormBien(){
   loyer:Number(pbVal('pb-loyer'))||0,
   modeLocation:pbVal('pb-mode')||'C',
   airbnb_nuit:Number(pbVal('pb-airbnb'))||0,
-  charges:0,
+  charges:Number(pbVal('pb-charges'))||0,
   chargesAnnuelles:{
    copro:Number(pbVal('pb-copro'))||0,
    fonciere:Number(pbVal('pb-fonciere'))||0,
@@ -6573,7 +6591,7 @@ function pbFormBien(){
  };
 }
 function openAddProjBienModal(){
- ['pb-adresse','pb-ville','pb-banque','pb-prix','pb-notaire','pb-capital','pb-taux','pb-loyer','pb-copro','pb-fonciere','pb-assurpno','pb-entretien','pb-surface','pb-airbnb','pb-edit-id'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+ ['pb-adresse','pb-ville','pb-banque','pb-prix','pb-notaire','pb-capital','pb-taux','pb-loyer','pb-charges','pb-copro','pb-fonciere','pb-assurpno','pb-entretien','pb-surface','pb-airbnb','pb-edit-id'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
  document.getElementById('pb-travaux').value=0;
  document.getElementById('pb-duree').value=240;
  document.getElementById('pb-apport-mode').value='cca';
@@ -6595,14 +6613,14 @@ function openAddProjBienModal(){
 }
 function openEditProjBien(id){
  const b=loadProjBiens().find(x=>x.id===id);if(!b)return;
- const set=(k,v)=>{const el=document.getElementById(k);if(el)el.value=(v===undefined||v===null||v===0&&['pb-loyer','pb-airbnb','pb-surface','pb-capital','pb-taux','pb-copro','pb-fonciere','pb-assurpno','pb-entretien'].includes(k))?'':v;};
+ const set=(k,v)=>{const el=document.getElementById(k);if(el)el.value=(v===undefined||v===null||v===0&&['pb-loyer','pb-charges','pb-airbnb','pb-surface','pb-capital','pb-taux','pb-copro','pb-fonciere','pb-assurpno','pb-entretien'].includes(k))?'':v;};
  pbFillQuartiers();
  document.getElementById('pb-quartier').value=b.quartier||'';
  document.getElementById('pb-etat').value=b.etat||'Ancien';
  set('pb-edit-id',b.id);set('pb-adresse',b.adresse);set('pb-ville',b.ville);set('pb-type',b.type||'Studio');set('pb-surface',b.surface);
  set('pb-prix',b.prix);set('pb-dateachat',b.dateAchat);set('pb-notaire',b.notaire);set('pb-travaux',b.travaux||0);
  set('pb-capital',b.capital);set('pb-taux',b.taux);set('pb-duree',b.duree||240);set('pb-banque',b.banque);set('pb-debut',b.debut);
- set('pb-loyer',b.loyer);set('pb-mode',b.modeLocation||'C');set('pb-airbnb',b.airbnb_nuit);
+ set('pb-loyer',b.loyer);set('pb-charges',b.charges);set('pb-mode',b.modeLocation||'C');set('pb-airbnb',b.airbnb_nuit);
  const ca=b.chargesAnnuelles||{};
  set('pb-copro',ca.copro);set('pb-fonciere',ca.fonciere);set('pb-assurpno',ca.assurpno);set('pb-entretien',ca.entretien);
  document.getElementById('pb-apport-mode').value=b.apportMode||'cca';
@@ -6796,12 +6814,21 @@ function projCaAnnuel(pb, an) {
 }
 
 // IS annuel simplifié (résultat fiscal = CA - intérêts - charges - amortissement)
-function projCalcIS(pb, an) {
+// Frais liés à l'achat (notaire, courtage, travaux) déduits du résultat fiscal : en totalité l'année de l'achat (par défaut) ou étalés sur N années
+function projFraisAcqAn(pb, an) {
+ const parts=(pb.date||'').split('/');if(parts.length<3)return 0;
+ const a0=parseInt(parts[2]),f=Number(pb.frais)||0;
+ if(!(an>=a0)||!(f>0))return 0;
+ if(BP_PARAMS.fraisAcqMode==='etale'){const n=Math.max(1,Math.round(Number(BP_PARAMS.fraisAcqAns)||5));return (an-a0<n)?f/n:0;}
+ return an===a0?f:0;
+}
+// Résultat fiscal d'un bien pour une année, avant report des déficits
+function projCalcBrut(pb, an) {
  const parts = (pb.date||'').split('/');
- if(parts.length<3) return {ca:0,interets:0,charges:0,amort:0,resultat:0,is:0};
+ if(parts.length<3) return {ca:0,interets:0,charges:0,amort:0,fraisAcq:0,brut:0,resultat:0,is:0,actif:false};
  const achatAn = parseInt(parts[2]);
  const achatMois = parseInt(parts[1]);
- if(an < achatAn) return {ca:0,interets:0,charges:0,amort:0,resultat:0,is:0};
+ if(an < achatAn) return {ca:0,interets:0,charges:0,amort:0,fraisAcq:0,brut:0,resultat:0,is:0,actif:false};
 
  const moisActifs = achatAn===an ? (12-achatMois+1) : 12;
  const ca = projCaAnnuel(pb, an);
@@ -6828,12 +6855,26 @@ function projCalcIS(pb, an) {
 
  const charges = projChargesMois(pb)*moisActifs + assurAn;   // l'assurance emprunteur et les frais du tableau de la banque sont des charges déductibles
  const amort = pb.prix*0.8*0.025*(moisActifs/12);
- const resultat = Math.max(0, ca-interetsAn-charges-amort);
+ const fraisAcq = projFraisAcqAn(pb, an);
+ const brut = ca-interetsAn-charges-amort-fraisAcq;
+ return {ca,interets:interetsAn,charges,amort,fraisAcq,brut,assurance:assurAn,actif:true};
+}
+// Résultat fiscal et IS d'un bien : les frais d'achat viennent en déduction et un déficit est reporté sur les années suivantes
+function projCalcIS(pb, an) {
+ const y = projCalcBrut(pb, an);
+ if(!y.actif) return y;
+ const a0 = parseInt(pb.date.split('/')[2]);
+ let def=0, util=0, base=0;
+ for(let k=a0;k<=an;k++){
+  const r = k===an ? y.brut : projCalcBrut(pb,k).brut;
+  if(r<0){def+=-r;util=0;base=0;}
+  else{util=Math.min(def,r);def-=util;base=r-util;}
+ }
  const isSeuil = BP_PARAMS.isSeuil||42500;
  const t1 = (BP_PARAMS.isTaux1||15)/100;
  const t2 = (BP_PARAMS.isTaux2||25)/100;
- const is = resultat<=isSeuil ? resultat*t1 : isSeuil*t1+(resultat-isSeuil)*t2;
- return {ca,interets:interetsAn,charges,amort,resultat,is,assurance:assurAn};
+ const is = base<=isSeuil ? base*t1 : isSeuil*t1+(base-isSeuil)*t2;
+ return {...y,resultat:base,is,deficitUtilise:util,deficitReporte:def};
 }
 
 // ============================================================
@@ -7076,7 +7117,7 @@ function renderProjResultat(){
  const rows=allBiens.map(b=>({b,...projCalcIS(b,an)}));
  const tot=k=>rows.reduce((s,r)=>s+r[k],0);
  const nbBiens=rows.filter(r=>{const p=r.b.date.split('/');return parseInt(p[2])<=an;}).length;
- return{an,rows,nbBiens,ca:tot('ca'),interets:tot('interets'),charges:tot('charges'),amort:tot('amort'),resultat:tot('resultat'),is:tot('is')};
+ return{an,rows,nbBiens,ca:tot('ca'),interets:tot('interets'),charges:tot('charges'),amort:tot('amort'),fraisAcq:tot('fraisAcq'),util:tot('deficitUtilise'),resultat:tot('resultat'),is:tot('is')};
  });
 
  const totalIS=dataAnnee.reduce((s,d)=>s+d.is,0);
@@ -7100,6 +7141,7 @@ function renderProjResultat(){
  <th style="color:var(--green)">CA locatif</th>
  <th style="color:var(--red)">Intérêts</th>
  <th style="color:var(--red)">Charges</th>
+ <th style="color:var(--red)">Frais d'achat</th>
  <th style="color:var(--red)">Amortissement</th>
  <th>Résultat fiscal</th>
  <th style="color:var(--amber)">IS dû</th>
@@ -7113,9 +7155,10 @@ function renderProjResultat(){
  <td style="color:var(--green);font-weight:500">${euro(Math.round(d.ca))}</td>
  <td style="color:var(--red)">−${euro(Math.round(d.interets))}</td>
  <td style="color:var(--red)">−${euro(Math.round(d.charges))}</td>
+ <td style="color:var(--red)">${d.fraisAcq>0?'−'+euro(Math.round(d.fraisAcq)):'—'}</td>
  <td style="color:var(--red)">−${euro(Math.round(d.amort))}</td>
  <td style="font-weight:700;color:${d.resultat>0?'var(--text)':'var(--text3)'}">
- ${d.resultat>0?euro(Math.round(d.resultat)):'<em style="font-size:11px;font-weight:400">Déficit</em>'}
+ ${d.resultat>0?euro(Math.round(d.resultat))+(d.util>0?' <span style="font-size:10px;font-weight:400;color:var(--text3)">(après déficit '+euro(Math.round(d.util))+')</span>':''):'<em style="font-size:11px;font-weight:400">Déficit</em>'}
  </td>
  <td style="color:var(--amber);font-weight:600">
  ${d.is>0?euro(Math.round(d.is))+' <span style="font-size:10px">('+tx.toFixed(1)+'%)</span>':'—'}
@@ -7126,7 +7169,7 @@ function renderProjResultat(){
  <tfoot><tr style="background:var(--surface2);font-weight:700">
  <td colspan="2">TOTAL</td>
  <td style="color:var(--green)">${euro(Math.round(totalCA))}</td>
- <td colspan="3"></td>
+ <td colspan="4"></td>
  <td>${euro(Math.round(dataAnnee.reduce((s,d)=>s+d.resultat,0)))}</td>
  <td style="color:var(--amber)">${euro(Math.round(totalIS))}</td>
  </tr></tfoot>
@@ -7143,13 +7186,14 @@ function renderProjResultat(){
  <div style="overflow-x:auto">
  <table class="jtable" style="font-size:12px">
  <thead><tr>
- <th>Bien</th><th>CA</th><th>Intérêts</th><th>Charges</th><th>Amort.</th><th>Résultat</th><th>IS</th>
+ <th>Bien</th><th>CA</th><th>Intérêts</th><th>Charges</th><th>Frais d'achat</th><th>Amort.</th><th>Résultat</th><th>IS</th>
  </tr></thead>
  <tbody>${biensActifs.map(r=>`<tr style="${r.b._fictif?'border-left:3px solid var(--amber)':''}">
  <td>${(r.b.nom||r.b.adresse).substring(0,22)}${r.b._fictif?' ':''}</td>
  <td style="color:var(--green)">${euro(Math.round(r.ca))}</td>
  <td style="color:var(--red)">−${euro(Math.round(r.interets))}</td>
  <td style="color:var(--red)">−${euro(Math.round(r.charges))}</td>
+ <td style="color:var(--red)">${r.fraisAcq>0?'−'+euro(Math.round(r.fraisAcq)):'—'}</td>
  <td style="color:var(--red)">−${euro(Math.round(r.amort))}</td>
  <td style="font-weight:600">${r.resultat>0?euro(Math.round(r.resultat)):'<em style="color:var(--text3)">Déficit</em>'}</td>
  <td style="color:var(--amber);font-weight:600">${r.is>0?euro(Math.round(r.is)):'—'}</td>
@@ -7314,22 +7358,23 @@ function renderProjDashboard(){
  const diffCRD=totalCRD-rCRD;
  const diffCF=cashflowTotal-rCF;
 
- const diffRow=(label,reel,proj,diff,isNegBad=true)=>{
+ const diffRow=(label,reel,proj,diff,isNegBad=true,nombre=false)=>{
+ const fm=v=>nombre?String(Math.round(v)):euro(v,0);
  const sign=diff>=0?'+':'';
  const color=diff>=0?(isNegBad?'var(--green)':'var(--red)'):(isNegBad?'var(--red)':'var(--green)');
  return`<div class="status-row">
  <span style="font-size:13px">${label}</span>
  <span style="display:flex;gap:14px;align-items:center">
- <span style="font-size:12px;color:var(--text3)">Réel : ${euro(reel,0)}</span>
- <span style="font-size:13px;font-weight:500">Proj : ${euro(proj,0)}</span>
- <span style="font-size:12px;font-weight:700;color:${color}">${sign}${euro(diff,0)}</span>
+ <span style="font-size:12px;color:var(--text3)">Réel : ${fm(reel)}</span>
+ <span style="font-size:13px;font-weight:500">Proj : ${fm(proj)}</span>
+ <span style="font-size:12px;font-weight:700;color:${color}">${sign}${fm(diff)}</span>
  </span>
  </div>`;
  };
 
  document.getElementById('proj-dash-compare').innerHTML=`
  ${fictifs.length===0?`<div class="empty-state" style="padding:20px">Ajoutez des biens fictifs via l'onglet "Biens" pour voir l'impact.</div>`:
- diffRow(' Biens',reels.length,biens.length,fictifs.length)+
+ diffRow(' Biens',reels.length,biens.length,fictifs.length,true,true)+
  diffRow(' Valeur totale',rValeur,totalValeur,diffValeur)+
  diffRow(' Capital restant dû',rCRD,totalCRD,diffCRD,false)+
  diffRow(' Cash-flow net/mois',rCF,cashflowTotal,diffCF)}
@@ -8341,6 +8386,7 @@ let BP_PARAMS = Object.assign({}, BP_PARAMS_DEFAULT);
  } catch(e){}
 })();
 
+function setHypTxt(key,v){BP_PARAMS[key]=v;saveBpParams();renderHypotheses();renderProjAll();}
 function setHyp(key,v){BP_PARAMS[key]=Number(v);saveBpParams();renderProjAll();}
 function saveBpParams(){
  try { localStorage.setItem('sci_bp_params', JSON.stringify(BP_PARAMS)); } catch(e){}
