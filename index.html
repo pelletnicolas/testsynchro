@@ -2035,8 +2035,18 @@ const FORMES=[
 let FORME=null;                                   // société ouverte (une entrée de FORMES)
 const formeById=id=>FORMES.find(f=>f.id===id)||null;
 // La dernière société ouverte est mémorisée sur l'appareil : chacun retrouve la sienne à la connexion suivante
-async function lireForme(){try{return localStorage.getItem('app_forme');}catch(e){return null;}}
-async function enregistrerForme(id){try{localStorage.setItem('app_forme',id);}catch(e){}}
+// La société ouverte est retenue de trois façons (adresse #holding, mémoire du navigateur, session) : si l'une est indisponible, les autres prennent le relais
+async function lireForme(){
+ const h=(location.hash||'').replace('#','');if(formeById(h))return h;
+ try{const v=localStorage.getItem('app_forme');if(v)return v;}catch(e){}
+ try{return sessionStorage.getItem('app_forme');}catch(e){}
+ return null;
+}
+async function enregistrerForme(id){
+ try{localStorage.setItem('app_forme',id);}catch(e){}
+ try{sessionStorage.setItem('app_forme',id);}catch(e){}
+ try{history.replaceState(null,'','#'+id);}catch(e){try{location.hash=id;}catch(e2){}}
+}
 // Noms des sociétés : profils de la holding et de la SARL, réglages du groupe pour la SCI
 async function nomsSocietes(){
  if(!FIREBASE_READY)return {};
