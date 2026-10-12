@@ -495,12 +495,14 @@ canvas{max-width:100%;display:block}
 <div class="app" id="app-sci">
 
  <div class="topbar">
+ <div class="topbar-left">
+ <button class="btn-accueil" type="button" onclick="ouvrirChoixForme()" title="Revenir au menu des sociétés" aria-label="Revenir au menu des sociétés">←<span class="btn-menu-txt"> Menu</span></button>
  <div class="logo" id="logo-link" onclick="showAccueil()">
  <img class="logo-img" id="logo-img" src="" alt="SCI PERIPE">
  SCI <span>PERIPE</span>
  </div>
+ </div>
  <div class="topbar-right">
- <button class="btn-accueil" type="button" onclick="ouvrirChoixForme()" title="Menu des sociétés du groupe">Sociétés</button>
  <button class="btn-accueil" id="btn-logout" style="display:none" onclick="logout()">Déconnexion</button>
  <div class="sync-wrap">
  <div class="sync-dot" id="sync-dot"></div>
@@ -6182,8 +6184,8 @@ function buildGuideHtml(){
   <h3>Connexion</h3>
   <ol><li>Ouvrez le lien de l'application et saisissez votre <strong>email</strong> et votre <strong>mot de passe</strong>. Les comptes sont créés par la personne qui administre l'outil ; il n'est pas possible de s'inscrire soi-même.</li>
   <li>La session reste ouverte sur l'appareil. Le bouton ${U('Déconnexion')} (en haut) la ferme : utilisez-le sur un ordinateur partagé.</li></ol>
-  <h3>Holding et SARL : le bouton Sociétés</h3>
-  <p>Le bouton ${U('Sociétés')}, en haut à droite, ouvre le menu du groupe : la SCI (cette application), la <strong>holding</strong> et la <strong>SARL</strong>. Chaque société a son propre module et ses propres données, enregistrées dans la même base sans toucher à celles de la SCI. Dans la holding et la SARL, le bouton ${U('← Menu')} ramène au choix des sociétés. La SCI transmet automatiquement ses chiffres clés (biens, trésorerie, emprunts, loyers, résultat) à la holding pour sa vue consolidée.</p>
+  <h3>Holding et SARL : le bouton Menu</h3>
+  <p>Le bouton ${U('← Menu')}, en haut à gauche, ouvre le menu du groupe : la SCI (cette application), la <strong>holding</strong> et la <strong>SARL</strong>. Chaque société a son propre module et ses propres données, enregistrées dans la même base sans toucher à celles de la SCI. Dans la holding et la SARL, le même bouton ramène au choix des sociétés. La SCI transmet automatiquement ses chiffres clés (biens, trésorerie, emprunts, loyers, résultat) à la holding pour sa vue consolidée.</p>
   <h3>L'écran d'accueil</h3>
   <p>Après connexion, l'écran d'accueil présente la SCI, ses fonctionnalités et ses associés. Le bouton ${U('Accéder à la gestion →')} ouvre l'application. Vous y retrouvez aussi ce guide : ${U('Guide (PDF)')} dans le menu, ou le bouton ${U('Guide d\'utilisation (PDF)')} ; le bouton ${U('Guide')} reste disponible en haut de l'application.</p>
   <h3>Navigation</h3>
