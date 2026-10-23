@@ -1678,7 +1678,10 @@ canvas{max-width:100%;display:block}
  </div>
  <div class="three-col">
  <div class="fg"><label>Identifiant Odoo (anti-doublons)</label><select id="imp-col-id" onchange="impBuild()"></select></div>
+ <div class="fg"><label>Compte comptable (facultatif)</label><select id="imp-col-compte" onchange="impBuild()"></select></div>
+ <div class="fg"><label>Ne garder que les comptes commençant par</label><input type="text" id="imp-compte-pref" value="512" placeholder="512 (banque) ; vide = tout" oninput="impBuild()"></div>
  </div>
+ <div style="font-size:11px;color:var(--text3);margin:-4px 0 8px">Un export d'écritures comptables contient chaque opération deux fois (ligne de banque 512 et ligne de contrepartie). Gardez « 512 » pour ne reprendre que les mouvements de banque.</div>
  <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text2);margin-bottom:6px">
  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="imp-use-partner" checked onchange="impBuild()"> Ajouter le partenaire au libellé</label>
  <label style="display:flex;gap:6px;align-items:center">Colonne Débit =
@@ -2575,7 +2578,8 @@ function impDetect(headers){
   amount:find(['montant','amount','balance'],['montant','amount'],[]),
   debit:find(['debit'],['debit'],[]),
   credit:find(['credit'],['credit'],[]),
-  id:find(['id','id externe','external id','identifiant','piece comptable'],[],[])
+  compte:find(['compte','compte comptable','account','code compte'],['compte'],[]),
+  id:find(['id','id externe','external id','identifiant','piece comptable','numero','numero de piece'],[],[])
  };
 }
 let impState={headers:[],data:[],rows:[]};
@@ -2617,7 +2621,8 @@ async function impLoadFile(input){
  const det=impDetect(impState.headers);
  const opts=(sel,withNone)=>(withNone?'<option value="-1">(aucune)</option>':'')+impState.headers.map((h,i)=>`<option value="${i}">${assocEsc(h||('Colonne '+(i+1)))}</option>`).join('');
  const set=(id,val,none)=>{const el=document.getElementById('imp-col-'+id);el.innerHTML=opts(el,true);el.value=String(val);};
- set('date',det.date);set('label',det.label);set('partner',det.partner);set('id',det.id);
+ set('date',det.date);set('label',det.label);set('partner',det.partner);set('id',det.id);set('compte',det.compte);
+ document.getElementById('imp-compte-pref').value=det.compte>=0?'512':'';
  const useDC=det.amount<0&&(det.debit>=0||det.credit>=0);
  set('amount',useDC?-1:det.amount);set('debit',useDC?det.debit:-1);set('credit',useDC?det.credit:-1);
  document.getElementById('imp-use-partner').checked=true;
@@ -2627,7 +2632,8 @@ async function impLoadFile(input){
 function impBuild(){
  const g=id=>document.getElementById(id);
  const ci=k=>Number(g('imp-col-'+k).value);
- const cDate=ci('date'),cLab=ci('label'),cAmt=ci('amount'),cDeb=ci('debit'),cCre=ci('credit'),cPar=ci('partner'),cId=ci('id');
+ const cDate=ci('date'),cLab=ci('label'),cAmt=ci('amount'),cDeb=ci('debit'),cCre=ci('credit'),cPar=ci('partner'),cId=ci('id'),cCpt=ci('compte');
+ const prefs=g('imp-compte-pref').value.split(/[,;\s]+/).map(x=>x.trim()).filter(Boolean);
  const usePar=g('imp-use-partner').checked,debIn=g('imp-debit-sens').value==='in',since=g('imp-since').value;
  const msg=g('imp-msg');msg.textContent='';
  if(cDate<0||(cAmt<0&&cDeb<0&&cCre<0)){
@@ -2648,6 +2654,7 @@ function impBuild(){
   const rawDate=cell(r,cDate);
   const rawAmts=[cAmt,cDeb,cCre].map(c=>cell(r,c)).join('');
   if(!rawDate&&!rawAmts)return;                    // ligne vide / de continuation (champs liés d'Odoo) : ignorée sans bruit
+  if(cCpt>=0&&prefs.length){const cp=cell(r,cCpt);if(!prefs.some(x=>cp.startsWith(x)))return;}   // lignes de contrepartie (hors banque) ignorées
   const date=impDate(rawDate);
   let amt=null;
   if(cAmt>=0)amt=impNum(r[cAmt]);
@@ -6341,6 +6348,7 @@ function buildGuideHtml(){
   <p>Le bouton ${U('Accéder à Odoo')} ouvre Odoo dans un nouvel onglet. Le lien est modifiable (${U('Modifier le lien')}) : saisissez l'adresse de votre base (par exemple <em>votre-sci.odoo.com</em>) ; il est partagé entre associés.</p>
   <h3>Importer un export Odoo</h3>
   <ol>
+  <p><strong>Export d'écritures comptables (lignes de journal)</strong> : chaque opération y apparaît deux fois, une ligne de banque (compte 512) et une ligne de contrepartie. Si le fichier contient une colonne <em>Compte</em>, l'import ne garde par défaut que les comptes commençant par <strong>512</strong> (la banque) ; le champ « Ne garder que les comptes commençant par » permet de changer ce filtre, ou de le vider pour tout reprendre.</p>
    <li>Dans Odoo, ouvrez la liste des <strong>transactions bancaires</strong>, cochez les lignes, puis ${U('Actions')} → ${U('Exporter')} au format <strong>XLSX</strong> ou <strong>CSV</strong>. Cochez au minimum <strong>Date</strong>, <strong>Libellé</strong> et <strong>Montant</strong> (ou <strong>Débit</strong> et <strong>Crédit</strong>), et idéalement <strong>ID</strong>.</li>
    <li>Dans l'application, cliquez sur ${U('Importer un export Odoo')} et choisissez le fichier. Les colonnes sont reconnues automatiquement (modifiables).</li>
    <li>Vérifiez l'aperçu : chaque ligne a une <strong>catégorie proposée</strong> et un statut <em>Nouvelle</em> ou <em>Déjà présente</em> (décochée). Vous pouvez ignorer ce qui précède une date.</li>
