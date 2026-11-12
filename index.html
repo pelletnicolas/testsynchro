@@ -134,6 +134,7 @@ hr.div{border:none;border-top:0.5px solid var(--border);margin:14px 0}
 .loy-grid th:first-child,.loy-grid td:first-child{min-width:170px}
 .cat-warn{background-color:var(--amber-light);color:var(--amber);box-shadow:0 0 0 1.5px var(--amber)}
 .cat-loyers{background-color:var(--green-light);color:var(--green)}
+.cat-rbst_loyer{background-color:var(--amber-light);color:var(--amber)}
 .cat-loyers_airbnb{background-color:var(--blue-light);color:var(--blue)}
 .cat-loyer_emprunt{background-color:var(--amber-light);color:var(--amber)}
 .cat-depense{background-color:var(--red-light);color:var(--red)}
@@ -1491,6 +1492,7 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Catégorie</label>
  <select id="mv-cat">
  <option value="loyers">Loyers</option>
+ <option value="rbst_loyer">Remboursement surplus loyer</option>
  <option value="loyers_airbnb">Loyers Airbnb</option>
  <option value="autre_produit">Autre produit</option>
  <option value="loyer_emprunt">Remboursement emprunt</option>
@@ -1533,7 +1535,7 @@ canvas{max-width:100%;display:block}
  <div class="modal-title">Détail du loyer</div>
  <div id="ll-info" style="font-size:12.5px;color:var(--text2);margin-bottom:12px;line-height:1.55"></div>
  <div class="fg"><label>Mois couvert par ce virement</label><select id="ll-mois"></select></div>
- <div class="fg"><label>Dont dépôt de garantie (€)</label><input id="ll-depot" type="number" min="0" step="0.01" placeholder="0" oninput="loyerLigneApercu()"></div>
+ <div class="fg" id="ll-depot-fg"><label>Dont dépôt de garantie (€)</label><input id="ll-depot" type="number" min="0" step="0.01" placeholder="0" oninput="loyerLigneApercu()"></div>
  <div id="ll-apercu" style="font-size:12.5px;color:var(--text2);margin-top:6px"></div>
  <div style="font-size:11px;color:var(--text3);line-height:1.55;margin-top:10px">Laissez « Automatique » pour un virement du mois : le mois est lu dans le libellé (« loyer novembre ») ou déduit de la règle « payé d'avance » de la fiche du bien. Le dépôt de garantie est retiré du loyer attendu et de la rentabilité.</div>
  <div class="modal-footer"><button class="btn" onclick="closeModal('modal-loyer-ligne')">Annuler</button><button class="btn btn-primary" onclick="loyerLigneSave()">Enregistrer</button></div>
@@ -1558,7 +1560,7 @@ canvas{max-width:100%;display:block}
  <div class="fg"><label>Objet</label><input id="fac-objet" type="text"></div>
  <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-seule" type="checkbox" onchange="facSeuleToggle()"> Facturer uniquement la refacturation des frais (eau, électricité…), sans loyer ni provisions</label></div>
  <div class="two-col"><div class="fg"><label>Loyer mensuel (€)</label><input id="fac-loyer" type="number" step="0.01" oninput="facTotalMaj()"></div><div class="fg"><label>Provisions sur charges (€)</label><input id="fac-prov" type="number" step="0.01" oninput="facTotalMaj()"></div></div>
- <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-refact-on" type="checkbox" onchange="facTotalMaj()"> Refacturer l'eau / l'électricité avancées par la SCI</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="fac-refact" type="number" step="0.01" placeholder="Montant à refacturer (€)" oninput="facTotalMaj()" style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--text3)">Charges du mois de <input id="fac-refact-ym" type="month"></label></div><div style="font-size:11px;color:var(--text3);margin-top:3px">Les charges sont refacturées avec 2 mois de décalage : le loyer de novembre porte les charges de septembre.</div></div>
+ <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-refact-on" type="checkbox" onchange="facTotalMaj()"> Refacturer l'eau / l'électricité avancées par la SCI</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="fac-refact" type="number" step="0.01" placeholder="Montant à refacturer (€)" oninput="facTotalMaj()" style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--text3)">Charges du mois de <input id="fac-refact-ym" type="month"></label></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:11px;color:var(--text3)">ou plutôt sur une période : du <input id="fac-refact-du" type="date"> au <input id="fac-refact-au" type="date"> <span>(si les deux dates sont renseignées, elles remplacent le mois)</span></div><div style="font-size:11px;color:var(--text3);margin-top:3px">Les charges sont refacturées avec 2 mois de décalage : le loyer de novembre porte les charges de septembre.</div></div>
  <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-depot-on" type="checkbox"> Rappeler le dépôt de garantie versé à la signature : <input id="fac-depot" type="number" step="0.01" style="width:110px"> €</label></div>
  <div id="fac-total" style="background:var(--surface2);border-radius:var(--radius);padding:9px 12px;font-size:13px"></div>
  <div style="font-size:11px;color:var(--text3);line-height:1.5;margin-top:8px">Le montant de la refacturation est mémorisé par mois facturé ; l'objet est reproposé le mois suivant. Pensez à joindre à la facture les justificatifs eau / électricité.</div>
@@ -2560,6 +2562,7 @@ function impGuessCat(lab,amt){
   if(/\b(loyer|locataire|caf|apl|sejour|location)\b/.test(t))return 'loyers';
   return 'autres';
  }
+ if(/\b(rbst|remboursement|rembt|rmbt)\b.*\b(loyer|loyers|surplus|trop|excedent\w*|exedent\w*)\b|\b(surplus|trop percu|excedent\w*|exedent\w*)\b.*\bloyers?\b|\bloyers?\b.*\b(excedent\w*|exedent\w*|surplus)\b/.test(t))return 'rbst_loyer';
  if(/\b(commis|commission|frais|assurance|cotisation|adhesion)\b/.test(t))return 'depense';
  if(/\b(pret|echeance|mensualite|emprunt)\b/.test(t))return 'loyer_emprunt';
  return 'depense';
@@ -2684,7 +2687,7 @@ function impBuild(){
    dup=n<=(exKeyAll.get(k)||0);                                                           // les lignes identiques en plus restent importables
   }
   const cat=impGuessCat(lab,amt);
-  out.push({date,libelle:lab,montant:amt,cat,aff:impGuessAff(lab,cat),oid,inc:!dup,dup});
+  out.push({date,libelle:lab,montant:amt,cat,aff:impGuessAff(lab,cat),oid,inc:!dup,dup,mois:''});
  });
  out.sort((a,b)=>a.date.localeCompare(b.date));
  impState.rows=out;
@@ -2700,7 +2703,7 @@ function impRenderPreview(bad,old){
    <td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${assocEsc(r.libelle)}">${assocEsc(r.libelle)}</td>
    <td style="text-align:right;white-space:nowrap;font-weight:600;color:${r.montant>=0?'var(--green)':'var(--red)'}">${r.montant>=0?'+':''}${euro(r.montant,2)}</td>
    <td><select onchange="impSetCat(${i},this.value)">${mvtCatOptions(r.cat)}</select></td>
-   <td>${r.cat==='apport'?'—':`<select onchange="impSetAff(${i},this.value)">${affOptions(r.aff)}</select>`}</td>
+   <td>${r.cat==='apport'?'—':`<select onchange="impSetAff(${i},this.value)">${affOptions(r.aff)}</select>`}${(r.cat==='loyers'||r.cat==='rbst_loyer')?`<div style="margin-top:3px"><select title="Mois de loyer concerné" onchange="impSetMois(${i},this.value)">${impMoisOptions(r)}</select></div>`:''}</td>
    <td>${r.dup?'<span class="badge badge-warn">Déjà présente</span>':'<span class="badge badge-ok">Nouvelle</span>'}</td>
   </tr>`).join('');
  impState.bad=bad;impState.old=old;impState.truncated=rows.length>LIMIT;
@@ -2727,6 +2730,12 @@ function impSetCat(i,c){
  impRenderPreview(impState.bad,impState.old);
 }
 function impSetAff(i,v){impState.rows[i].aff=v;}
+function impSetMois(i,v){impState.rows[i].mois=v;}
+function impMoisOptions(r){
+ const ym=r.date.slice(0,7),l=[];for(let i=-12;i<=2;i++)l.push(ymAdd(ym,i));
+ if(r.mois&&!l.includes(r.mois))l.push(r.mois);l.sort();
+ return '<option value="">Mois : automatique</option>'+l.map(y=>`<option value="${y}"${r.mois===y?' selected':''}>${gMoisNom(y+'-01')}</option>`).join('');
+}
 function impToggleAll(v){
  impState.rows.forEach(r=>{r.inc=v?!r.dup:false;});   // « tout cocher » ne recoche pas les lignes déjà présentes
  document.querySelectorAll('#imp-body input[type=checkbox]').forEach((cb,i)=>{if(impState.rows[i])cb.checked=impState.rows[i].inc;});
@@ -2743,6 +2752,7 @@ async function impRun(){
   const id='m_'+uid()+'_'+i.toString(36);
   const m={id,date:r.date,libelle:r.libelle,cat:r.cat,montant:r.montant,src:'odoo'};
   if(r.oid)m.odooId=r.oid;
+  if(r.mois&&(r.cat==='loyers'||r.cat==='rbst_loyer'))m.moisLoyer=r.mois;
   if(r.aff&&r.cat!=='apport'&&affValideVal(r.aff))m.aff=r.aff;
   DATA.mouvements[id]=m;batch[id]=m;
   if(r.cat==='apport'){const k=impAssocFromLabel(r.libelle);if(k){if(linkMvt(m,k,pImp)==='cree')autoCree++;else autoRatt++;}}   // associé reconnu dans le libellé
@@ -3215,7 +3225,7 @@ function fdate(s){
  return s;
 }
 // Catégories de la Comptabilité (modifiables ligne par ligne). 'emprunt' et 'autres' = anciennes valeurs, conservées à l'affichage.
-const MVT_CATS=[['loyers','Loyers'],['loyers_airbnb','Loyers Airbnb'],['autre_produit','Autre produit'],['loyer_emprunt','Remboursement emprunt'],['depense','Dépense'],['apport','Compte courant associé']];
+const MVT_CATS=[['loyers','Loyers'],['rbst_loyer','Remboursement surplus loyer'],['loyers_airbnb','Loyers Airbnb'],['autre_produit','Autre produit'],['loyer_emprunt','Remboursement emprunt'],['depense','Dépense'],['apport','Compte courant associé']];
 const MVT_CAT_LEGACY={emprunt:'Déblocage emprunt',autres:'Non classé'};
 function catLabel(c){
  const f=MVT_CATS.find(x=>x[0]===c);
@@ -3737,7 +3747,7 @@ const AFF_COMMUN='commun';
 const AFF_HORS='hors';       // exclue de la rentabilité : acquisition, déblocage de prêt, dépôt de garantie…
 const isAcq=a=>typeof a==='string'&&a.indexOf('acq:')===0;                       // « acq:<id du bien> » : frais d'acquisition rattachés à un bien
 const affValideVal=a=>a===AFF_COMMUN||a===AFF_HORS||!!DATA.biens[a]||(isAcq(a)&&!!DATA.biens[a.slice(4)]);
-const CATS_PRODUIT=['loyers','loyers_airbnb','autre_produit'];
+const CATS_PRODUIT=['loyers','rbst_loyer','loyers_airbnb','autre_produit'];   // rbst_loyer : montant négatif, vient en déduction des loyers
 function bienCoutAchat(b){return (Number(b.prix)||0)+(Number(b.notaire)||0)+(Number(b.courtier)||0)+(Number(b.travaux)||0);}
 function bienNom(b){return b.nom||b.adresse||b.id;}
 // Répartition personnalisée : parts (en %) entre des biens, « Commun SCI » et « Hors rentabilité » — normalisées à 100 %
@@ -3775,6 +3785,7 @@ function impGuessAff(lab,cat){
  for(const r of affRules()){const p=impNorm(r.p);if(p&&t.includes(p)&&affValideVal(r.a))return r.a;}
  if(/\b(notaire|acquisition|deblocage|credit logement|frais de dossier)\b/.test(t))return AFF_HORS;   // paiements d'achat et de financement : hors exploitation
  const biens=biensList();
+ if(cat==='loyers'||cat==='rbst_loyer'){const lt=biens.filter(b=>{const q=impNorm(locNomComplet(b)||'');return q.length>=5&&t.includes(q);});if(lt.length===1)return lt[0].id;}   // nom du locataire dans le libellé
  for(const b of biens)for(const nm of [b.nom,b.adresse]){const q=impNorm(nm||'');if(q.length>=4&&t.includes(q))return b.id;}
  if(biens.length===1)return biens[0].id;
  return '';
@@ -4179,7 +4190,7 @@ function renderTresorerie(){
  const tresorerie=soldes.length?soldes[soldes.length-1].solde:0;
  const apports=mvtsList().filter(m=>m.cat==='apport').reduce((s,m)=>s+Number(m.montant),0);
  const depenses=mvtsList().filter(m=>m.cat==='depense').reduce((s,m)=>s+Number(m.montant),0);
- const loyersStd=mvtsList().filter(m=>m.cat==='loyers').reduce((s,m)=>s+Number(m.montant),0);
+ const loyersStd=mvtsList().filter(m=>m.cat==='loyers'||m.cat==='rbst_loyer').reduce((s,m)=>s+Number(m.montant),0);
  const loyersAir=mvtsList().filter(m=>m.cat==='loyers_airbnb').reduce((s,m)=>s+Number(m.montant),0);
  const loyers=loyersStd+loyersAir;
 
@@ -5131,10 +5142,10 @@ function loyerMoisLigne(m,b){
  const ym=m.date.slice(0,7),seuil=b&&Number(b.loyerAvance)>=1?Number(b.loyerAvance):0;
  return (seuil&&+m.date.slice(8,10)>=seuil)?ymAdd(ym,1):ym;
 }
-const loyerNet=m=>Math.max(0,(Number(m.montant)||0)-(Number(m.depot)||0));            // loyer = virement − dépôt de garantie
+const loyerNet=m=>m.cat==='rbst_loyer'?-Math.abs(Number(m.montant)||0):Math.max(0,(Number(m.montant)||0)-(Number(m.depot)||0));            // loyer = virement − dépôt de garantie
 function loyerOrigine(m,b){return (m.moisLoyer&&/^\d{4}-\d{2}$/.test(m.moisLoyer))?'manuel':(moisDuLibelle(m)?'libellé':((b&&Number(b.loyerAvance)>=1&&+m.date.slice(8,10)>=Number(b.loyerAvance))?'règle du bien':''));}
 function loyerBadges(m){
- if(m.cat!=='loyers'||!(Number(m.montant)>0))return '';
+ if(!((m.cat==='loyers'&&Number(m.montant)>0)||(m.cat==='rbst_loyer'&&Number(m.montant)<0)))return '';
  const a=mvtAff(m),b=DATA.biens[a]||null,ym=loyerMoisLigne(m,b),dec=ym!==m.date.slice(0,7),or=loyerOrigine(m,b);
  return `${dec?` <span class="badge badge-info" style="font-size:10px;padding:1px 7px" title="Mois du loyer couvert par ce virement${or?' ('+or+')':''}">→ ${ymCourt(ym)}</span>`:''}${Number(m.depot)>0?` <span class="badge badge-warn" style="font-size:10px;padding:1px 7px" title="Part du virement qui est un dépôt de garantie, exclue du loyer et de la rentabilité">dont dépôt ${euro(m.depot,0)}</span>`:''} <a href="#" style="font-size:10.5px;color:var(--text3)" onclick="openLoyerLigne('${m.id}');return false">détail du loyer</a>`;
 }
@@ -5148,19 +5159,22 @@ function openLoyerLigne(id){
  document.getElementById('ll-info').innerHTML=`Virement du <strong>${gFr(m.date)}</strong> de <strong>${euro(m.montant,2)}</strong> · ${escH(m.libelle)}${b?' · '+escH(bienNom(b)):' · bien non affecté'}`;
  document.getElementById('ll-mois').innerHTML=`<option value="">Automatique (${gMoisNom(auto+'-01')}${moisDuLibelle(m)?', lu dans le libellé':(b&&Number(b.loyerAvance)>=1?', règle du bien : payé d\'avance à partir du jour '+b.loyerAvance:'')})</option>`+liste.map(y=>`<option value="${y}"${m.moisLoyer===y?' selected':''}>${gMoisNom(y+'-01')}</option>`).join('');
  document.getElementById('ll-depot').value=Number(m.depot)>0?m.depot:'';
+ document.getElementById('ll-depot-fg').style.display=m.cat==='rbst_loyer'?'none':'';
+ document.getElementById('ll-info').innerHTML=document.getElementById('ll-info').innerHTML.replace(/^Virement/,m.cat==='rbst_loyer'?'Remboursement de surplus de loyer':'Virement');
  loyerLigneApercu();openModal('modal-loyer-ligne');
 }
 function loyerLigneApercu(){
  const m=DATA.mouvements[loyerLigneId];if(!m)return;
  const d=Math.max(0,Number(document.getElementById('ll-depot').value)||0),el=document.getElementById('ll-apercu');
+ if(m.cat==='rbst_loyer'){el.innerHTML='Ce remboursement de <strong>'+euro(Math.abs(m.montant),2)+'</strong> vient en déduction du loyer encaissé du mois choisi.';return;}
  el.innerHTML=d>Number(m.montant)?'<span style="color:var(--red)">Le dépôt de garantie ne peut pas dépasser le montant du virement.</span>':`Loyer pris en compte : <strong>${euro(Number(m.montant)-d,2)}</strong>${d>0?' · dépôt de garantie : <strong>'+euro(d,2)+'</strong> (exclu du loyer et de la rentabilité)':''}`;
 }
 async function loyerLigneSave(){
  const m=DATA.mouvements[loyerLigneId];if(!m)return;
  const d=Math.max(0,Number(document.getElementById('ll-depot').value)||0),mois=document.getElementById('ll-mois').value;
- if(d>Number(m.montant)){loyerLigneApercu();return;}
+ if(m.cat!=='rbst_loyer'&&d>Number(m.montant)){loyerLigneApercu();return;}
  if(mois)m.moisLoyer=mois;else delete m.moisLoyer;
- if(d>0)m.depot=d;else delete m.depot;
+ if(m.cat==='rbst_loyer'||!(d>0))delete m.depot;else m.depot=d;
  closeModal('modal-loyer-ligne');renderAll();
  await fbSave('mouvements',{[m.id]:m});showToast('Détail du loyer enregistré');
 }
@@ -5172,7 +5186,7 @@ function loyersSuivi(today){
  const P=loyersParams(),T=today||gToday(),ymNow=T.slice(0,7),jourNow=+T.slice(8,10);
  const biens=biensList().filter(b=>b.modeLocation!=='B'&&b.statut==='Bail signé - loué'&&((Number(b.loyer)||0)+(Number(b.charges)||0))>0);
  const debutCompta=mvtsList().reduce((m,x)=>(!m||x.date<m)?x.date:m,'');
- const lignes=mvtsList().filter(m=>m.cat==='loyers'&&Number(m.montant)>0);
+ const lignes=mvtsList().filter(m=>(m.cat==='loyers'&&Number(m.montant)>0)||(m.cat==='rbst_loyer'&&Number(m.montant)<0));
  const parBien={},auto=[],libres=[];biens.forEach(b=>{parBien[b.id]=[];});
  lignes.forEach(m=>{
   const a=mvtAff(m);
@@ -5293,7 +5307,7 @@ function facDefaut(b,ym,emi){
  const refact=Number((pb.refacts||{})[ym])||0,seule=!!(pb.seules||{})[ym];
  return {bienId:b.id,num:facNumero(b,emi),emi,ym,locataire:locNomComplet(b),adresse:bienAdresseLignes(b).join('\n'),
   seule,objet:seule?FAC_OBJET_SEULE:(typeof pb.objet==='string'&&pb.objet.trim()?pb.objet:facObjetDefaut(b)),
-  loyer:Number(b.loyer)||0,prov:Number(b.charges)||0,refactOn:!!pb.refactOn||refact>0,refact,refactYm:ymAdd(ym,-2),
+  loyer:Number(b.loyer)||0,prov:Number(b.charges)||0,refactOn:!!pb.refactOn||refact>0,refact,refactYm:ymAdd(ym,-2),refactDu:((pb.plages||{})[ym]||{}).du||'',refactAu:((pb.plages||{})[ym]||{}).au||'',
   depotOn:!seule&&Number(b.depot)>0,depot:Number(b.depot)||0};
 }
 function facTotal(f){return Math.round(((f.seule?0:(Number(f.loyer)||0)+(Number(f.prov)||0))+((f.refactOn||f.seule)?(Number(f.refact)||0):0))*100)/100;}
@@ -5311,7 +5325,7 @@ function facHtml(f){
   <table style="width:100%;border:1px solid ${nav}"><thead><tr style="background:${nav};color:#fff"><th style="padding:6px 8px;text-align:left;background:${nav};color:#fff;font-size:11.5px;text-transform:none">Désignation</th><th style="padding:6px 8px;text-align:left;background:${nav};color:#fff;font-size:11.5px;text-transform:none;width:20%">Période</th><th style="padding:6px 8px;text-align:left;background:${nav};color:#fff;font-size:11.5px;text-transform:none;width:17%">Montant</th></tr></thead><tbody>
   ${f.seule?'':`<tr><td style="${cell}">Loyer mensuel — ${E(adr.join(', '))}</td><td style="${cell}">${E(per)}</td><td style="${cell}">${m(f.loyer)}</td></tr>
   <tr><td style="${cell}">Provisions sur charges (régularisation annuelle)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${m(f.prov)}</td></tr>`}
-  ${(f.refactOn||f.seule)?`<tr><td style="${cell}">Refacturation charges eau / électricité de ${E(facMoisLib(f.refactYm||ymAdd(f.ym,-2)).toLowerCase())} (avancées par la SCI pour le compte du locataire)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${Number(f.refact)>0?m(f.refact):''}</td></tr>`:''}
+  ${(f.refactOn||f.seule)?`<tr><td style="${cell}">Refacturation charges eau / électricité ${E(facRefactLib(f))} (avancées par la SCI pour le compte du locataire)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${Number(f.refact)>0?m(f.refact):''}</td></tr>`:''}
   <tr><td style="${cell}"></td><td style="${cell};font-weight:700;text-align:right">Total dû</td><td style="${cell};font-weight:700">${m(facTotal(f))}</td></tr></tbody></table>
   ${(f.refactOn||f.seule)?`<h4>Détail de la refacturation des charges eau / électricité</h4><div>${nl(P.refactTxt)}</div>`:''}
   <h4>Modalités de paiement</h4><div>${f.seule?'Montant payable par virement bancaire, à réception de la facture.':`Loyer payable d'avance, au plus tard le ${P.jour} de chaque mois, par virement bancaire.`}</div>
@@ -5346,22 +5360,23 @@ function facOuvrir(id){
  const f=facDefaut(b,facState.ym,facState.emi),g=i=>document.getElementById(i);
  g('fac-titre').textContent='Facture de loyer — '+bienNom(b);
  g('fac-num').value=f.num;g('fac-emi').value=f.emi;g('fac-per').value=f.ym;g('fac-loc').value=f.locataire;g('fac-logt').value=f.adresse;g('fac-objet').value=f.objet;
- g('fac-loyer').value=f.loyer;g('fac-prov').value=f.prov;g('fac-refact-on').checked=f.refactOn;g('fac-refact').value=f.refact||'';g('fac-refact-ym').value=f.refactYm;
+ g('fac-loyer').value=f.loyer;g('fac-prov').value=f.prov;g('fac-refact-on').checked=f.refactOn;g('fac-refact').value=f.refact||'';g('fac-refact-ym').value=f.refactYm;g('fac-refact-du').value=f.refactDu;g('fac-refact-au').value=f.refactAu;
  g('fac-depot-on').checked=f.depotOn;g('fac-depot').value=f.depot||'';g('fac-seule').checked=f.seule;facSeuleUi();
  facTotalMaj();openModal('modal-facture');
 }
 function facLire(){
  const g=i=>document.getElementById(i);
  return {bienId:facBienId,num:g('fac-num').value.trim(),emi:g('fac-emi').value||gToday(),ym:g('fac-per').value||facState.ym,locataire:g('fac-loc').value.trim(),adresse:g('fac-logt').value.trim(),objet:g('fac-objet').value.trim(),
-  loyer:Number(g('fac-loyer').value)||0,prov:Number(g('fac-prov').value)||0,refactOn:g('fac-refact-on').checked,refact:Number(g('fac-refact').value)||0,depotOn:g('fac-depot-on').checked,depot:Number(g('fac-depot').value)||0,refactYm:g('fac-refact-ym').value||ymAdd(g('fac-per').value||facState.ym,-2),seule:g('fac-seule').checked};
+  loyer:Number(g('fac-loyer').value)||0,prov:Number(g('fac-prov').value)||0,refactOn:g('fac-refact-on').checked,refact:Number(g('fac-refact').value)||0,depotOn:g('fac-depot-on').checked,depot:Number(g('fac-depot').value)||0,refactYm:g('fac-refact-ym').value||ymAdd(g('fac-per').value||facState.ym,-2),seule:g('fac-seule').checked,refactDu:g('fac-refact-du').value,refactAu:g('fac-refact-au').value};
 }
+function facRefactLib(f){if(f.refactDu&&f.refactAu&&f.refactAu>=f.refactDu)return 'de la période du '+gFr(f.refactDu)+' au '+gFr(f.refactAu);return 'de '+facMoisLib(f.refactYm||ymAdd(f.ym,-2)).toLowerCase();}
 function facSeuleUi(){const on=document.getElementById('fac-seule').checked;['fac-loyer','fac-prov','fac-depot-on','fac-depot'].forEach(i=>{document.getElementById(i).disabled=on;});if(on)document.getElementById('fac-refact-on').checked=true;}
 function facSeuleToggle(){const g=i=>document.getElementById(i),on=g('fac-seule').checked,b=DATA.biens[facBienId];facSeuleUi();g('fac-objet').value=on?FAC_OBJET_SEULE:(b?((facParams().biens[b.id]||{}).objet||facObjetDefaut(b)):'');if(on)g('fac-depot-on').checked=false;facTotalMaj();}
 function facSetSeule(id,v){const P=facParams();const pb=P.biens[id]=Object.assign({},P.biens[id]);pb.seules=Object.assign({},pb.seules);if(v)pb.seules[facState.ym]=true;else delete pb.seules[facState.ym];facSaveParams(P);renderLoyers();}
 function facTotalMaj(){const f=facLire();document.getElementById('fac-total').innerHTML='Total dû : <strong>'+euro(facTotal(f),2)+'</strong>';}
 function facGenererUne(mail){
  const f=facLire();if(!f.num){showToast('Indiquez un numéro de facture');return;}
- const P=facParams();const pb=P.biens[f.bienId]=Object.assign({},P.biens[f.bienId],f.seule?{}:{objet:f.objet,refactOn:f.refactOn});pb.refacts=Object.assign({},pb.refacts);pb.seules=Object.assign({},pb.seules);if(f.seule)pb.seules[f.ym]=true;else delete pb.seules[f.ym];if(f.refact>0)pb.refacts[f.ym]=f.refact;else delete pb.refacts[f.ym];facSaveParams(P);
+ const P=facParams();const pb=P.biens[f.bienId]=Object.assign({},P.biens[f.bienId],f.seule?{}:{objet:f.objet,refactOn:f.refactOn});pb.refacts=Object.assign({},pb.refacts);pb.seules=Object.assign({},pb.seules);if(f.seule)pb.seules[f.ym]=true;else delete pb.seules[f.ym];pb.plages=Object.assign({},pb.plages);if(f.refactDu&&f.refactAu&&f.refactAu>=f.refactDu)pb.plages[f.ym]={du:f.refactDu,au:f.refactAu};else delete pb.plages[f.ym];if(f.refact>0)pb.refacts[f.ym]=f.refact;else delete pb.refacts[f.ym];facSaveParams(P);
  closeModal('modal-facture');renderLoyers();if(mail){const b=DATA.biens[f.bienId];if(b)facMailOuvrirModal(b,f);}else facImprimer([f]);
 }
 
@@ -5371,13 +5386,13 @@ function facMailTexte(b,f){
  const P=facParams(),m=v=>euro(v,2).replace(/[  ]/g,' ');
  const moisL=gMoisNom(f.ym+'-01'),jr=String(P.jour).padStart(2,'0');
  const ech=P.jour+(P.jour===1?'er ':' ')+gMoisNom(f.ym+'-01');
- const refactOk=f.refactOn&&Number(f.refact)>0,mc=gMoisNom((f.refactYm||ymAdd(f.ym,-2))+'-01');
+ const refactOk=f.refactOn&&Number(f.refact)>0,mc=(f.refactDu&&f.refactAu&&f.refactAu>=f.refactDu)?'la période du '+gFr(f.refactDu)+' au '+gFr(f.refactAu):gMoisNom((f.refactYm||ymAdd(f.ym,-2))+'-01');
  const v={prenom:b.locatairePrenom||b.locataire||'Madame, Monsieur',mois:moisL,num:f.num,adresse:bienAdresseComplete(b),total:m(facTotal(f)),loyer:m(f.loyer),prov:m(f.prov),
   refact:refactOk?m(f.refact):'',moisCharges:mc,echeance:ech,bien:bienNom(b),sci:P.nom,
   ligneRefact:refactOk?"Cette facture comprend la refacturation des charges d'eau et d'électricité de "+mc+" ("+m(f.refact)+"), justificatifs joints.\n":''};
  if(f.seule){v.total=m(facTotal(f));}
  const rempl=t=>String(t).replace(/\{(\w+)\}/g,(x,k)=>k in v?v[k]:x).replace(/\n{3,}/g,'\n\n');
- if(f.seule)return {to:b.email||'',objet:'Refacturation de charges '+mc+' — '+bienNom(b),corps:`Bonjour ${v.prenom},\n\nVeuillez trouver ci-joint la facture n° ${f.num} relative à la refacturation des charges d'eau et d'électricité de ${mc} pour le logement situé ${v.adresse}, d'un montant de ${v.total}, justificatifs joints.\n\nMerci de bien vouloir procéder au règlement par virement bancaire aux coordonnées indiquées sur la facture.\n\nNous restons à votre disposition pour toute question.\n\nCordialement,\nLa gérance de la ${P.nom}`};
+ if(f.seule)return {to:b.email||'',objet:'Refacturation de charges '+mc.replace(/^la période /,'')+' — '+bienNom(b),corps:`Bonjour ${v.prenom},\n\nVeuillez trouver ci-joint la facture n° ${f.num} relative à la refacturation des charges d'eau et d'électricité de ${mc} pour le logement situé ${v.adresse}, d'un montant de ${v.total}, justificatifs joints.\n\nMerci de bien vouloir procéder au règlement par virement bancaire aux coordonnées indiquées sur la facture.\n\nNous restons à votre disposition pour toute question.\n\nCordialement,\nLa gérance de la ${P.nom}`};
  return {to:b.email||'',objet:rempl(P.mailObjet),corps:rempl(P.mailCorps)};
 }
 function facMailOuvrirModal(b,f){
@@ -6334,6 +6349,7 @@ function buildGuideHtml(){
   <ul><li><strong>Numéro</strong> : <em>année-mois-rang</em>, par exemple 2026-09-001. L'année et le mois sont ceux de la <strong>date d'émission</strong> ; le rang est la position du bien dans la liste des biens (001 pour le premier). Le numéro reste donc le même pour un bien d'un mois à l'autre ; il peut être modifié dans la fenêtre de la facture.</li>
   <li>La colonne <strong>Refact. eau / élec.</strong> permet de saisir le montant à refacturer au locataire, <strong>avec 2 mois de décalage</strong> : sur la facture de loyer de novembre, on refacture les charges de septembre (la ligne de la facture le précise). Le montant est mémorisé pour chaque mois facturé. Le paragraphe de détail de la refacturation est alors ajouté à la facture (pensez à joindre les justificatifs).</li>
   <li><strong>Refacturation seule</strong> : cochez la case de la colonne <em>Refact. seule</em> (ou, dans la fenêtre de la facture, « Facturer uniquement la refacturation des frais ») pour établir une facture qui ne porte que sur l'eau / l'électricité, sans loyer ni provisions. Saisissez le montant dans la colonne <em>Refact. eau / élec.</em> ; l'objet, le texte et l'e-mail s'adaptent automatiquement.</li>
+  <li><strong>Plage de dates</strong> : dans la fenêtre de la facture, sous le montant à refacturer, vous pouvez indiquer une période « du … au … » à la place du mois (par exemple du 1er septembre au 31 octobre). La facture et l'e-mail mentionnent alors « la période du … au … ».</li>
   <li>Le bouton <em>Facture…</em> ouvre une fenêtre pour ajuster une facture (locataire, adresse, objet, montants, rappel du dépôt de garantie) puis génère le PDF ; <em>Toutes les factures du mois</em> produit un PDF unique, une facture par page. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF ».</li>
   <li><strong>Envoi par e-mail</strong> : le bouton <em>✉ Envoyer…</em> prépare un message prérédigé (objet et texte) qui s'adapte à la facture : prénom du locataire, mois, numéro, adresse, montants, échéance de paiement et, s'il y a lieu, la phrase sur la refacturation des charges. L'adresse du destinataire vient de la fiche du bien. Vous gardez la main : vous générez le PDF, ouvrez le message dans votre messagerie, joignez le PDF, relisez et envoyez vous-même, puis cliquez sur <em>Marquer comme envoyée</em> (la mention reste visible dans le tableau). Le texte type se modifie dans <em>Coordonnées de la SCI</em>. L'application n'envoie jamais de message toute seule.</li>
   <li><strong>Avoirs</strong> : la carte <em>Avoirs</em>, sous les factures, permet d'émettre un avoir (par exemple quand un locataire a viré un montant trop élevé). Choisissez le bien puis <em>+ Nouvel avoir</em> : numéro AV-AAAA-NNN, motif, facture concernée (facultatif), montant, et mode de règlement (remboursé par virement ou déduit de la prochaine facture). Le PDF et l'e-mail fonctionnent comme pour les factures, avec validation de votre part avant envoi. Les avoirs sont enregistrés et partagés entre associés ; ils peuvent être modifiés ou supprimés.</li>
@@ -6356,6 +6372,7 @@ function buildGuideHtml(){
   <p>Le bouton ${U('Accéder à Odoo')} ouvre Odoo dans un nouvel onglet. Le lien est modifiable (${U('Modifier le lien')}) : saisissez l'adresse de votre base (par exemple <em>votre-sci.odoo.com</em>) ; il est partagé entre associés.</p>
   <h3>Importer un export Odoo</h3>
   <ol>
+  <p><strong>Remboursement de surplus de loyer</strong> : quand un locataire a payé trop et que vous lui reversez la différence, choisissez la catégorie <em>Remboursement surplus loyer</em> pour la ligne de sortie (elle est proposée automatiquement si le libellé contient « remboursement » et « loyer » ou « excédent »). Comme pour un loyer, une liste <em>Mois</em> permet de choisir le mois concerné. Le remboursement vient en déduction du loyer encaissé de ce mois dans la feuille <em>Loyers</em>, dans la comptabilité et dans la rentabilité du bien. Le mois d'une ligne déjà importée se modifie depuis le détail mois par mois de la page Loyers.</p>
   <p><strong>Export d'écritures comptables (lignes de journal)</strong> : chaque opération y apparaît deux fois, une ligne de banque (compte 512) et une ligne de contrepartie. Si le fichier contient une colonne <em>Compte</em>, l'import ne garde par défaut que les comptes commençant par <strong>512</strong> (la banque) ; le champ « Ne garder que les comptes commençant par » permet de changer ce filtre, ou de le vider pour tout reprendre.</p>
    <li>Dans Odoo, ouvrez la liste des <strong>transactions bancaires</strong>, cochez les lignes, puis ${U('Actions')} → ${U('Exporter')} au format <strong>XLSX</strong> ou <strong>CSV</strong>. Cochez au minimum <strong>Date</strong>, <strong>Libellé</strong> et <strong>Montant</strong> (ou <strong>Débit</strong> et <strong>Crédit</strong>), et idéalement <strong>ID</strong>.</li>
    <li>Dans l'application, cliquez sur ${U('Importer un export Odoo')} et choisissez le fichier. Les colonnes sont reconnues automatiquement (modifiables).</li>
