@@ -1556,6 +1556,7 @@ canvas{max-width:100%;display:block}
  <div class="two-col"><div class="fg"><label>Période concernée</label><input id="fac-per" type="month" onchange="document.getElementById('fac-refact-ym').value=ymAdd(this.value||facState.ym,-2);facDefMontant()"></div><div class="fg"><label>Locataire</label><input id="fac-loc" type="text"></div></div>
  <div class="fg"><label>Logement loué (adresse, une ligne pour la rue et une pour le code postal et la ville)</label><textarea id="fac-logt" rows="2" style="width:100%;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:inherit;font-size:13px"></textarea></div>
  <div class="fg"><label>Objet</label><input id="fac-objet" type="text"></div>
+ <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-seule" type="checkbox" onchange="facSeuleToggle()"> Facturer uniquement la refacturation des frais (eau, électricité…), sans loyer ni provisions</label></div>
  <div class="two-col"><div class="fg"><label>Loyer mensuel (€)</label><input id="fac-loyer" type="number" step="0.01" oninput="facTotalMaj()"></div><div class="fg"><label>Provisions sur charges (€)</label><input id="fac-prov" type="number" step="0.01" oninput="facTotalMaj()"></div></div>
  <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-refact-on" type="checkbox" onchange="facTotalMaj()"> Refacturer l'eau / l'électricité avancées par la SCI</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="fac-refact" type="number" step="0.01" placeholder="Montant à refacturer (€)" oninput="facTotalMaj()" style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--text3)">Charges du mois de <input id="fac-refact-ym" type="month"></label></div><div style="font-size:11px;color:var(--text3);margin-top:3px">Les charges sont refacturées avec 2 mois de décalage : le loyer de novembre porte les charges de septembre.</div></div>
  <div class="fg"><label style="display:flex;gap:6px;align-items:center"><input id="fac-depot-on" type="checkbox"> Rappeler le dépôt de garantie versé à la signature : <input id="fac-depot" type="number" step="0.01" style="width:110px"> €</label></div>
@@ -5286,15 +5287,16 @@ function facObjetDefaut(b){
   if(b.dateFinBail&&b.dateFinBail>b.dateEntree){const n=Math.round((new Date(b.dateFinBail)-new Date(b.dateEntree))/86400000/30.4375);if(n>=1)t+=', durée '+n+' mois';}}
  return t;
 }
+const FAC_OBJET_SEULE="refacturation de charges (eau, électricité…)";
 function facDefaut(b,ym,emi){
  const P=facParams(),pb=P.biens[b.id]||{};
- const refact=Number((pb.refacts||{})[ym])||0;
+ const refact=Number((pb.refacts||{})[ym])||0,seule=!!(pb.seules||{})[ym];
  return {bienId:b.id,num:facNumero(b,emi),emi,ym,locataire:locNomComplet(b),adresse:bienAdresseLignes(b).join('\n'),
-  objet:typeof pb.objet==='string'&&pb.objet.trim()?pb.objet:facObjetDefaut(b),
+  seule,objet:seule?FAC_OBJET_SEULE:(typeof pb.objet==='string'&&pb.objet.trim()?pb.objet:facObjetDefaut(b)),
   loyer:Number(b.loyer)||0,prov:Number(b.charges)||0,refactOn:!!pb.refactOn||refact>0,refact,refactYm:ymAdd(ym,-2),
-  depotOn:Number(b.depot)>0,depot:Number(b.depot)||0};
+  depotOn:!seule&&Number(b.depot)>0,depot:Number(b.depot)||0};
 }
-function facTotal(f){return Math.round(((Number(f.loyer)||0)+(Number(f.prov)||0)+(f.refactOn?(Number(f.refact)||0):0))*100)/100;}
+function facTotal(f){return Math.round(((f.seule?0:(Number(f.loyer)||0)+(Number(f.prov)||0))+((f.refactOn||f.seule)?(Number(f.refact)||0):0))*100)/100;}
 function facHtml(f){
  const P=facParams(),E=escH,logo=(document.querySelector('#login-overlay picture img')||{}).src||'';
  const nl=t=>E(t).replace(/\n/g,'<br>'),adrL=P.adresse.split('\n').map(x=>x.trim()).filter(Boolean),adr=facAdr(f.adresse),per=facMoisLib(f.ym),m=v=>euro(v,2);
@@ -5307,12 +5309,12 @@ function facHtml(f){
   <td style="padding:8px 12px"><div style="font-weight:700;color:${nav}">LOCATAIRE</div><div style="margin-top:6px">${E(f.locataire||'—')}</div><div style="margin-top:4px">Logement loué :</div>${adr.map(x=>`<div>${E(x)}</div>`).join('')}</td></tr></table>
   <p style="margin:14px 0 8px"><strong>Objet : ${E(f.objet)}</strong></p>
   <table style="width:100%;border:1px solid ${nav}"><thead><tr style="background:${nav};color:#fff"><th style="padding:6px 8px;text-align:left;background:${nav};color:#fff;font-size:11.5px;text-transform:none">Désignation</th><th style="padding:6px 8px;text-align:left;background:${nav};color:#fff;font-size:11.5px;text-transform:none;width:20%">Période</th><th style="padding:6px 8px;text-align:left;background:${nav};color:#fff;font-size:11.5px;text-transform:none;width:17%">Montant</th></tr></thead><tbody>
-  <tr><td style="${cell}">Loyer mensuel — ${E(adr.join(', '))}</td><td style="${cell}">${E(per)}</td><td style="${cell}">${m(f.loyer)}</td></tr>
-  <tr><td style="${cell}">Provisions sur charges (régularisation annuelle)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${m(f.prov)}</td></tr>
-  ${f.refactOn?`<tr><td style="${cell}">Refacturation charges eau / électricité de ${E(facMoisLib(f.refactYm||ymAdd(f.ym,-2)).toLowerCase())} (avancées par la SCI pour le compte du locataire)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${Number(f.refact)>0?m(f.refact):''}</td></tr>`:''}
+  ${f.seule?'':`<tr><td style="${cell}">Loyer mensuel — ${E(adr.join(', '))}</td><td style="${cell}">${E(per)}</td><td style="${cell}">${m(f.loyer)}</td></tr>
+  <tr><td style="${cell}">Provisions sur charges (régularisation annuelle)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${m(f.prov)}</td></tr>`}
+  ${(f.refactOn||f.seule)?`<tr><td style="${cell}">Refacturation charges eau / électricité de ${E(facMoisLib(f.refactYm||ymAdd(f.ym,-2)).toLowerCase())} (avancées par la SCI pour le compte du locataire)</td><td style="${cell}">${E(per)}</td><td style="${cell}">${Number(f.refact)>0?m(f.refact):''}</td></tr>`:''}
   <tr><td style="${cell}"></td><td style="${cell};font-weight:700;text-align:right">Total dû</td><td style="${cell};font-weight:700">${m(facTotal(f))}</td></tr></tbody></table>
-  ${f.refactOn?`<h4>Détail de la refacturation des charges eau / électricité</h4><div>${nl(P.refactTxt)}</div>`:''}
-  <h4>Modalités de paiement</h4><div>Loyer payable d'avance, au plus tard le ${P.jour} de chaque mois, par virement bancaire.</div>
+  ${(f.refactOn||f.seule)?`<h4>Détail de la refacturation des charges eau / électricité</h4><div>${nl(P.refactTxt)}</div>`:''}
+  <h4>Modalités de paiement</h4><div>${f.seule?'Montant payable par virement bancaire, à réception de la facture.':`Loyer payable d'avance, au plus tard le ${P.jour} de chaque mois, par virement bancaire.`}</div>
   ${P.iban||P.bic?`<div>${P.iban?'IBAN : '+E(P.iban):''}${P.iban&&P.bic?' — ':''}${P.bic?'BIC : '+E(P.bic):''}</div>`:''}
   <div>Titulaire du compte : ${E(P.titulaire)}</div>
   <p style="margin:12px 0 0;font-size:10.5px">${E(P.tva)}${f.depotOn&&Number(f.depot)>0?'<br>Dépôt de garantie versé à la signature du bail : '+m(f.depot)+'.':''}</p>
@@ -5345,18 +5347,21 @@ function facOuvrir(id){
  g('fac-titre').textContent='Facture de loyer — '+bienNom(b);
  g('fac-num').value=f.num;g('fac-emi').value=f.emi;g('fac-per').value=f.ym;g('fac-loc').value=f.locataire;g('fac-logt').value=f.adresse;g('fac-objet').value=f.objet;
  g('fac-loyer').value=f.loyer;g('fac-prov').value=f.prov;g('fac-refact-on').checked=f.refactOn;g('fac-refact').value=f.refact||'';g('fac-refact-ym').value=f.refactYm;
- g('fac-depot-on').checked=f.depotOn;g('fac-depot').value=f.depot||'';
+ g('fac-depot-on').checked=f.depotOn;g('fac-depot').value=f.depot||'';g('fac-seule').checked=f.seule;facSeuleUi();
  facTotalMaj();openModal('modal-facture');
 }
 function facLire(){
  const g=i=>document.getElementById(i);
  return {bienId:facBienId,num:g('fac-num').value.trim(),emi:g('fac-emi').value||gToday(),ym:g('fac-per').value||facState.ym,locataire:g('fac-loc').value.trim(),adresse:g('fac-logt').value.trim(),objet:g('fac-objet').value.trim(),
-  loyer:Number(g('fac-loyer').value)||0,prov:Number(g('fac-prov').value)||0,refactOn:g('fac-refact-on').checked,refact:Number(g('fac-refact').value)||0,depotOn:g('fac-depot-on').checked,depot:Number(g('fac-depot').value)||0,refactYm:g('fac-refact-ym').value||ymAdd(g('fac-per').value||facState.ym,-2)};
+  loyer:Number(g('fac-loyer').value)||0,prov:Number(g('fac-prov').value)||0,refactOn:g('fac-refact-on').checked,refact:Number(g('fac-refact').value)||0,depotOn:g('fac-depot-on').checked,depot:Number(g('fac-depot').value)||0,refactYm:g('fac-refact-ym').value||ymAdd(g('fac-per').value||facState.ym,-2),seule:g('fac-seule').checked};
 }
+function facSeuleUi(){const on=document.getElementById('fac-seule').checked;['fac-loyer','fac-prov','fac-depot-on','fac-depot'].forEach(i=>{document.getElementById(i).disabled=on;});if(on)document.getElementById('fac-refact-on').checked=true;}
+function facSeuleToggle(){const g=i=>document.getElementById(i),on=g('fac-seule').checked,b=DATA.biens[facBienId];facSeuleUi();g('fac-objet').value=on?FAC_OBJET_SEULE:(b?((facParams().biens[b.id]||{}).objet||facObjetDefaut(b)):'');if(on)g('fac-depot-on').checked=false;facTotalMaj();}
+function facSetSeule(id,v){const P=facParams();const pb=P.biens[id]=Object.assign({},P.biens[id]);pb.seules=Object.assign({},pb.seules);if(v)pb.seules[facState.ym]=true;else delete pb.seules[facState.ym];facSaveParams(P);renderLoyers();}
 function facTotalMaj(){const f=facLire();document.getElementById('fac-total').innerHTML='Total dû : <strong>'+euro(facTotal(f),2)+'</strong>';}
 function facGenererUne(mail){
  const f=facLire();if(!f.num){showToast('Indiquez un numéro de facture');return;}
- const P=facParams();const pb=P.biens[f.bienId]=Object.assign({},P.biens[f.bienId],{objet:f.objet,refactOn:f.refactOn});pb.refacts=Object.assign({},pb.refacts);if(f.refact>0)pb.refacts[f.ym]=f.refact;else delete pb.refacts[f.ym];facSaveParams(P);
+ const P=facParams();const pb=P.biens[f.bienId]=Object.assign({},P.biens[f.bienId],f.seule?{}:{objet:f.objet,refactOn:f.refactOn});pb.refacts=Object.assign({},pb.refacts);pb.seules=Object.assign({},pb.seules);if(f.seule)pb.seules[f.ym]=true;else delete pb.seules[f.ym];if(f.refact>0)pb.refacts[f.ym]=f.refact;else delete pb.refacts[f.ym];facSaveParams(P);
  closeModal('modal-facture');renderLoyers();if(mail){const b=DATA.biens[f.bienId];if(b)facMailOuvrirModal(b,f);}else facImprimer([f]);
 }
 
@@ -5370,7 +5375,9 @@ function facMailTexte(b,f){
  const v={prenom:b.locatairePrenom||b.locataire||'Madame, Monsieur',mois:moisL,num:f.num,adresse:bienAdresseComplete(b),total:m(facTotal(f)),loyer:m(f.loyer),prov:m(f.prov),
   refact:refactOk?m(f.refact):'',moisCharges:mc,echeance:ech,bien:bienNom(b),sci:P.nom,
   ligneRefact:refactOk?"Cette facture comprend la refacturation des charges d'eau et d'électricité de "+mc+" ("+m(f.refact)+"), justificatifs joints.\n":''};
+ if(f.seule){v.total=m(facTotal(f));}
  const rempl=t=>String(t).replace(/\{(\w+)\}/g,(x,k)=>k in v?v[k]:x).replace(/\n{3,}/g,'\n\n');
+ if(f.seule)return {to:b.email||'',objet:'Refacturation de charges '+mc+' — '+bienNom(b),corps:`Bonjour ${v.prenom},\n\nVeuillez trouver ci-joint la facture n° ${f.num} relative à la refacturation des charges d'eau et d'électricité de ${mc} pour le logement situé ${v.adresse}, d'un montant de ${v.total}, justificatifs joints.\n\nMerci de bien vouloir procéder au règlement par virement bancaire aux coordonnées indiquées sur la facture.\n\nNous restons à votre disposition pour toute question.\n\nCordialement,\nLa gérance de la ${P.nom}`};
  return {to:b.email||'',objet:rempl(P.mailObjet),corps:rempl(P.mailCorps)};
 }
 function facMailOuvrirModal(b,f){
@@ -5468,14 +5475,14 @@ function facturesCard(){
  const yms=[];for(let i=-3;i<=2;i++)yms.push(ymAdd(gToday().slice(0,7),i));if(!yms.includes(facState.ym))yms.push(facState.ym);yms.sort();
  const lignes=l.map(b=>{
   const f=facDefaut(b,facState.ym,facState.emi),env=P.envois[b.id+'|'+facState.ym];
-  return `<tr><td>${E(bienNom(b))}</td><td>${E(locNomComplet(b)||'—')}</td><td style="white-space:nowrap">${E(f.num)}</td><td style="text-align:right">${euro(f.loyer,2)}</td><td style="text-align:right">${euro(f.prov,2)}</td><td style="text-align:right"><input type="number" min="0" step="0.01" value="${f.refact||''}" placeholder="0" style="width:80px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);text-align:right" onchange="facSetRefact('${b.id}',this.value)"></td><td style="text-align:right;font-weight:600">${euro(facTotal(f),2)}</td><td><button class="btn btn-sm" onclick="facOuvrir('${b.id}')">Facture…</button></td><td style="white-space:nowrap">${env?`<span style="color:var(--green);font-size:11.5px">✓ envoyée le ${gFr(env.date)}</span> <a style="cursor:pointer;color:var(--text3);font-size:11px" onclick="facEnvoiAnnuler('${b.id}')" title="Annuler la mention d'envoi">✕</a>`:`<button class="btn btn-sm" onclick="facMailDepuisLigne('${b.id}')">✉ Envoyer…</button>`}</td></tr>`;
+  return `<tr><td>${E(bienNom(b))}</td><td>${E(locNomComplet(b)||'—')}</td><td style="white-space:nowrap">${E(f.num)}</td><td style="text-align:right">${euro(f.loyer,2)}</td><td style="text-align:right">${euro(f.prov,2)}</td><td style="text-align:right"><input type="number" min="0" step="0.01" value="${f.refact||''}" placeholder="0" style="width:80px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);text-align:right" onchange="facSetRefact('${b.id}',this.value)"></td><td style="text-align:center"><input type="checkbox" ${f.seule?'checked':''} title="Facturer uniquement la refacturation des frais" onchange="facSetSeule('${b.id}',this.checked)"></td><td style="text-align:right;font-weight:600">${euro(facTotal(f),2)}</td><td><button class="btn btn-sm" onclick="facOuvrir('${b.id}')">Facture…</button></td><td style="white-space:nowrap">${env?`<span style="color:var(--green);font-size:11.5px">✓ envoyée le ${gFr(env.date)}</span> <a style="cursor:pointer;color:var(--text3);font-size:11px" onclick="facEnvoiAnnuler('${b.id}')" title="Annuler la mention d'envoi">✕</a>`:`<button class="btn btn-sm" onclick="facMailDepuisLigne('${b.id}')">✉ Envoyer…</button>`}</td></tr>`;
  }).join('');
  return `<div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><div><div style="font-weight:600;font-size:14px">Factures de loyer</div><div style="font-size:12px;color:var(--text3)">N° AAAA-MM-NNN : année et mois d'émission, puis rang du bien dans la liste des biens. Loyer et provisions viennent de la fiche du bien.</div></div><button class="btn btn-sm" onclick="facReglagesOuvrir()">⚙ Coordonnées de la SCI</button></div>
  ${(!P.iban)?'<div class="note" style="margin-bottom:10px;line-height:1.5">Renseignez l\'IBAN et le BIC de la SCI dans « Coordonnées de la SCI » pour qu\'ils figurent sur les factures.</div>':''}
  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px"><label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Période facturée<select id="fac-g-ym" onchange="facSetPeriode()" style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)">${yms.map(y=>`<option value="${y}"${y===facState.ym?' selected':''}>${facMoisLib(y)}</option>`).join('')}</select></label>
  <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--text3)">Date d'émission<input id="fac-g-emi" type="date" value="${facState.emi}" onchange="facSetPeriode()" style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text)"></label>
  <button class="btn btn-primary btn-sm" onclick="facToutes()"${l.length?'':' disabled'}>Toutes les factures du mois (PDF)</button></div>
- ${l.length?`<div style="overflow-x:auto"><table class="jtable" style="font-size:12px"><thead><tr><th>Bien</th><th>Locataire</th><th>N°</th><th style="text-align:right">Loyer</th><th style="text-align:right">Provisions</th><th style="text-align:right">Refact. eau / élec. (M-2)</th><th style="text-align:right">Total</th><th></th><th>E-mail</th></tr></thead><tbody>${lignes}</tbody></table></div>`:'<div style="font-size:12px;color:var(--text3)">Aucun bien loué avec un loyer renseigné : renseignez le statut « Bail signé - loué » et le loyer dans la fiche du bien.</div>'}</div>`;
+ ${l.length?`<div style="overflow-x:auto"><table class="jtable" style="font-size:12px"><thead><tr><th>Bien</th><th>Locataire</th><th>N°</th><th style="text-align:right">Loyer</th><th style="text-align:right">Provisions</th><th style="text-align:right">Refact. eau / élec. (M-2)</th><th title="Facturer uniquement la refacturation des frais">Refact. seule</th><th style="text-align:right">Total</th><th></th><th>E-mail</th></tr></thead><tbody>${lignes}</tbody></table></div>`:'<div style="font-size:12px;color:var(--text3)">Aucun bien loué avec un loyer renseigné : renseignez le statut « Bail signé - loué » et le loyer dans la fiche du bien.</div>'}</div>`;
 }
 function loyersRelance(id){
  const S=loyersSuivi(),r=S.biens.find(x=>x.b.id===id);if(!r)return;
@@ -6326,6 +6333,7 @@ function buildGuideHtml(){
   <p>Sur la même page ${U('Loyers')}, la carte <strong>Factures de loyer</strong> établit les factures mensuelles au modèle de la SCI (en-tête avec logo, bailleur, locataire, désignation, total dû, modalités de paiement, mention de TVA). Choisissez la <strong>période facturée</strong> et la <strong>date d'émission</strong> : l'application liste les biens loués en longue durée avec leur loyer et leurs provisions sur charges, lus dans la fiche du bien. Renseignez aussi dans la fiche l'<strong>adresse</strong>, le <strong>code postal</strong> et la <strong>ville</strong> du logement, ainsi que le <strong>nom</strong> et le <strong>prénom</strong> du locataire : ils figurent sur la facture et sur les relances.</p>
   <ul><li><strong>Numéro</strong> : <em>année-mois-rang</em>, par exemple 2026-09-001. L'année et le mois sont ceux de la <strong>date d'émission</strong> ; le rang est la position du bien dans la liste des biens (001 pour le premier). Le numéro reste donc le même pour un bien d'un mois à l'autre ; il peut être modifié dans la fenêtre de la facture.</li>
   <li>La colonne <strong>Refact. eau / élec.</strong> permet de saisir le montant à refacturer au locataire, <strong>avec 2 mois de décalage</strong> : sur la facture de loyer de novembre, on refacture les charges de septembre (la ligne de la facture le précise). Le montant est mémorisé pour chaque mois facturé. Le paragraphe de détail de la refacturation est alors ajouté à la facture (pensez à joindre les justificatifs).</li>
+  <li><strong>Refacturation seule</strong> : cochez la case de la colonne <em>Refact. seule</em> (ou, dans la fenêtre de la facture, « Facturer uniquement la refacturation des frais ») pour établir une facture qui ne porte que sur l'eau / l'électricité, sans loyer ni provisions. Saisissez le montant dans la colonne <em>Refact. eau / élec.</em> ; l'objet, le texte et l'e-mail s'adaptent automatiquement.</li>
   <li>Le bouton <em>Facture…</em> ouvre une fenêtre pour ajuster une facture (locataire, adresse, objet, montants, rappel du dépôt de garantie) puis génère le PDF ; <em>Toutes les factures du mois</em> produit un PDF unique, une facture par page. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF ».</li>
   <li><strong>Envoi par e-mail</strong> : le bouton <em>✉ Envoyer…</em> prépare un message prérédigé (objet et texte) qui s'adapte à la facture : prénom du locataire, mois, numéro, adresse, montants, échéance de paiement et, s'il y a lieu, la phrase sur la refacturation des charges. L'adresse du destinataire vient de la fiche du bien. Vous gardez la main : vous générez le PDF, ouvrez le message dans votre messagerie, joignez le PDF, relisez et envoyez vous-même, puis cliquez sur <em>Marquer comme envoyée</em> (la mention reste visible dans le tableau). Le texte type se modifie dans <em>Coordonnées de la SCI</em>. L'application n'envoie jamais de message toute seule.</li>
   <li><strong>Avoirs</strong> : la carte <em>Avoirs</em>, sous les factures, permet d'émettre un avoir (par exemple quand un locataire a viré un montant trop élevé). Choisissez le bien puis <em>+ Nouvel avoir</em> : numéro AV-AAAA-NNN, motif, facture concernée (facultatif), montant, et mode de règlement (remboursé par virement ou déduit de la prochaine facture). Le PDF et l'e-mail fonctionnent comme pour les factures, avec validation de votre part avant envoi. Les avoirs sont enregistrés et partagés entre associés ; ils peuvent être modifiés ou supprimés.</li>
